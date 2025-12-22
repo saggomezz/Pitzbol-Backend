@@ -1,77 +1,67 @@
-import { Request, Response } from "express";
-import { db } from "../config/firebase";
-import bcrypt from "bcryptjs";
-import { generateToken } from "../utils/generateToken";
+// src/controllers/auth.controller.ts
+import { Request, Response } from 'express';
+import { db, auth } from '../config/firebase';
+import axios from 'axios';
 
-export const registerUser = async (req: Request, res: Response) => {
-  try {
-    const { nombre, apellidos, nacionalidad, telefono, correo, password } = req.body;
+// Pon tu API KEY aquí o mejor aún en un archivo .env
+const FIREBASE_WEB_API_KEY = "TU_WEB_API_KEY_DE_FIREBASE_CONSOLE";
 
-    // Validar que no exista un usuario con ese email
-    const existing = await db
-      .collection("usuarios")
-      .where("correo", "==", correo)
-      .get();
+export const register = async (req: Request, res: Response) => {
+    try {
+        const { email, password, nombre, apellido, telefono, nacionalidad } = req.body;
 
-    if (!existing.empty) {
-      return res.status(400).json({ error: "El correo ya está registrado" });
+        // 1. Crear usuario en Auth (Email/Pass)
+        const userRecord = await auth.createUser({
+            email,
+            password,
+            displayName: `${nombre} ${apellido}`
+        });
+
+        // 2. Guardar datos adicionales en Firestore
+        await db.collection('usuarios').doc(userRecord.uid).set({
+            nombre,
+            apellido,
+            email,
+            telefono,
+            nacionalidad,
+            createdAt: new Date().toISOString(),
+            role: 'user'
+        });
+
+        res.status(201).json({ msg: 'Usuario creado', uid: userRecord.uid });
+
+    } catch (error: any) {
+        res.status(500).json({ msg: 'Error al registrar', error: error.message });
     }
-
-    const hashedPassword = await bcrypt.hash(password, 10);
-
-    const newUserRef = await db.collection("usuarios").add({
-      nombre,
-      apellidos,
-      nacionalidad,
-      telefono,
-      correo,
-      password: hashedPassword,
-    });
-
-    const token = generateToken(newUserRef.id);
-
-    res.status(201).json({
-      message: "Usuario registrado correctamente",
-      uid: newUserRef.id,
-      token,
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
 };
 
-export const loginUser = async (req: Request, res: Response) => {
-  try {
-    const { correo, password } = req.body;
+export const login = async (req: Request, res: Response) => {
+    try {
+        const { email, password } = req.body;
 
-    const snapshot = await db
-      .collection("usuarios")
-      .where("correo", "==", correo)
-      .get();
+        // Usamos la API REST de Google para verificar el password
+        const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_WEB_API_KEY}`;
+        
+        const response = await axios.post(url, {
+            email,
+            password,
+            returnSecureToken: true
+        });
 
-    // EXTRA: destructuración limpia para evitar que TS marque undefined
-    const [userDoc] = snapshot.docs;
+        // Retornamos el token y datos del usuario
+        res.json({
+            token: response.data.idToken,
+            email: response.data.email,
+            uid: response.data.localId
+        });
 
-    if (!userDoc) {
-      return res.status(404).json({ error: "Usuario no encontrado" });
+    } catch (error: any) {
+        // Manejo básico de errores de credenciales
+        const msg = error.response?.data?.error?.message || error.message;
+        if (msg === 'EMAIL_NOT_FOUND' || msg === 'INVALID_PASSWORD') {
+             res.status(401).json({ msg: 'Credenciales inválidas' });
+             return; // Importante poner return para detener ejecución
+        }
+        res.status(500).json({ msg: 'Error en login', error: msg });
     }
-
-    const userData = userDoc.data();
-
-    const validPassword = await bcrypt.compare(password, userData.password);
-
-    if (!validPassword) {
-      return res.status(403).json({ error: "Contraseña incorrecta" });
-    }
-
-    const token = generateToken(userDoc.id);
-
-    res.json({
-      message: "Inicio de sesión exitoso",
-      uid: userDoc.id,
-      token,
-    });
-  } catch (err: any) {
-    res.status(500).json({ error: err.message });
-  }
 };

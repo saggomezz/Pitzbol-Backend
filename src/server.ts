@@ -1,14 +1,18 @@
-import express from "express";
-import cors from "cors";
-import authRoutes from "./routes/auth.routes";
+import express from 'express';
+import cors from 'cors';
+import authRoutes from './routes/auth.routes';
 
 const app = express();
+const PORT = process.env.PORT || 3000;
 
-app.use(cors());
-app.use(express.json());
+// Middlewares
+app.use(cors()); // Permite conexión desde tu Frontend
+app.use(express.json()); // Permite leer JSON
 
-app.use("/api/auth", authRoutes);
+// Rutas
+app.use('/api/auth', authRoutes);
 
-app.listen(4000, () => {
-  console.log("Servidor backend en puerto 4000");
+// Iniciar servidor
+app.listen(PORT, () => {
+    console.log(`Servidor corriendo en http://localhost:${PORT}`);
 });
