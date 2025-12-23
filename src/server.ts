@@ -3,16 +3,28 @@ import cors from 'cors';
 import authRoutes from './routes/auth.routes';
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 3001;
 
-// Middlewares
-app.use(cors()); // Permite conexión desde tu Frontend
-app.use(express.json()); // Permite leer JSON
+app.use(cors());
+app.use(express.json());
 
-// Rutas
+// (Middleware)
+app.use((req, res, next) => {
+    console.log(`📢 Petición recibida: [${req.method}] ${req.url}`);
+    next();
+});
+// ------------------------------------------------
+
 app.use('/api/auth', authRoutes);
 
-// Iniciar servidor
+app.get('/', (req, res) => {
+    res.send(`
+        <h1>¡El Backend de Pitzbol está vivo! ⚽️</h1>
+        <p>El servidor está corriendo correctamente.</p>
+        <p>Usa los endpoints en <code>/api/auth/login</code> o <code>/api/auth/register</code></p>
+    `);
+});
+
 app.listen(PORT, () => {
-    console.log(`Servidor corriendo en http://localhost:${PORT}`);
+    console.log(`🚀 Servidor corriendo en http://localhost:${PORT}`);
 });

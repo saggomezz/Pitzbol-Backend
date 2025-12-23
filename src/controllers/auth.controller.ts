@@ -4,7 +4,7 @@ import { db, auth } from '../config/firebase';
 import axios from 'axios';
 
 // Pon tu API KEY aquí o mejor aún en un archivo .env
-const FIREBASE_WEB_API_KEY = "TU_WEB_API_KEY_DE_FIREBASE_CONSOLE";
+const FIREBASE_WEB_API_KEY = "AIzaSyA9gGWAse4hO2Kq3mbkUY-pN7EoiJLSatw";
 
 export const register = async (req: Request, res: Response) => {
     try {
@@ -31,6 +31,7 @@ export const register = async (req: Request, res: Response) => {
         res.status(201).json({ msg: 'Usuario creado', uid: userRecord.uid });
 
     } catch (error: any) {
+        console.error("ERROR EN REGISTRO:", error);
         res.status(500).json({ msg: 'Error al registrar', error: error.message });
     }
 };
@@ -56,6 +57,7 @@ export const login = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
+        console.error("ERROR EN LOGIN:", error);
         // Manejo básico de errores de credenciales
         const msg = error.response?.data?.error?.message || error.message;
         if (msg === 'EMAIL_NOT_FOUND' || msg === 'INVALID_PASSWORD') {
