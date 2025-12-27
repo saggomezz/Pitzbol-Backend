@@ -29,10 +29,10 @@ export const register = async (req: Request, res: Response) => {
         });
 
         res.status(201).json({ msg: 'Usuario creado', uid: userRecord.uid });
-
+    // En auth.controller.ts, dentro del catch del login:
     } catch (error: any) {
-        console.error("ERROR EN REGISTRO:", error);
-        res.status(500).json({ msg: 'Error al registrar', error: error.message });
+        console.log("DETALLE DEL ERROR DE GOOGLE:", error.response?.data);
+        // ... resto del código
     }
 };
 
