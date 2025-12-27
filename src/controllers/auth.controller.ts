@@ -10,9 +10,8 @@ if (!FIREBASE_WEB_API_KEY || !JWT_SECRET) {
   throw new Error("Faltan variables de entorno (JWT o Firebase API KEY)");
 }
 
-/* =========================
-   REGISTER
-========================= */
+
+//REGISTRO DE USUARIO
 export const register = async (req: Request, res: Response) => {
   try {
     const { email, password, nombre, apellido, telefono, nacionalidad } = req.body;
