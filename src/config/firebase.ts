@@ -1,14 +1,26 @@
-// src/config/firebase.ts
-import * as admin from 'firebase-admin';
-import * as path from 'path';
+import admin from "firebase-admin";
 
-// Opción A: Usando require si tienes el JSON (tienes que habilitar "resolveJsonModule": true en tsconfig)
-const serviceAccount = require('../../serviceAccountKey.json'); 
+const {
+  FIREBASE_PROJECT_ID,
+  FIREBASE_CLIENT_EMAIL,
+  FIREBASE_PRIVATE_KEY,
+} = process.env;
 
-admin.initializeApp({
-  credential: admin.credential.cert(serviceAccount)
-});
+if (!FIREBASE_PROJECT_ID || !FIREBASE_CLIENT_EMAIL || !FIREBASE_PRIVATE_KEY) {
+  throw new Error("Faltan variables de entorno de Firebase");
+}
+
+if (!admin.apps.length) {
+  admin.initializeApp({
+    credential: admin.credential.cert({
+      projectId: FIREBASE_PROJECT_ID,
+      clientEmail: FIREBASE_CLIENT_EMAIL,
+      privateKey: FIREBASE_PRIVATE_KEY.replace(/\\n/g, "\n"),
+    }),
+  });
+}
 
 export const db = admin.firestore();
 export const auth = admin.auth();
-console.log("Firebase Admin conectado");
+
+console.log("🔥 Firebase Admin conectado");
