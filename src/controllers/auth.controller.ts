@@ -96,14 +96,85 @@ export const login = async (req: Request, res: Response) => {
     });
 
   } catch (error: any) {
-    console.error("ERROR EN LOGIN:", error);
+  // Log detallado para debug
+  const firebaseError = error.response?.data?.error;
 
-    const msg = error.response?.data?.error?.message || error.message;
+  console.error("🔥 ERROR EN LOGIN (Firebase):", {
+    status: error.response?.status,
+    message: firebaseError?.message,
+    fullError: firebaseError,
+  });
 
-    if (msg === "EMAIL_NOT_FOUND" || msg === "INVALID_PASSWORD") {
-      return res.status(401).json({ msg: "Credenciales inválidas" });
+  const code = firebaseError?.message;
+
+  // Errores controlados de Firebase Auth
+  if (
+    code === "EMAIL_NOT_FOUND" ||
+    code === "INVALID_PASSWORD" ||
+    code === "INVALID_LOGIN_CREDENTIALS"
+  ) {
+    return res.status(401).json({
+      msg: "Credenciales inválidas",
+    });
+  }
+
+  if (code === "USER_DISABLED") {
+    return res.status(403).json({
+      msg: "Usuario deshabilitado",
+    });
+  }
+
+  if (code === "OPERATION_NOT_ALLOWED") {
+    return res.status(500).json({
+      msg: "Login por email/password no habilitado en Firebase",
+    });
+  }
+
+  if (code === "API_KEY_INVALID") {
+    return res.status(500).json({
+      msg: "API KEY de Firebase inválida",
+    });
+  }
+
+  // Error no controlado
+  return res.status(500).json({
+    msg: "Error interno en login",
+    error: code || error.message,
+  });
+}
+
+  
+  
+};
+
+// Recuperar contraseña
+export const recoverPassword = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ msg: "El correo es obligatorio" });
     }
 
-    res.status(500).json({ msg: "Error en login", error: msg });
+    // Genera el link oficial de Firebase
+    const resetLink = await auth.generatePasswordResetLink(email, {
+      url: "http://localhost:3000/login", // cambia en producción
+    });
+
+    // Envio por correo
+    console.log("🔐 Password reset link:", resetLink);
+
+    // Respuesta genérica (seguridad)
+    return res.json({
+      msg: "Si el correo existe, se enviará un enlace de recuperación",
+    });
+
+  } catch (error) {
+    // NO revelar si el correo existe
+    return res.json({
+      msg: "Si el correo existe, se enviará un enlace de recuperación",
+    });
   }
-};
+  
+}
+ 
