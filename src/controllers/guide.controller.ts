@@ -32,13 +32,11 @@ export const registerGuide = async (req: Request, res: Response) => {
     }
 };
 
-// NUEVA FUNCIÓN PARA LOS TOURS DEL CATÁLOGO
 export const addTourToGuide = async (req: Request, res: Response) => {
     try {
         const { guideId, titulo, duracion, precio, maxPersonas } = req.body;
 
-        // Validación de campos obligatorios en el servidor
-        if (!titulo || !duracion || !precio || !maxPersonas) {
+        if (!guideId || !titulo || !duracion || !precio || !maxPersonas) {
             return res.status(400).json({ message: 'Todos los campos son obligatorios' });
         }
 
@@ -48,17 +46,23 @@ export const addTourToGuide = async (req: Request, res: Response) => {
                           .doc(guideId)
                           .collection('tours_publicados');
 
-        await tourRef.add({
+        const nuevoTour = {
             titulo,
-            duracion,
-            // Guardamos el precio como número para facilitar cálculos futuros
-            precio: parseFloat(precio.replace(/[^0-9.]/g, '')), 
-            maxPersonas: parseInt(maxPersonas),
+            duracion: Number(duracion),
+            precio: typeof precio === 'string' ? parseFloat(precio.replace(/[^0-9.]/g, '')) : precio,
+            maxPersonas: Number(maxPersonas),
             createdAt: new Date().toISOString()
-        });
+        };
 
-        res.status(201).json({ message: 'Tour añadido al catálogo' });
+        const docAdded = await tourRef.add(nuevoTour);
+
+        return res.status(201).json({ 
+            message: 'Tour publicado con éxito', 
+            id: docAdded.id,
+            tour: nuevoTour 
+        });
     } catch (error) {
-        res.status(500).json({ message: 'Error al guardar tour', error });
+        console.error("Error al añadir tour:", error);
+        return res.status(500).json({ message: 'Error interno del servidor' });
     }
 };

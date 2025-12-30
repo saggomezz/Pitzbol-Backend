@@ -1,9 +1,9 @@
-// src/routes/guide.routes.ts
 import { Router } from 'express';
-import { registerGuide } from '../controllers/guide.controller';
+import { registerGuide, addTourToGuide } from '../controllers/guide.controller';
 
 const router = Router();
 
 router.post('/register-guide', registerGuide);
+router.post('/add-tour', addTourToGuide); // <--- Agrega esta línea
 
 export default router;
