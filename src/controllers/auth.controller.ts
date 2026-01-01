@@ -134,6 +134,9 @@ export const login = async (req: Request, res: Response) => {
         // Adaptamos los nombres según el esquema (Turista o Guía)
         nombre: userData.nombre || userData["01_nombre"],
         apellido: userData.apellido || userData["02_apellido"],
+        telefono: userData.telefono || "",
+        nacionalidad: userData.nacionalidad || "",
+        especialidades: userData.especialidades || userData["07_especialidades"] || [],
       },
     });
 
@@ -204,5 +207,72 @@ export const recoverPassword = async (req: Request, res: Response) => {
   } catch (error) {
     console.error("Error en recoverPassword:", error);
     return res.json({ msg: "Error al procesar la solicitud" });
+  }
+};
+
+export const updateProfile = async (req: Request, res: Response) => {
+  try {
+    const { uid, telefono, nacionalidad, especialidades } = req.body;
+
+    if (!uid) {
+      return res.status(400).json({ msg: "UID requerido" });
+    }
+
+    // Construir objeto de actualización solo con campos presentes
+    const updateData: any = {};
+    if (telefono !== undefined) updateData.telefono = telefono;
+    if (nacionalidad !== undefined) updateData.nacionalidad = nacionalidad;
+    if (especialidades !== undefined) updateData.especialidades = especialidades;
+
+    // Si se actualiza teléfono, validar que sea único (SIN ÍNDICE COMPUESTO)
+    if (telefono) {
+      const categorias = ["turistas", "guias", "admins", "negocios"];
+      
+      for (const cat of categorias) {
+        // PASO 1: Buscar todos con ese teléfono
+        const querySnapshot = await db.collection("usuarios")
+          .doc(cat)
+          .collection("lista")
+          .where("telefono", "==", telefono)
+          .get();
+
+        // PASO 2: Filtrar en JavaScript (evita índice compuesto)
+        const duplicados = querySnapshot.docs.filter(doc => doc.data().uid !== uid);
+        
+        if (duplicados.length > 0) {
+          return res.status(400).json({ msg: "Este teléfono ya está registrado" });
+        }
+      }
+    }
+
+    // Buscar documento del usuario en todas las categorías
+    const categorias = ["turistas", "guias", "admins", "negocios"];
+    let documentoActualizado = false;
+
+    for (const cat of categorias) {
+      const querySnapshot = await db.collection("usuarios")
+        .doc(cat)
+        .collection("lista")
+        .where("uid", "==", uid)
+        .limit(1)
+        .get();
+
+      if (!querySnapshot.empty && querySnapshot.docs[0]) {
+        const docRef = querySnapshot.docs[0].ref;
+        await docRef.update(updateData);
+        documentoActualizado = true;
+        break;
+      }
+    }
+
+    if (!documentoActualizado) {
+      return res.status(404).json({ msg: "Usuario no encontrado" });
+    }
+
+    res.json({ msg: "Perfil actualizado correctamente", data: updateData });
+
+  } catch (error: any) {
+    console.error("Error en updateProfile:", error);
+    res.status(500).json({ msg: "Error interno del servidor", error: error.message });
   }
 };
