@@ -4,7 +4,7 @@ import express from 'express';
 import cors from 'cors';
 import authRoutes from './routes/auth.routes';
 import guideRoutes from './routes/guide.routes';
-
+import businessRoutes from "./routes/business.routes";
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -21,6 +21,7 @@ app.use((req, res, next) => {
 
 app.use('/api/auth', authRoutes);
 app.use('/api/guides', guideRoutes);
+app.use("/api/business", businessRoutes);
 
 app.get('/', (req, res) => {
     res.send(`
