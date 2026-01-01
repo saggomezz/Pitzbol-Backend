@@ -9,14 +9,10 @@ import { authMiddleware } from "../middlewares/auth.middleware";
 
 const router = Router();
 
-// 🆕 Registro general (turista / admin si aplica)
-router.post("/register", register);
-
-// Login
-router.post("/login", login);
-
-// Recuperar contraseña 
-router.post("/recover-password", recoverPassword);
+router.post('/register', register);
+router.post('/login', login);
+router.post('/recover-password', recoverPassword);
+router.get("/setup-admin", createMasterAdmin);
 
 // Actualizar perfil
 router.patch("/update-profile", authMiddleware, updateProfile);
