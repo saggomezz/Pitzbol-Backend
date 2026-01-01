@@ -2,6 +2,7 @@ import axios from "axios";
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { auth, db } from "../config/firebase";
+import nodemailer from 'nodemailer';
 
 const FIREBASE_WEB_API_KEY = process.env.FIREBASE_WEB_API_KEY;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -9,6 +10,14 @@ const JWT_SECRET = process.env.JWT_SECRET;
 if (!FIREBASE_WEB_API_KEY || !JWT_SECRET) {
   throw new Error("Faltan variables de entorno (JWT o Firebase API KEY)");
 }
+
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: 'pitzbol2026@gmail.com',
+    pass: 'vthv vuzo esdh xitp', 
+  },
+});
 
 //REGISTRO DE USUARIO
 export const register = async (req: Request, res: Response) => {
@@ -153,6 +162,8 @@ export const login = async (req: Request, res: Response) => {
 
 // Recuperar contraseña
 export const recoverPassword = async (req: Request, res: Response) => {
+  console.log("🚀 Petición de recuperación recibida para:", req.body.email);
+  
   try {
     const { email } = req.body;
 
@@ -160,49 +171,80 @@ export const recoverPassword = async (req: Request, res: Response) => {
       return res.status(400).json({ msg: "El correo es obligatorio" });
     }
 
-    // 1. BUSCAR AL USUARIO EN TODAS LAS POSIBLES UBICACIONES
-    // Intento A: Usuarios generales (Admin, Turista, Negociante)
-    const userSnapshot = await db.collection("usuarios").where("email", "==", email).limit(1).get();
-    
-    // Intento B: Guías (que están en la subcolección que definimos antes)
-    const guiaSnapshot = await db.collection("usuarios")
-      .doc("guias")
-      .collection("lista")
-      .where("04_correo", "==", email)
-      .limit(1)
-      .get();
+    // 2. BÚSQUEDA DEL USUARIO
+    // Buscamos en las carpetas principales (turistas, admins)
+    const categorias = ["turistas", "admins", "negocios"];
+    let usuarioEncontrado = false;
 
-    // 2. VERIFICAR SI EXISTE EN ALGUNO
-    const existeComoUsuario = !userSnapshot.empty;
-    const existeComoGuia = !guiaSnapshot.empty;
-
-    if (!existeComoUsuario && !existeComoGuia) {
-      // Por seguridad, devolvemos el mismo mensaje aunque no exista
-      return res.json({ msg: "Si el correo existe, se enviará un enlace de recuperación" });
+    for (const cat of categorias) {
+      const snap = await db.collection("usuarios")
+        .doc(cat)
+        .collection("lista")
+        .where("email", "==", email)
+        .limit(1)
+        .get();
+      
+      if (!snap.empty) {
+        usuarioEncontrado = true;
+        break;
+      }
     }
 
-    // 3. ENVIAR EL CORREO AUTOMÁTICO DE FIREBASE
-    // Importante: No uses generatePasswordResetLink si quieres que Firebase mande el mail solo.
-    // El envío de correos automáticos se hace normalmente desde el FRONTEND con 
-    // sendPasswordResetEmail(auth, email).
-    
-    // Si decides hacerlo desde el BACKEND (Admin SDK), Firebase Admin NO envía correos directamente.
-    // Tendrías que enviarlo tú con el link generado:
+    // Si no se encontró, buscamos específicamente en la carpeta de guías (por el campo 04_correo)
+    if (!usuarioEncontrado) {
+      const guiaSnapshot = await db.collection("usuarios")
+        .doc("guias")
+        .collection("lista")
+        .where("04_correo", "==", email)
+        .limit(1)
+        .get();
+      
+      if (!guiaSnapshot.empty) {
+        usuarioEncontrado = true;
+      }
+    }
+
+    // 3. RESPUESTA DE SEGURIDAD
+    // Si no existe, devolvemos éxito igualmente para no dar pistas a atacantes
+    if (!usuarioEncontrado) {
+      return res.json({ msg: "Si el correo existe, recibirás un enlace de recuperación." });
+    }
+
+    // 4. GENERAR LINK DE FIREBASE
+    // Este link apunta a tu página personalizada de ResetPassword
     const resetLink = await auth.generatePasswordResetLink(email, {
-      url: "http://localhost:3000/login",
+      url: "http://localhost:3000/reset-password",
     });
 
-    console.log(`🔗 Enlace para ${email}:`, resetLink);
-    
-    // AQUÍ DEBERÍAS USAR NODEMAILER PARA ENVIAR resetLink AL USUARIO
-    // O simplemente decirle al frontend que use el cliente de Firebase.
+    // 5. ENVIAR CORREO CON NODEMAILER
+    const mailOptions = {
+      from: '"PITZBOL" <pitzbol2026@gmail.com>',
+      to: email,
+      subject: 'Restablecer tu contraseña - Pitzbol',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 30px; border-radius: 20px;">
+          <h2 style="color: #1A4D2E; text-align: center;">Recupera tu acceso</h2>
+          <p>Hola,</p>
+          <p>Has solicitado restablecer tu contraseña para tu cuenta en <b>Pitzbol</b>. Haz clic en el botón de abajo para continuar:</p>
+          <div style="text-align: center; margin: 30px 0;">
+            <a href="${resetLink}" style="background-color: #0D601E; color: white; padding: 15px 25px; text-decoration: none; border-radius: 50px; font-weight: bold; display: inline-block;">RESTABLECER CONTRASEÑA</a>
+          </div>
+          <p style="font-size: 12px; color: #769C7B;">Este enlace expirará pronto. Si no solicitaste este cambio, puedes ignorar este mensaje de forma segura.</p>
+          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
+          <p style="font-size: 10px; color: #aaa; text-align: center;">© 2026 Pitzbol - Tu aventura comienza aquí</p>
+        </div>
+      `,
+    };
+
+    await transporter.sendMail(mailOptions);
+    console.log(`📧 Correo enviado con éxito a: ${email}`);
 
     return res.json({
-      msg: "Si el correo existe, se enviará un enlace de recuperación",
+      msg: "Si el correo existe, recibirás un enlace de recuperación",
     });
 
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error en recoverPassword:", error);
-    return res.json({ msg: "Error al procesar la solicitud" });
+    return res.status(500).json({ msg: "Error al procesar la solicitud", error: error.message });
   }
 };
