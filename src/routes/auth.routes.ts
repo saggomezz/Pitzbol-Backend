@@ -6,6 +6,7 @@ import {
   updateProfile,
 } from "../controllers/auth.controller";
 import { authMiddleware } from "../middlewares/auth.middleware";
+import { createMasterAdmin } from "../controllers/admin.controller";
 
 const router = Router();
 
