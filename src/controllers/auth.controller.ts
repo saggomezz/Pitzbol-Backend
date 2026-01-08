@@ -11,7 +11,6 @@ if (!FIREBASE_WEB_API_KEY || !JWT_SECRET) {
   throw new Error("Faltan variables de entorno (JWT o Firebase API KEY)");
 }
 
-// esto es para la cuenta de correo de pitzbol envie correos
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -25,7 +24,6 @@ export const register = async (req: Request, res: Response) => {
   try {
     const { email, password, nombre, apellido, telefono, nacionalidad, role } = req.body;
 
-    // 1. Crear usuario en Firebase Auth
     const userRecord = await auth.createUser({
       email,
       password,
@@ -118,6 +116,8 @@ export const login = async (req: Request, res: Response) => {
         }
     }
 
+    const especialidadesUnificadas = userData.especialidades || userData["07_especialidades"] || [];
+
     const token = jwt.sign(
       { uid: localId, email, role: userRole },
       JWT_SECRET!,
@@ -132,12 +132,13 @@ export const login = async (req: Request, res: Response) => {
         role: userRole,
         nombre: userData.nombre || userData["01_nombre"],
         apellido: userData.apellido || userData["02_apellido"],
-        telefono: userData.telefono || "",
+        telefono: userData.telefono || userData["06_telefono"] || "",
         nacionalidad: userData.nacionalidad || "",
-        especialidades: userData.especialidades || userData["07_especialidades"] || [],
+        especialidades: especialidadesUnificadas,
+        "07_especialidades": especialidadesUnificadas,
+        guide_status: userData.solicitudStatus || userData.status || (userRole === "guia" ? "aprobado" : "ninguno")
       },
     });
-
   } catch (error: any) {
     const firebaseError = error.response?.data?.error;
     const code = firebaseError?.message;
@@ -163,7 +164,6 @@ export const recoverPassword = async (req: Request, res: Response) => {
       return res.status(400).json({ msg: "El correo es obligatorio" });
     }
 
-    // 2. BÚSQUEDA DEL USUARIO
     const categorias = ["turistas", "admins", "negocios"];
     let usuarioEncontrado = false;
 
@@ -181,7 +181,6 @@ export const recoverPassword = async (req: Request, res: Response) => {
       }
     }
 
-    // Si no se encontró, buscamos específicamente en la carpeta de guías (por el campo 04_correo)
     if (!usuarioEncontrado) {
       const guiaSnapshot = await db.collection("usuarios")
         .doc("guias")
@@ -203,7 +202,6 @@ export const recoverPassword = async (req: Request, res: Response) => {
       url: "http://localhost:3000/reset-password",
     });
 
-    // ENVIAR CORREO CON NODEMAILER
     const mailOptions = {
       from: '"PITZBOL" <pitzbol2026@gmail.com>',
       to: email,
@@ -244,25 +242,20 @@ export const updateProfile = async (req: Request, res: Response) => {
       return res.status(400).json({ msg: "UID requerido" });
     }
 
-    // Construir objeto de actualización solo con campos presentes
     const updateData: any = {};
     if (telefono !== undefined) updateData.telefono = telefono;
     if (nacionalidad !== undefined) updateData.nacionalidad = nacionalidad;
     if (especialidades !== undefined) updateData.especialidades = especialidades;
-
-    // Si se actualiza teléfono, validar que sea único (SIN ÍNDICE COMPUESTO)
     if (telefono) {
       const categorias = ["turistas", "guias", "admins", "negocios"];
       
       for (const cat of categorias) {
-        // PASO 1: Buscar todos con ese teléfono
         const querySnapshot = await db.collection("usuarios")
           .doc(cat)
           .collection("lista")
           .where("telefono", "==", telefono)
           .get();
 
-        // PASO 2: Filtrar en JavaScript (evita índice compuesto)
         const duplicados = querySnapshot.docs.filter(doc => doc.data().uid !== uid);
         
         if (duplicados.length > 0) {
@@ -271,7 +264,6 @@ export const updateProfile = async (req: Request, res: Response) => {
       }
     }
 
-    // Buscar documento del usuario en todas las categorías
     const categorias = ["turistas", "guias", "admins", "negocios"];
     let documentoActualizado = false;
 
