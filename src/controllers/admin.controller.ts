@@ -32,7 +32,6 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
     const { uid, accion, motivoRechazo } = req.body;
 
     try {
-        // Referencia a la carpeta de pendientes
         const pendienteRef = db.collection('usuarios').doc('guias').collection('pendientes').doc(uid);
         const docPendiente = await pendienteRef.get();
 
@@ -43,30 +42,24 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
         const data = docPendiente.data();
 
         if (accion === 'aprobar') {
-            // 1. Extraemos los nombres correctos de los campos con prefijo
             const nombre = data?.["01_nombre"] || "Sin";
             const apellido = data?.["02_apellido"] || "Nombre";
-            
-            // 2. Creamos el ID amigable
             const customId = `${nombre}_${apellido}`.replace(/\s+/g, '_');
 
-            // 3. Guardamos en 'lista' con el nuevo ID
             await db.collection('usuarios')
                 .doc('guias')
                 .collection('lista')
-                .doc(customId) // <-- Aquí se asigna el nombre_apellido como ID del doc
+                .doc(customId) 
                 .set({
                     ...data,
-                    "03_rol": "guia", // Actualizamos el rol
+                    "03_rol": "guia", 
                     status: 'activo',
                     guide_status: 'aprobado',
                     approvedAt: new Date().toISOString()
                 });
 
-            // B. Actualizar claims de Firebase Auth (para seguridad de rutas)
             await auth.setCustomUserClaims(uid, { role: 'guia' });
 
-            // C. Actualizar perfil de turista original
             const turistaQuery = await db.collection("usuarios")
                 .doc("turistas")
                 .collection("lista")
@@ -85,7 +78,6 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
                 }
             }
 
-            // D. Borrar de la carpeta de pendientes
             await pendienteRef.delete();
             
             return res.json({ success: true, message: "Guía aprobado y movido a la lista oficial" });
@@ -99,8 +91,8 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
                 .get();
 
             if (!turistaQuery.empty) {
-                const docTurista = turistaQuery.docs[0]; // Obtenemos el primer documento
-                if (docTurista && docTurista.exists) {   // Verificamos que realmente exista
+                const docTurista = turistaQuery.docs[0];
+                if (docTurista && docTurista.exists) {   
                     await docTurista.ref.update({ 
                         role: accion === 'aprobar' ? "guia" : "turista",
                         guide_status: accion === 'aprobar' ? "aprobado" : "ninguno",
@@ -108,7 +100,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
                     });
                 }
             }
-            await pendienteRef.delete(); // Limpiamos la solicitud rechazada
+            await pendienteRef.delete(); 
             return res.json({ success: true, message: "Solicitud rechazada. El usuario vuelve a ser Turista." });
         }
     } catch (error: any) {
