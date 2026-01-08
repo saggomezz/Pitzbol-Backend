@@ -11,6 +11,7 @@ if (!FIREBASE_WEB_API_KEY || !JWT_SECRET) {
   throw new Error("Faltan variables de entorno (JWT o Firebase API KEY)");
 }
 
+// esto es para la cuenta de correo de pitzbol envie correos
 const transporter = nodemailer.createTransport({
   service: 'gmail',
   auth: {
@@ -21,126 +22,114 @@ const transporter = nodemailer.createTransport({
 
 //REGISTRO DE USUARIO
 export const register = async (req: Request, res: Response) => {
-  
   try {
     const { email, password, nombre, apellido, telefono, nacionalidad, role } = req.body;
 
-    // 1. Crear usuario en Firebase Auth (Genera el UID oficial)
+    // 1. Crear usuario en Firebase Auth
     const userRecord = await auth.createUser({
       email,
       password,
       displayName: `${nombre} ${apellido}`,
     });
 
-    // 2. Definir el rol dinámico
-    // Si desde el frontend mandas "admin", "negociante" o "turista", se guardará ese.
-    // Si no se manda nada, por defecto será "turista".
-    const finalRole = role || "turista";
+    const aspiracion = role || "turista"; 
+    const carpetaMaestra = "turistas"; 
 
-  const customId = `${nombre}_${apellido}`.replace(/\s+/g, '_');
-    // 3. Guardar en Firestore usando el UID como ID del documento
-    // Esto crea el documento en la raíz 'usuarios/' que viste en tu consola
-  await db.collection("usuarios")
-    .doc("turistas")       // Carpeta Maestra
-    .collection("lista")   // Subcolección
-    .doc(customId)
-    .set({
-      uid: userRecord.uid,
-      nombre,
-      apellido,
-      email,
-      telefono,
-      nacionalidad,
-      role: finalRole,
-      createdAt: new Date().toISOString(),
-    });
+    const apellidoStr = apellido ? `_${apellido}` : "";
+    const customId = `${nombre}${apellidoStr}`.replace(/\s+/g, '_').toLowerCase();
 
-    // 4. Respuesta al Frontend
+    await db.collection("usuarios")
+      .doc("turistas") 
+      .collection("lista")   
+      .doc(customId)
+      .set({
+        uid: userRecord.uid,
+        nombre,
+        apellido: apellido || "",
+        email,
+        telefono: telefono || "",
+        nacionalidad: nacionalidad || "",
+        role: "turista", 
+        solicitudStatus: (aspiracion === "guia") ? "pendiente" : "ninguno",
+        tipoAspirante: aspiracion, 
+        createdAt: new Date().toISOString(),
+      });
+
     res.status(201).json({
       msg: "Usuario creado correctamente",
       user: {
         uid: userRecord.uid,
         email,
         nombre,
-        role: finalRole
+        role: "turista", 
+        solicitudStatus: (aspiracion === "guia" || aspiracion === "negocio") ? "pendiente" : "ninguno"
       }
     });
 
   } catch (error: any) {
-    console.error("🔥 ERROR DETALLADO EN REGISTRO:", error);
-    
-    // Manejo de errores comunes de Firebase
+    console.error("ERROR DETALLADO EN REGISTRO:", error);
     if (error.code === 'auth/email-already-exists') {
         return res.status(400).json({ msg: "El correo ya está registrado en Pitzbol" });
     }
-    if (error.code === 'auth/invalid-password') {
-        return res.status(400).json({ msg: "La contraseña debe tener al menos 6 caracteres" });
-    }
-    
     res.status(500).json({ msg: "Error interno al registrar", error: error.message });
   }
 };
 
-/* =========================
-   LOGIN + JWT
-========================= */
+// LOGIN + JWT 
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
 
-    // 1. Validar credenciales con Firebase (Obtenemos el localId/UID)
     const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_WEB_API_KEY}`;
     const response = await axios.post(url, { email, password, returnSecureToken: true });
     const { localId } = response.data;
-
-    // 2. Variables para almacenar los datos encontrados
+    
     let userData: any = null;
     let userRole: string = "";
 
-    // --- AQUÍ VA EL BLOQUE QUE ME PASASTE (CON CORRECCIONES) ---
-    const categorias = ["turistas", "guias", "admins", "negocios"];
+    const categorias = ["turistas", "admins", "negocios"];
+    const subCarpetasGuia = ["lista", "pendientes"];
 
     for (const cat of categorias) {
-      const querySnapshot = await db.collection("usuarios")
-        .doc(cat)
-        .collection("lista")
-        .where("uid", "==", localId) 
-        .limit(1)
-        .get();
-
-      if (!querySnapshot.empty && querySnapshot.docs.length > 0) {
-        const docSnap = querySnapshot.docs[0];
-        if (docSnap) {
-          userData = docSnap.data();
-          // Mapeo dinámico del rol según la carpeta
-          userRole = cat === "turistas" ? "turista" : 
-                     cat === "admins" ? "admin" : 
-                     cat === "guias" ? "guia" : "negociante";
-          break; // Si lo encuentra, deja de buscar en las demás carpetas
+        const snap = await db.collection("usuarios").doc(cat).collection("lista").where("uid", "==", localId).limit(1).get();
+        
+        if (!snap.empty && snap.docs.length > 0) {
+            const doc = snap.docs[0];
+            if (doc && doc.exists) {
+                userData = doc.data();
+                userRole = cat === "turistas" ? "turista" : cat === "admins" ? "admin" : "negociante";
+                break; 
+            }
         }
-      }
     }
 
-    // 3. Si después de buscar en todas no hay datos
     if (!userData) {
-      return res.status(404).json({ msg: "Perfil de usuario no encontrado en la base de datos" });
+        for (const sub of subCarpetasGuia) {
+            const snap = await db.collection("usuarios").doc("guias").collection(sub).where("uid", "==", localId).limit(1).get();
+            
+            if (!snap.empty && snap.docs.length > 0) {
+                const doc = snap.docs[0];
+                if (doc && doc.exists) {
+                    userData = doc.data();
+                    userRole = sub === "lista" ? "guia" : "turista"; 
+                    break;
+                }
+            }
+        }
     }
 
-    // 4. Generar JWT con el rol detectado
     const token = jwt.sign(
       { uid: localId, email, role: userRole },
       JWT_SECRET!,
       { expiresIn: "1d" }
     );
 
-    // 5. Respuesta al Frontend
     res.json({
       token,
       user: {
         uid: localId,
         email,
         role: userRole,
-        // Adaptamos los nombres según el esquema (Turista o Guía)
         nombre: userData.nombre || userData["01_nombre"],
         apellido: userData.apellido || userData["02_apellido"],
         telefono: userData.telefono || "",
@@ -175,7 +164,6 @@ export const recoverPassword = async (req: Request, res: Response) => {
     }
 
     // 2. BÚSQUEDA DEL USUARIO
-    // Buscamos en las carpetas principales (turistas, admins)
     const categorias = ["turistas", "admins", "negocios"];
     let usuarioEncontrado = false;
 
@@ -206,20 +194,16 @@ export const recoverPassword = async (req: Request, res: Response) => {
         usuarioEncontrado = true;
       }
     }
-
-    // 3. RESPUESTA DE SEGURIDAD
-    // Si no existe, devolvemos éxito igualmente para no dar pistas a atacantes
+    
     if (!usuarioEncontrado) {
       return res.json({ msg: "Si el correo existe, recibirás un enlace de recuperación." });
     }
 
-    // 4. GENERAR LINK DE FIREBASE
-    // Este link apunta a tu página personalizada de ResetPassword
     const resetLink = await auth.generatePasswordResetLink(email, {
       url: "http://localhost:3000/reset-password",
     });
 
-    // 5. ENVIAR CORREO CON NODEMAILER
+    // ENVIAR CORREO CON NODEMAILER
     const mailOptions = {
       from: '"PITZBOL" <pitzbol2026@gmail.com>',
       to: email,
@@ -240,7 +224,7 @@ export const recoverPassword = async (req: Request, res: Response) => {
     };
 
     await transporter.sendMail(mailOptions);
-    console.log(`📧 Correo enviado con éxito a: ${email}`);
+    console.log(`Correo enviado con éxito a: ${email}`);
 
     return res.json({
       msg: "Si el correo existe, recibirás un enlace de recuperación",

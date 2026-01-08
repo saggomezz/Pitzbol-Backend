@@ -1,4 +1,6 @@
 import admin from "firebase-admin";
+import dotenv from 'dotenv';
+dotenv.config();
 
 const {
   FIREBASE_PROJECT_ID,
@@ -23,5 +25,6 @@ if (!admin.apps.length) {
 
 export const db = admin.firestore();
 export const auth = admin.auth();
+db.settings({ ignoreUndefinedProperties: true });
 
 console.log("🔥 Firebase Admin conectado");
