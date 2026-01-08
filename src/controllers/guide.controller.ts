@@ -1,20 +1,18 @@
 import { Request, Response } from 'express';
-import { db, auth } from '../config/firebase';
+import { db } from "../config/firebase";
+import admin from "firebase-admin";
 
 export const registerGuide = async (req: Request, res: Response) => {
     try {
         const data = req.body;
-        // 1. Extraemos con valores por defecto inmediatos para evitar el "undefined"
         const { uid, nombre, apellido, email } = data;
 
         if (!uid) return res.status(400).json({ message: 'El UID es obligatorio.' });
 
-        // 2. Normalización del ID (minúsculas y guiones bajos)
         const safeApellido = apellido ? `_${apellido}` : "";
         const customId = `${nombre}${safeApellido}`.replace(/\s+/g, '_').toLowerCase();
 
-        // 3. Construcción del objeto "Limpio"
-        // Usamos el operador ?? (nullish coalescing) para que si es undefined, use ""
+       
         const datosSeguros = {
             "01_nombre": nombre ?? "",
             "02_apellido": apellido ?? "",
@@ -26,7 +24,6 @@ export const registerGuide = async (req: Request, res: Response) => {
             "10_cp": data.codigoPostal ?? "",
             "11_foto_frente": data.ineFrente ?? "",
             "12_foto_reverso": data.ineReverso ?? "",
-            // Blindaje total para el campo del error
             "13_foto_rostro": data.facePhoto ?? data.fotoRostro ?? "",
             "tarifa_mxn": data.precioMXN ?? 0,
             "validacion_biometrica": {
@@ -39,14 +36,12 @@ export const registerGuide = async (req: Request, res: Response) => {
             createdAt: new Date().toISOString()
         };
 
-        // 4. Guardar en carpeta de PENDIENTES
         await db.collection('usuarios')
             .doc('guias')
             .collection('pendientes')
             .doc(customId)
             .set(datosSeguros);
 
-        // 5. Borrar de la carpeta de TURISTAS
         await db.collection("usuarios")
             .doc("turistas")
             .collection("lista")
@@ -104,30 +99,49 @@ export const addTourToGuide = async (req: Request, res: Response) => {
 
 export const updateGuideProfile = async (req: Request, res: Response) => {
     try {
-        const { uid, categorias } = req.body;
+        const uid = req.body.uid as string;
+        const categorias = req.body.categorias as string[];
+
         if (!uid) return res.status(400).json({ message: "UID obligatorio" });
 
-        const paths = [
-            db.collection('usuarios').doc('guias').collection('lista'),
-            db.collection('usuarios').doc('guias').collection('pendientes'),
-            db.collection('usuarios').doc('turistas').collection('lista')
+        const config = [
+            { ref: db.collection('usuarios').doc('guias').collection('lista'), field: "07_especialidades" },
+            { ref: db.collection('usuarios').doc('guias').collection('pendientes'), field: "07_especialidades" },
+            { ref: db.collection('usuarios').doc('turistas').collection('lista'), field: "especialidades" }
         ];
 
-        for (const ref of paths) {
-            const snap = await ref.where('uid', '==', uid).limit(1).get();
+        for (const item of config) {
+            const snap = await item.ref.where('uid', '==', uid).limit(1).get();
+            
             if (!snap.empty) {
-                const doc = snap.docs[0];
-                if (doc) {
-                    await doc.ref.update({
-                        "07_especialidades": categorias, // UNIFICADO: Solo este campo
+                const docSnapshot = snap.docs[0];
+                
+                if (docSnapshot && docSnapshot.exists) {
+                    // Preparamos el objeto de actualización
+                    const updateData: { [key: string]: any } = {
+                        [item.field]: categorias,
                         "updatedAt": new Date().toISOString()
+                    };
+
+                    if (item.field === "07_especialidades") {
+                        updateData["especialidades"] = admin.firestore.FieldValue.delete();
+                    }
+
+                    await docSnapshot.ref.update(updateData);
+                    
+                    return res.status(200).json({ 
+                        message: "Sincronizado", 
+                        ubicacion: item.ref.path,
+                        campoActualizado: item.field
                     });
-                    return res.status(200).json({ message: "Sincronizado" });
                 }
             }
         }
-        res.status(404).json({ message: "No encontrado" });
+
+        return res.status(404).json({ message: "No se encontró el documento en ninguna colección" });
+        
     } catch (error: any) {
-        res.status(500).json({ message: "Error interno" });
+        console.error("Error en updateGuideProfile:", error);
+        return res.status(500).json({ message: "Error interno al actualizar" });
     }
 };
