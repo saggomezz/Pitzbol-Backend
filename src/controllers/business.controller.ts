@@ -2,10 +2,6 @@ import { Request, Response } from "express";
 import { auth, db } from "../config/firebase";
 import admin from "firebase-admin";
 
-/**
- * Registrar un nuevo BUSINESS
- * POST /api/business/register
- */
 export const registerBusiness = async (req: Request, res: Response) => {
   try {
     const {

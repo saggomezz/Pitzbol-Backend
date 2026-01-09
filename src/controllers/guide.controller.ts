@@ -1,62 +1,62 @@
 import { Request, Response } from 'express';
-import { db } from '../config/firebase';
-import { auth } from '../config/firebase';
+import { db } from "../config/firebase";
+import admin from "firebase-admin";
 
 export const registerGuide = async (req: Request, res: Response) => {
     try {
         const data = req.body;
-        const { uid } = data; 
+        const { uid, nombre, apellido, email } = data;
 
-        if (!uid) {
-            return res.status(400).json({ message: 'El UID del usuario es obligatorio.' });
-        }
-		// 1. ACTUALIZACIÓN DEL ROL EN EL PERFIL DEL USUARIO
-        const turistaRef = db.collection("usuarios").doc("turistas").collection("lista").doc(uid);
-        
-        const docTurista = await turistaRef.get();
-        if (docTurista.exists) {
-            await turistaRef.update({
-                role: "guia",
-                updatedAt: new Date().toISOString()
-            });
-        }
+        if (!uid) return res.status(400).json({ message: 'El UID es obligatorio.' });
 
-        // 2. ACTUALIZACIÓN DE TOKEN (Custom Claims)
-        // Esto permite que el rol de guía se valide sin consultar la base de datos
-        await auth.setCustomUserClaims(uid, { role: "guia" });
+        const safeApellido = apellido ? `_${apellido}` : "";
+        const customId = `${nombre}${safeApellido}`.replace(/\s+/g, '_').toLowerCase();
 
-        // 3. GUARDADO DE PERFIL DETALLADO EN LA LISTA DE GUÍAS
-        const customId = `${data.nombre}_${data.apellido}`.replace(/\s+/g, '_');
-        
+       
+        const datosSeguros = {
+            "01_nombre": nombre ?? "",
+            "02_apellido": apellido ?? "",
+            "03_rol": "guia_pendiente",
+            "04_correo": email ?? data.correo ?? "",
+            "05_rfc": data.rfc ?? "",
+            "06_telefono": data.telefono ?? "",
+            "07_especialidades": data.categorias ?? [], 
+            "10_cp": data.codigoPostal ?? "",
+            "11_foto_frente": data.ineFrente ?? "",
+            "12_foto_reverso": data.ineReverso ?? "",
+            "13_foto_rostro": data.facePhoto ?? data.fotoRostro ?? "",
+            "tarifa_mxn": data.precioMXN ?? 0,
+            "validacion_biometrica": {
+                coincide: data.validacion_biometrica?.coincide ?? false,
+                porcentaje: data.validacion_biometrica?.porcentaje ?? 0,
+                mensaje: data.validacion_biometrica?.mensaje ?? "No validado"
+            },
+            status: "en_revision",
+            uid: uid, 
+            createdAt: new Date().toISOString()
+        };
+
         await db.collection('usuarios')
             .doc('guias')
-            .collection('lista')
+            .collection('pendientes')
             .doc(customId)
-            .set({
-                "uid": uid, 
-                "01_nombre": data.nombre,
-                "02_apellido": data.apellido,
-                "03_rol": "guia",
-                "04_correo": data.correo,
-                "05_rfc": data.rfc,
-                "06_telefono": data.telefono,
-                "07_especialidades": data.categorias || [], 
-                "08_propuesta": data.propuestaTour,
-                "09_clabe": data.clabe,
-                "10_cp": data.codigoPostal,
-                createdAt: new Date().toISOString()
-            });
+            .set(datosSeguros);
+
+        await db.collection("usuarios")
+            .doc("turistas")
+            .collection("lista")
+            .doc(customId)
+            .delete();
 
         res.status(201).json({ 
-            message: 'Perfil de guía activado correctamente', 
-            id: customId,
-            role: "guia" 
+            message: 'Solicitud enviada a revisión con éxito', 
+            status: "pendiente"
         });
 
     } catch (error: any) {
-        console.error("Error en registerGuide:", error);
+        console.error("Error detallado en registerGuide:", error);
         res.status(500).json({ 
-            message: 'Error al registrar guía', 
+            message: 'Error interno al procesar la solicitud', 
             error: error.message 
         });
     }
@@ -94,5 +94,54 @@ export const addTourToGuide = async (req: Request, res: Response) => {
     } catch (error) {
         console.error("Error al añadir tour:", error);
         return res.status(500).json({ message: 'Error interno del servidor' });
+    }
+};
+
+export const updateGuideProfile = async (req: Request, res: Response) => {
+    try {
+        const uid = req.body.uid as string;
+        const categorias = req.body.categorias as string[];
+
+        if (!uid) return res.status(400).json({ message: "UID obligatorio" });
+
+        const config = [
+            { ref: db.collection('usuarios').doc('guias').collection('lista'), field: "07_especialidades" },
+            { ref: db.collection('usuarios').doc('guias').collection('pendientes'), field: "07_especialidades" },
+            { ref: db.collection('usuarios').doc('turistas').collection('lista'), field: "especialidades" }
+        ];
+
+        for (const item of config) {
+            const snap = await item.ref.where('uid', '==', uid).limit(1).get();
+            
+            if (!snap.empty) {
+                const docSnapshot = snap.docs[0];
+                
+                if (docSnapshot && docSnapshot.exists) {
+                    // Preparamos el objeto de actualización
+                    const updateData: { [key: string]: any } = {
+                        [item.field]: categorias,
+                        "updatedAt": new Date().toISOString()
+                    };
+
+                    if (item.field === "07_especialidades") {
+                        updateData["especialidades"] = admin.firestore.FieldValue.delete();
+                    }
+
+                    await docSnapshot.ref.update(updateData);
+                    
+                    return res.status(200).json({ 
+                        message: "Sincronizado", 
+                        ubicacion: item.ref.path,
+                        campoActualizado: item.field
+                    });
+                }
+            }
+        }
+
+        return res.status(404).json({ message: "No se encontró el documento en ninguna colección" });
+        
+    } catch (error: any) {
+        console.error("Error en updateGuideProfile:", error);
+        return res.status(500).json({ message: "Error interno al actualizar" });
     }
 };
