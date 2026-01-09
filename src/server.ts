@@ -1,37 +1,43 @@
+import cors from 'cors';
 import dotenv from "dotenv";
 dotenv.config();
-
-import express from "express";
-import cors from "cors";
-
-import authRoutes from "./routes/auth.routes";
-import guideRoutes from "./routes/guide.routes";
+import express from 'express';
+import authRoutes from './routes/auth.routes';
+import guideRoutes from './routes/guide.routes';
 import businessRoutes from "./routes/business.routes";
-import paymentRoutes from "./routes/payment.routes"; 
 
+dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-app.use(cors());
-app.use(express.json());
+// 1. CORS primero
+app.use(cors({
+    origin: true,
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+}));
 
-// Middleware de logging
+// 2. CONFIGURACIÓN DE LÍMITES (IMPORTANTE: Solo una vez y antes de las rutas)
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
+
+// (Middleware)
 app.use((req, res, next) => {
   console.log(`Petición recibida: [${req.method}] ${req.url}`);
   next();
 });
 
-// Rutas
-app.use("/api/auth", authRoutes);
-app.use("/api/guides", guideRoutes);
+app.use('/api/auth', authRoutes);
+app.use('/api/guides', guideRoutes);
 app.use("/api/business", businessRoutes);
-app.use("/api/payments", paymentRoutes); 
 
-app.get("/", (req, res) => {
-  res.send(`
-    <h1>El Backend sí funciona</h1>
-    <p>El servidor está corriendo correctamente</p>
-  `);
+app.get('/', (req, res) => {
+    res.send(`
+        <h1>El Backend sí funcionaa</h1>
+        <p>El servidor está corriendo correctamente</p>
+        <p>Usa los endpoints en <code>/api/auth/login</code> o <code>/api/auth/register</code></p>
+    `);
 });
 
 app.listen(PORT, () => {

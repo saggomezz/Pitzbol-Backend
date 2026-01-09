@@ -8,13 +8,8 @@ import { isBusiness } from "../middlewares/business.middleware";
 
 const router = Router();
 
-// Registro de negocio 
 router.post("/register", registerBusiness);
-
-// Recuperar contraseña 
 router.post("/recover-password", recoverPassword);
-
-//  Ruta protegida para negocios
 router.get(
   "/profile",
   authMiddleware,
