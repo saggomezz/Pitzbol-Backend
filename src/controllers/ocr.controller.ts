@@ -130,7 +130,6 @@ export const compareBiometry = async (req: Request, res: Response) => {
             nivelPrioridad,
             message: isMatch ? "Coincidencia detectada" : "Baja coincidencia, requiere revisión manual"
         });
-
     } catch (error: any) {
         return res.status(500).json({ success: false, message: "Error interno del servidor" });
     }
