@@ -23,4 +23,31 @@ router.post("/create-payment-intent", async (req, res) => {
   }
 });
 
+router.post("/create-connect-account", async (req, res) => {
+  try {
+    const { email, uid } = req.body;
+
+    const account = await stripe.accounts.create({
+      type: "express",
+      email: email,
+      capabilities: {
+        card_payments: { requested: true },
+        transfers: { requested: true },
+      },
+      metadata: { firebaseUID: uid }
+    });
+
+    const accountLink = await stripe.accountLinks.create({
+      account: account.id,
+      refresh_url: "http://localhost:3000/perfil?stripe=retry",
+      return_url: "http://localhost:3000/perfil?stripe=success",
+      type: "account_onboarding",
+    });
+
+    res.json({ url: accountLink.url, stripeAccountId: account.id });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+});
+
 export default router;
