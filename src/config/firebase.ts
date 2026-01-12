@@ -27,4 +27,4 @@ export const db = admin.firestore();
 export const auth = admin.auth();
 db.settings({ ignoreUndefinedProperties: true });
 
-console.log("🔥 Firebase Admin conectado");
+console.log("Firebase Admin conectado");
