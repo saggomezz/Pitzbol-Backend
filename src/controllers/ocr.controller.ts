@@ -16,7 +16,6 @@ async function ensureModelsLoaded() {
     try {
         console.log(`Intentando cargar desde: ${MODELS_PATH}`);
         
-        // Carga secuencial para identificar cuál falla exactamente
         await faceapi.nets.ssdMobilenetv1.loadFromDisk(MODELS_PATH);
         console.log("Detectores cargados...");
         await faceapi.nets.faceLandmark68Net.loadFromDisk(MODELS_PATH);
@@ -105,7 +104,6 @@ export const compareBiometry = async (req: Request, res: Response) => {
             const imgIne = await loadImage(Buffer.from(ineBase64.replace(/^data:image\/\w+;base64,/, ""), 'base64'));
             const imgFace = await loadImage(Buffer.from(faceBase64.replace(/^data:image\/\w+;base64,/, ""), 'base64'));
 
-            // Configuramos opciones más sensibles para detectar rostros con poco detalle
             const detectionOptions = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.4 });
 
             const detectionIne = await faceapi.detectSingleFace(imgIne as any, detectionOptions).withFaceLandmarks().withFaceDescriptor();
