@@ -123,7 +123,6 @@ export const compareBiometry = async (req: Request, res: Response) => {
         } catch (e) {
             console.log("⚠️ Error en procesamiento de imagen:", e);
         }
-
         return res.json({
             success: true,
             confidence,
