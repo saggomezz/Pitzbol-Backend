@@ -7,6 +7,9 @@ if (!STRIPE_SECRET_KEY) {
 }
 
 const stripe = new Stripe(STRIPE_SECRET_KEY);
-console.log("Stripe key cargada:", process.env.STRIPE_SECRET_KEY?.slice(0, 10));
+
+console.log(
+  "Stripe conectado:",
+);
 
 export default stripe;
