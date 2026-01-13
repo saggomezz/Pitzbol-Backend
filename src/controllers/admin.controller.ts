@@ -8,12 +8,11 @@ export const getSolicitudesPendientes = async (req: any, res: any) => {
         const snapshot = await db.collection('usuarios')
             .doc('guias')
             .collection('pendientes')
-            .where('03_rol', '==', 'guia_pendiente') 
             .get();
 
         if (snapshot.empty) {
-            console.log("ℹ️ No hay documentos que coincidan con 03_rol == guia_pendiente");
-            return res.status(200).json({ solicitudes: [] }); // Devolvemos 200, no 404
+            console.log("No hay solicitudes en la colección 'pendientes'");
+            return res.status(200).json({ solicitudes: [] });
         }
 
         const solicitudes = snapshot.docs.map(doc => ({
