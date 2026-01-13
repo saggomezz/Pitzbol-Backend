@@ -31,40 +31,29 @@ async function ensureModelsLoaded() {
 }
 
 export const verifyINE = async (req: Request, res: Response) => {
+    let worker: any = null; 
+
     try {
         const { imageBase64, side } = req.body;
         if (!imageBase64) {
             return res.status(400).json({ success: false, message: "No se recibió imagen" });
         }
-
-        const worker = await createWorker('spa');
+        worker = await createWorker('spa');
+        
         const { data: { text } } = await worker.recognize(imageBase64);
-        await worker.terminate();
-
         const textUpper = text.toUpperCase();
 
         if (side === 'frente') {
             const keywordsFrente = ["INSTITUTO", "NACIONAL", "ELECTORAL", "MEXICO", "CREDENCIAL"];
             const hasKeywords = keywordsFrente.some(word => textUpper.includes(word));
-
             if (!hasKeywords) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: "No se detectan elementos de una INE frontal válida." 
-                });
+                return res.status(400).json({ success: false, message: "No se detecta una INE frontal válida." });
             }
         } else {
             const keywordsReverso = ["IDMEX", "ELECCION", "FECHA DE NACIMIENTO", "SEXO"];
-            const keywordsFrente = ["INSTITUTO", "NACIONAL", "ELECTORAL"];
-
             const tieneKeywordsReverso = keywordsReverso.some(word => textUpper.includes(word));
-            const tieneKeywordsFrente = keywordsFrente.some(word => textUpper.includes(word));
-
-            if (tieneKeywordsFrente || (!tieneKeywordsReverso && textUpper.length < 50)) {
-                return res.status(400).json({ 
-                    success: false, 
-                    message: "La imagen no corresponde al reverso de una identificación oficial." 
-                });
+            if (!tieneKeywordsReverso && textUpper.length < 50) {
+                return res.status(400).json({ success: false, message: "No se detecta el reverso de la identificación." });
             }
         }
 
@@ -79,10 +68,14 @@ export const verifyINE = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        return res.status(500).json({ success: false, message: "Error procesando OCR." });
+        console.error("Error en el proceso OCR:", error);
+        return res.status(500).json({ success: false, message: "Error interno procesando la imagen." });
+    } finally {
+        if (worker && typeof worker.terminate === 'function') {
+            await worker.terminate();
+        }
     }
 };
-
 const prepareImage = (base64String: string): Buffer => {
     if (!base64String) throw new Error("Imagen vacía");
     const cleanBase64 = base64String.replace(/^data:image\/\w+;base64,/, "");

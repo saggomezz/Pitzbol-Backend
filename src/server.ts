@@ -5,6 +5,8 @@ import express from 'express';
 import authRoutes from './routes/auth.routes';
 import guideRoutes from './routes/guide.routes';
 import businessRoutes from "./routes/business.routes";
+import ocrRoutes from './routes/ocr.routes';
+import adminRoutes from './routes/admin.routes';
 import paymentRoutes from "./routes/payment.routes";
 
 
@@ -12,14 +14,12 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// 1. CORS primero
 app.use(cors({
   origin: "http://localhost:3000",
   methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
-// 2. CONFIGURACIÓN DE LÍMITES (IMPORTANTE: Solo una vez y antes de las rutas)
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
@@ -32,6 +32,8 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/guides', guideRoutes);
 app.use("/api/business", businessRoutes);
+app.use('/api/ocr', ocrRoutes);
+app.use('/api/admin', adminRoutes);
 app.use("/api/payments", paymentRoutes);
 
 
