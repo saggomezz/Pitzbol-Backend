@@ -14,10 +14,9 @@ const PORT = process.env.PORT || 3001;
 
 // 1. CORS primero
 app.use(cors({
-    origin: true,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'Accept']
+  origin: "http://localhost:3000",
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"]
 }));
 
 // 2. CONFIGURACIÓN DE LÍMITES (IMPORTANTE: Solo una vez y antes de las rutas)
