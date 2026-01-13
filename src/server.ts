@@ -5,6 +5,8 @@ import express from 'express';
 import authRoutes from './routes/auth.routes';
 import guideRoutes from './routes/guide.routes';
 import businessRoutes from "./routes/business.routes";
+import paymentRoutes from "./routes/payment.routes";
+
 
 dotenv.config();
 const app = express();
@@ -31,6 +33,8 @@ app.use((req, res, next) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/guides', guideRoutes);
 app.use("/api/business", businessRoutes);
+app.use("/api/payments", paymentRoutes);
+
 
 app.get('/', (req, res) => {
     res.send(`
