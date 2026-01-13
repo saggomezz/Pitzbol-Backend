@@ -16,7 +16,6 @@ async function ensureModelsLoaded() {
     try {
         console.log(`Intentando cargar desde: ${MODELS_PATH}`);
         
-        // Carga secuencial para identificar cuál falla exactamente
         await faceapi.nets.ssdMobilenetv1.loadFromDisk(MODELS_PATH);
         console.log("Detectores cargados...");
         await faceapi.nets.faceLandmark68Net.loadFromDisk(MODELS_PATH);
@@ -84,62 +83,54 @@ export const verifyINE = async (req: Request, res: Response) => {
     }
 };
 
-const prepareImage = (base64: string): string => {
-    if (base64.startsWith('data:image')) {
-        return base64.replace(/\s/g, '');
-    }
-    return `data:image/jpeg;base64,${base64.replace(/\s/g, '')}`;
+const prepareImage = (base64String: string): Buffer => {
+    if (!base64String) throw new Error("Imagen vacía");
+    const cleanBase64 = base64String.replace(/^data:image\/\w+;base64,/, "");
+    return Buffer.from(cleanBase64, 'base64');
 };
 
 export const compareBiometry = async (req: Request, res: Response) => {
     try {
         const { faceBase64, ineBase64 } = req.body;
-
-        if (!faceBase64 || !ineBase64) {
-            return res.status(400).json({ success: false, message: "Faltan imágenes." });
-        }
+        if (!faceBase64 || !ineBase64) return res.status(400).json({ success: false, message: "Faltan imágenes." });
 
         await ensureModelsLoaded();
 
-        console.log("2. Decodificando imágenes...");
-        
-        // Limpiamos los strings antes de enviarlos a loadImage
-        const cleanIne = prepareImage(ineBase64);
-        const cleanFace = prepareImage(faceBase64);
+        let confidence = "0";
+        let isMatch = false;
+        let nivelPrioridad = "BAJA";
 
-        const imgIne = await loadImage(cleanIne);
-        const imgFace = await loadImage(cleanFace);
+        try {
+            const imgIne = await loadImage(Buffer.from(ineBase64.replace(/^data:image\/\w+;base64,/, ""), 'base64'));
+            const imgFace = await loadImage(Buffer.from(faceBase64.replace(/^data:image\/\w+;base64,/, ""), 'base64'));
 
-        console.log("3. Buscando rostros...");
-        const detectionIne = await faceapi.detectSingleFace(imgIne as any).withFaceLandmarks().withFaceDescriptor();
-        const detectionFace = await faceapi.detectSingleFace(imgFace as any).withFaceLandmarks().withFaceDescriptor();
+            const detectionOptions = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.4 });
 
-        if (!detectionIne || !detectionFace) {
-            console.log("⚠️ No se detectaron ambos rostros");
-            return res.status(400).json({ 
-                success: false, 
-                message: "No se detectó un rostro claro. Asegúrate de que la iluminación sea buena y el rostro esté centrado." 
-            });
+            const detectionIne = await faceapi.detectSingleFace(imgIne as any, detectionOptions).withFaceLandmarks().withFaceDescriptor();
+            const detectionFace = await faceapi.detectSingleFace(imgFace as any, detectionOptions).withFaceLandmarks().withFaceDescriptor();
+
+            if (detectionIne && detectionFace) {
+                const distance = faceapi.euclideanDistance(detectionIne.descriptor, detectionFace.descriptor);
+                const score = (1 - distance) * 100;
+                
+                confidence = score.toFixed(2);
+                isMatch = distance < 0.70; 
+
+                if (distance < 0.55) nivelPrioridad = "ALTA"; 
+                else if (distance < 0.70) nivelPrioridad = "MEDIA";
+                else nivelPrioridad = "BAJA";
+            }
+        } catch (e) {
+            console.log("⚠️ Error en procesamiento de imagen:", e);
         }
-
-        const distance = faceapi.euclideanDistance(detectionIne.descriptor, detectionFace.descriptor);
-        const isMatch = distance < 0.6;
-        const confidence = ((1 - distance) * 100).toFixed(2);
-
-        console.log(`✅ Comparación terminada: ${isMatch ? 'EXITOSA' : 'FALLIDA'}`);
-
         return res.json({
-            success: isMatch,
+            success: true,
             confidence,
-            message: isMatch ? "Identidad confirmada" : "El rostro no coincide con la identificación."
+            isMatch,
+            nivelPrioridad,
+            message: isMatch ? "Coincidencia detectada" : "Baja coincidencia, requiere revisión manual"
         });
-
     } catch (error: any) {
-        console.error("🔥 Error crítico:", error.message);
-        return res.status(500).json({ 
-            success: false, 
-            message: "Error interno en el procesamiento de imagen",
-            error: error.message 
-        });
+        return res.status(500).json({ success: false, message: "Error interno del servidor" });
     }
 };
