@@ -1,5 +1,11 @@
 import { Request, Response, NextFunction } from 'express';
-import { auth } from '../config/firebase';
+import jwt from 'jsonwebtoken';
+
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+  throw new Error('JWT_SECRET no está configurado en .env');
+}
 
 /**
  * Middleware de autenticación con JWT
@@ -24,16 +30,15 @@ export const authenticateToken = async (
       });
     }
 
-    // 2 Verificar y decodificar el token con Firebase
+    // 2 Verificar y decodificar el token JWT
     try {
-      const decodedToken = await auth.verifyIdToken(token);
+      const decodedToken = jwt.verify(token, JWT_SECRET!) as any;
       
       // 3 Añadir información del usuario al request
       (req as any).user = {
         uid: decodedToken.uid,
         email: decodedToken.email,
-        name: decodedToken.name,
-        claims: decodedToken.claims
+        role: decodedToken.role,
       };
 
       console.log(`✅ Token validado para usuario: ${decodedToken.uid}`);
@@ -42,7 +47,7 @@ export const authenticateToken = async (
     } catch (tokenError: any) {
       console.error('❌ Error al verificar token:', tokenError.message);
       
-      if (tokenError.code === 'auth/id-token-expired') {
+      if (tokenError.name === 'TokenExpiredError') {
         return res.status(401).json({ 
           error: 'Token expirado',
           message: 'Por favor, inicia sesión de nuevo'
@@ -78,12 +83,11 @@ export const authenticateTokenOptional = async (
 
     if (token) {
       try {
-        const decodedToken = await auth.verifyIdToken(token);
+        const decodedToken = jwt.verify(token, JWT_SECRET!) as any;
         (req as any).user = {
           uid: decodedToken.uid,
           email: decodedToken.email,
-          name: decodedToken.name,
-          claims: decodedToken.claims
+          role: decodedToken.role
         };
         console.log(`✅ Usuario autenticado: ${decodedToken.uid}`);
       } catch (error) {
@@ -112,7 +116,7 @@ export const requireRole = (allowedRoles: string[]) => {
         return res.status(401).json({ error: 'No autenticado' });
       }
 
-      const userRole = user.claims?.role;
+      const userRole = user.role;
 
       if (!allowedRoles.includes(userRole)) {
         console.warn(`⚠️ Usuario ${user.uid} sin permisos. Rol requerido: ${allowedRoles.join(', ')}, tiene: ${userRole}`);
