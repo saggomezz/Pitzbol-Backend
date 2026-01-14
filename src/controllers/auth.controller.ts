@@ -11,13 +11,21 @@ if (!FIREBASE_WEB_API_KEY || !JWT_SECRET) {
   throw new Error("Faltan variables de entorno (JWT o Firebase API KEY)");
 }
 
-const transporter = nodemailer.createTransport({
-  service: 'gmail',
-  auth: {
-    user: 'pitzbol2026@gmail.com',
-    pass: 'vthv vuzo esdh xitp', 
-  },
-});
+// Nota: Gmail se configurará cuando se use, no en el inicio
+let transporter: nodemailer.Transporter | null = null;
+
+const getTransporter = () => {
+  if (!transporter && process.env.GMAIL_USER && process.env.GMAIL_PASS) {
+    transporter = nodemailer.createTransport({
+      service: 'gmail',
+      auth: {
+        user: process.env.GMAIL_USER,
+        pass: process.env.GMAIL_PASS,
+      },
+    });
+  }
+  return transporter;
+};
 
 //REGISTRO DE USUARIO
 export const register = async (req: Request, res: Response) => {
@@ -77,10 +85,15 @@ export const register = async (req: Request, res: Response) => {
 export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
+    
+    console.log('📧 Intento de login para email:', email);
+    console.log('🔑 Password length:', password?.length, 'chars');
 
     const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_WEB_API_KEY}`;
     const response = await axios.post(url, { email, password, returnSecureToken: true });
     const { localId } = response.data;
+    
+    console.log('✅ Firebase autenticó correctamente, UID:', localId);
     
     let userData: any = null;
     let userRole: string = "";
@@ -124,26 +137,42 @@ export const login = async (req: Request, res: Response) => {
       { expiresIn: "1d" }
     );
 
+    // Establecer HTTP-only cookie
+    res.cookie('authToken', token, {
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 24 * 60 * 60 * 1000, // 24 horas en milisegundos
+      secure: process.env.NODE_ENV === 'production' // Solo en HTTPS en producción
+    });
+
+    // Logging seguro (sin revelar datos sensibles)
+    console.log(`✅ Login exitoso para usuario: ${localId}`);
+    
+    // Retorna token con datos completos del usuario
     res.json({
+      success: true,
       token,
       user: {
         uid: localId,
         email,
-        role: userRole,
-        nombre: userData.nombre || userData["01_nombre"],
-        apellido: userData.apellido || userData["02_apellido"],
-        telefono: userData.telefono || userData["06_telefono"] || "",
-        nacionalidad: userData.nacionalidad || "",
+        nombre: userData.nombre || "",
+        apellido: userData.apellido || "",
+        telefono: userData.telefono || "No registrado",
+        nacionalidad: userData.nacionalidad || "No registrado",
         especialidades: especialidadesUnificadas,
-        "07_especialidades": especialidadesUnificadas,
-        guide_status: userData.solicitudStatus || userData.status || (userRole === "guia" ? "aprobado" : "ninguno")
+        role: userRole,
+        guide_status: userData.solicitudStatus || "ninguno",
       },
     });
-  } catch (error: any) {
+  }   
+  
+  catch (error: any) {
     const firebaseError = error.response?.data?.error;
     const code = firebaseError?.message;
 
     console.error("🔥 ERROR EN LOGIN:", code || error.message);
+    console.error("📋 Request email:", req.body.email);
+    console.error("📋 Firebase response:", JSON.stringify(error.response?.data, null, 2));
 
     if (code === "INVALID_LOGIN_CREDENTIALS" || code === "EMAIL_NOT_FOUND" || code === "INVALID_PASSWORD") {
       return res.status(401).json({ msg: "Credenciales inválidas" });
@@ -221,7 +250,12 @@ export const recoverPassword = async (req: Request, res: Response) => {
       `,
     };
 
-    await transporter.sendMail(mailOptions);
+    const mailTransporter = getTransporter();
+    if (!mailTransporter) {
+      throw new Error("Servicio de correo no configurado");
+    }
+    
+    await mailTransporter.sendMail(mailOptions);
     console.log(`Correo enviado con éxito a: ${email}`);
 
     return res.json({
@@ -291,6 +325,81 @@ export const updateProfile = async (req: Request, res: Response) => {
 
   } catch (error: any) {
     console.error("Error en updateProfile:", error);
+    res.status(500).json({ msg: "Error interno del servidor", error: error.message });
+  }
+};
+
+// Solicitar convertirse en guía
+export const solicitarGuia = async (req: any, res: Response) => {
+  try {
+    const uid = req.user?.uid;
+    const { especialidades, experiencia } = req.body;
+
+    if (!uid) {
+      return res.status(401).json({ msg: "Usuario no autenticado" });
+    }
+
+    console.log(`📋 Solicitud de guía para uid: ${uid}`);
+
+    // Buscar el usuario en turistas para obtener sus datos
+    const turistaSnapshot = await db.collection("usuarios")
+      .doc("turistas")
+      .collection("lista")
+      .where("uid", "==", uid)
+      .limit(1)
+      .get();
+
+    if (turistaSnapshot.empty) {
+      return res.status(404).json({ msg: "Usuario turista no encontrado" });
+    }
+
+    const turistaDoc = turistaSnapshot.docs[0];
+    if (!turistaDoc) {
+      return res.status(404).json({ msg: "Usuario turista no encontrado" });
+    }
+    
+    const turistaData = turistaDoc.data();
+
+    // Crear documento en guías/pendientes
+    const docId = `solicitud_${uid}_${Date.now()}`;
+    
+    await db.collection("usuarios")
+      .doc("guias")
+      .collection("pendientes")
+      .doc(docId)
+      .set({
+        uid: uid,
+        nombre: turistaData.nombre,
+        apellido: turistaData.apellido,
+        email: turistaData.email,
+        telefono: turistaData.telefono,
+        nacionalidad: turistaData.nacionalidad,
+        especialidades: especialidades || [],
+        experiencia: experiencia || "",
+        solicitudStatus: "pendiente",
+        guide_status: "pendiente",
+        "03_rol": "turista",
+        createdAt: new Date().toISOString(),
+        requestedAt: new Date().toISOString()
+      });
+
+    // Actualizar el usuario turista con el estado de solicitud
+    await turistaDoc.ref.update({
+      solicitudStatus: "pendiente",
+      guide_status: "pendiente",
+      tipoAspirante: "guia"
+    });
+
+    console.log(`✅ Solicitud de guía creada para uid: ${uid}`);
+
+    res.status(201).json({
+      msg: "Solicitud de guía enviada correctamente",
+      solicitudId: docId,
+      status: "pendiente"
+    });
+
+  } catch (error: any) {
+    console.error("Error en solicitarGuia:", error);
     res.status(500).json({ msg: "Error interno del servidor", error: error.message });
   }
 };
