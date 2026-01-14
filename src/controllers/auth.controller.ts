@@ -268,12 +268,14 @@ export const recoverPassword = async (req: Request, res: Response) => {
   }
 };
 
-export const updateProfile = async (req: Request, res: Response) => {
+export const updateProfile = async (req: any, res: Response) => {
   try {
-    const { uid, telefono, nacionalidad, especialidades } = req.body;
+    // Obtener uid del middleware de autenticación (JWT)
+    const uid = req.user?.uid;
+    const { telefono, nacionalidad, especialidades } = req.body;
 
     if (!uid) {
-      return res.status(400).json({ msg: "UID requerido" });
+      return res.status(401).json({ msg: "Usuario no autenticado" });
     }
 
     const updateData: any = {};
