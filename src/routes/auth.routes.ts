@@ -15,23 +15,23 @@ const router = Router();
 // POST /api/auth/register - Registro con validación y rate limiting
 router.post(
   '/register',
-  registerLimiter,          // 🚫 Rate limiting: 3 por hora
-  validateRegisterInput,    // 🔍 Validación de entrada
+  registerLimiter,          // Rate limiting: 3 por hora
+  validateRegisterInput,    // Validación de entrada
   register
 );
 
 // POST /api/auth/login - Login con rate limiting y validación
 router.post(
   '/login',
-  loginLimiter,             // 🚫 Rate limiting: 5 por 15 minutos
-  validateLoginInput,       // 🔍 Validación de entrada
+  loginLimiter,             // Rate limiting: 5 por 15 minutos
+  validateLoginInput,       // Validación de entrada
   login
 );
 
 // POST /api/auth/recover-password - Recuperación con rate limiting
 router.post(
   '/recover-password',
-  passwordLimiter,          // 🚫 Rate limiting: 3 por 30 minutos
+  passwordLimiter,          // Rate limiting: 3 por 30 minutos
   validatePasswordRecoveryInput,
   recoverPassword
 );
@@ -39,15 +39,15 @@ router.post(
 // PATCH /api/auth/update-profile - Actualización protegida
 router.patch(
   "/update-profile",
-  authMiddleware,           // 🔐 Requiere JWT válido
-  validateProfileUpdate,    // 🔍 Validación de entrada
+  authMiddleware,           // Requiere JWT válido
+  validateProfileUpdate,    // Validación de entrada
   updateProfile
 );
 
 // POST /api/auth/logout - Cierre de sesión
 router.post(
   "/logout",
-  authMiddleware,           // 🔐 Requiere estar autenticado
+  authMiddleware,           //  Requiere estar autenticado
   (req, res) => {
     res.clearCookie('authToken', {
       httpOnly: true,
@@ -61,7 +61,7 @@ router.post(
 // POST /api/auth/solicitar-guia - Solicitar convertirse en guía
 router.post(
   "/solicitar-guia",
-  authMiddleware,           // 🔐 Requiere estar autenticado
+  authMiddleware,           // Requiere estar autenticado
   solicitarGuia
 );
 
