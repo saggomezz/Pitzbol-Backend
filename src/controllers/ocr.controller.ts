@@ -3,6 +3,7 @@ import { createWorker } from 'tesseract.js';
 import * as faceapi from 'face-api.js';
 import { createCanvas, Image, loadImage } from 'canvas';
 import path from 'path';
+import * as tf from '@tensorflow/tfjs';
 
 // Configuración de entorno para face-api.js
 // @ts-ignore
