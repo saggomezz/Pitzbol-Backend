@@ -4,14 +4,21 @@ import admin from "firebase-admin";
 
 export const registerGuide = async (req: Request, res: Response) => {
     try {
+        console.log("📥 Datos recibidos en registerGuide:", JSON.stringify(req.body, null, 2));
+        
         const data = req.body;
         const { uid, nombre, apellido, email } = data;
 
-        if (!uid) return res.status(400).json({ message: 'El UID es obligatorio.' });
+        if (!uid) {
+            console.error("❌ Error: UID no proporcionado");
+            return res.status(400).json({ message: 'El UID es obligatorio.' });
+        }
 
         const safeApellido = apellido ? `_${apellido}` : "";
         const customId = `${nombre}${safeApellido}`.replace(/\s+/g, '_').toLowerCase();
 
+        console.log("🔑 UID recibido:", uid);
+        console.log("📝 Custom ID generado:", customId);
        
         const datosSeguros = {
             "01_nombre": nombre ?? "",
@@ -36,25 +43,38 @@ export const registerGuide = async (req: Request, res: Response) => {
             createdAt: new Date().toISOString()
         };
 
+        console.log("💾 Guardando en Firebase...");
+        
         await db.collection('usuarios')
             .doc('guias')
             .collection('pendientes')
             .doc(customId)
             .set(datosSeguros);
 
-        await db.collection("usuarios")
-            .doc("turistas")
-            .collection("lista")
-            .doc(customId)
-            .delete();
+        console.log("✅ Documento guardado en pendientes:", customId);
 
+        // Intentar eliminar de turistas
+        try {
+            await db.collection("usuarios")
+                .doc("turistas")
+                .collection("lista")
+                .doc(customId)
+                .delete();
+            console.log("🗑️ Eliminado de turistas:", customId);
+        } catch (deleteError) {
+            console.log("ℹ️ No se encontró en turistas o ya fue eliminado");
+        }
+
+        console.log("✅ Registro de guía completado exitosamente");
+        
         res.status(201).json({ 
             message: 'Solicitud enviada a revisión con éxito', 
             status: "pendiente"
         });
 
     } catch (error: any) {
-        console.error("Error detallado en registerGuide:", error);
+        console.error("❌ Error detallado en registerGuide:", error);
+        console.error("Stack trace:", error.stack);
         res.status(500).json({ 
             message: 'Error interno al procesar la solicitud', 
             error: error.message 

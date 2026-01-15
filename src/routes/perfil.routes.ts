@@ -1,5 +1,5 @@
 ﻿import express, { Request, Response, NextFunction } from 'express';
-import { authenticateToken } from '../middleware/auth';
+import { authMiddleware } from '../middlewares/auth.middleware';
 import { upload, uploadLimiter } from '../middleware/uploadMiddleware';
 import { subirFotoPerfil, obtenerFotoPerfil } from '../controllers/perfil.controller';
 import multer from 'multer';
@@ -31,7 +31,7 @@ const handleMulterError = (err: any, req: Request, res: Response, next: NextFunc
  */
 router.post(
   '/foto-perfil',
-  authenticateToken,
+  authMiddleware,
   uploadLimiter,
   upload.single('foto'),
   handleMulterError,
@@ -41,6 +41,6 @@ router.post(
 /**
  * Obtener foto de perfil del usuario autenticado
  */
-router.get('/foto-perfil', authenticateToken, obtenerFotoPerfil);
+router.get('/foto-perfil', authMiddleware, obtenerFotoPerfil);
 
 export default router;

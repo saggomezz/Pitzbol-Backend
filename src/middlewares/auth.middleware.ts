@@ -21,6 +21,8 @@ export const authMiddleware = (
 
     // Intenta leer del header Authorization primero
     const authHeader = req.headers.authorization;
+    console.log(`🔐 Auth header recibido: ${authHeader ? authHeader.substring(0, 20) + '...' : 'VACIO'}`);
+    
     if (authHeader && authHeader.startsWith("Bearer ")) {
       const parts = authHeader.split(" ");
       if (parts.length === 2) {
@@ -31,11 +33,15 @@ export const authMiddleware = (
     // Si no hay token en header, intenta leer de las cookies
     if (!token && req.cookies && req.cookies.authToken) {
       token = req.cookies.authToken;
+      console.log(`🔐 Token de cookies usado`);
     }
 
     if (!token) {
+      console.log(`❌ Token no proporcionado - Petición: [${req.method}] ${req.url}`);
       return res.status(401).json({ msg: "Token no proporcionado" });
     }
+    
+    console.log(`✅ Token encontrado, validando...`);
 
     if (!JWT_SECRET) {
       throw new Error("JWT_SECRET no definido");
