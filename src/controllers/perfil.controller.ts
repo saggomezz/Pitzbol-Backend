@@ -19,6 +19,27 @@ const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE_DIMENSIONS = { width: 4000, height: 4000 };
 const MIN_IMAGE_DIMENSIONS = { width: 200, height: 200 };
 
+// Función auxiliar para subir base64 a Cloudinary
+const subirBase64ACloudinary = async (base64Image: string, uid: string): Promise<string> => {
+  try {
+    const uploadResult = await cloudinary.uploader.upload(base64Image, {
+      folder: `pitzbol/profile_photos/${uid}`,
+      public_id: `${uid}_${Date.now()}`,
+      resource_type: 'auto',
+      format: 'webp',
+      transformation: [
+        { width: 800, height: 800, crop: 'fill' },
+        { quality: 'auto:good' }
+      ]
+    });
+    
+    return uploadResult.secure_url;
+  } catch (error) {
+    console.error('❌ Error subiendo base64 a Cloudinary:', error);
+    throw error;
+  }
+};
+
 export const subirFotoPerfil = async (req: any, res: Response) => {
   try {
     const uid = (req as any).user?.uid;
@@ -98,37 +119,74 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
     const fotoPerfil = uploadData.secure_url;
 
     // ACTUALIZAR EN FIRESTORE
-    const snapshot = await db.collection('usuarios')
+    // Primero buscar en turistas
+    let userDocRef: any = null;
+    let snapshot = await db.collection('usuarios')
       .doc('turistas')
       .collection('lista')
       .where('uid', '==', uid)
       .limit(1)
       .get();
 
-    if (snapshot.empty) {
-      return res.status(404).json({ error: 'Usuario no encontrado' });
-    }
+    if (!snapshot.empty && snapshot.docs.length > 0) {
+      userDocRef = snapshot.docs[0]!.ref;
+    } else {
+      // Si no está en turistas, buscar en guías lista
+      const guiasSnapshot = await db.collection('usuarios')
+        .doc('guias')
+        .collection('lista')
+        .get();
 
-    const userDoc = snapshot.docs[0];
-    if (userDoc) {
-      // Eliminar foto anterior de Cloudinary si existe
-      const userData = userDoc.data();
-      const oldPublicId = userData?.fotoPerfilCloudinary;
-      if (oldPublicId) {
-        try {
-          await cloudinary.uploader.destroy(oldPublicId);
-          console.log('✅ Foto anterior eliminada de Cloudinary:', oldPublicId);
-        } catch (error) {
-          console.error('⚠️ Error al eliminar foto anterior:', error);
+      for (const doc of guiasSnapshot.docs) {
+        const data = doc.data();
+        if (data && data.uid === uid) {
+          userDocRef = doc.ref;
+          break;
         }
       }
 
-      await userDoc.ref.update({
-        fotoPerfil: fotoPerfil,
-        fotoPerfilSubidaEn: new Date().toISOString(),
-        fotoPerfilCloudinary: uploadData.public_id
-      });
+      // Si no está en guías aprobados, buscar en guías pendientes
+      if (!userDocRef) {
+        const pendientesSnapshot = await db.collection('usuarios')
+          .doc('guias')
+          .collection('pendientes')
+          .get();
+
+        for (const doc of pendientesSnapshot.docs) {
+          const data = doc.data();
+          if (data && data.uid === uid) {
+            userDocRef = doc.ref;
+            break;
+          }
+        }
+      }
     }
+
+    if (!userDocRef) {
+      return res.status(404).json({ error: 'Usuario no encontrado' });
+    }
+
+    // Obtener datos actuales del usuario
+    const userSnapshot = await userDocRef.get();
+    const userData = userSnapshot.data();
+
+    // Eliminar foto anterior de Cloudinary si existe
+    const oldPublicId = userData?.fotoPerfilCloudinary;
+    if (oldPublicId) {
+      try {
+        await cloudinary.uploader.destroy(oldPublicId);
+        console.log('✅ Foto anterior eliminada de Cloudinary:', oldPublicId);
+      } catch (error) {
+        console.error('⚠️ Error al eliminar foto anterior:', error);
+      }
+    }
+
+    // Actualizar documento con nueva foto
+    await userDocRef.update({
+      fotoPerfil: fotoPerfil,
+      fotoPerfilSubidaEn: new Date().toISOString(),
+      fotoPerfilCloudinary: uploadData.public_id
+    });
 
     console.log('Foto de perfil actualizada para uid:', uid);
 
@@ -154,6 +212,9 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'No autenticado' });
     }
 
+    console.log(`🔍 Buscando foto de perfil para uid: ${uid}`);
+
+    // Buscar primero en turistas
     const snapshot = await db.collection('usuarios')
       .doc('turistas')
       .collection('lista')
@@ -161,17 +222,129 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
       .limit(1)
       .get();
 
-    if (snapshot.empty) {
-      return res.status(404).json({ error: 'Usuario no encontrado' });
+    if (!snapshot.empty) {
+      const userDoc = snapshot.docs[0];
+      const userData = userDoc ? userDoc.data() : null;
+      console.log(`✅ Usuario encontrado en turistas`);
+      
+      // Si no tiene fotoPerfil pero tiene 13_foto_rostro, subir a Cloudinary
+      if (!userData?.fotoPerfil && userData?.['13_foto_rostro']) {
+        console.log('📤 Migrando 13_foto_rostro a Cloudinary...');
+        try {
+          const cloudinaryUrl = await subirBase64ACloudinary(userData['13_foto_rostro'], uid);
+          
+          // Actualizar Firebase con la nueva URL
+          await userDoc!.ref.update({
+            fotoPerfil: cloudinaryUrl,
+            fotoPerfilSubidaEn: new Date().toISOString()
+          });
+          
+          console.log('✅ Foto migrada a Cloudinary exitosamente');
+          
+          return res.status(200).json({
+            fotoPerfil: cloudinaryUrl,
+            fotoPerfilSubidaEn: new Date().toISOString()
+          });
+        } catch (error) {
+          console.error('❌ Error migrando foto:', error);
+          return res.status(500).json({ error: 'Error procesando foto de perfil' });
+        }
+      }
+      
+      return res.status(200).json({
+        fotoPerfil: userData?.fotoPerfil || null,
+        fotoPerfilSubidaEn: userData?.fotoPerfilSubidaEn || null
+      });
     }
 
-    const userDoc = snapshot.docs[0];
-    const userData = userDoc ? userDoc.data() : null;
-    
-    return res.status(200).json({
-      fotoPerfil: userData?.fotoPerfil || null,
-      fotoPerfilSubidaEn: userData?.fotoPerfilSubidaEn || null
-    });
+    // Si no está en turistas, buscar en guías lista
+    const guiasSnapshot = await db.collection('usuarios')
+      .doc('guias')
+      .collection('lista')
+      .get();
+
+    for (const doc of guiasSnapshot.docs) {
+      const data = doc.data();
+      if (data && data.uid === uid) {
+        console.log(`✅ Usuario encontrado en guías/lista`);
+        
+        // Si no tiene fotoPerfil pero tiene 13_foto_rostro, subir a Cloudinary
+        if (!data.fotoPerfil && data['13_foto_rostro']) {
+          console.log('📤 Migrando 13_foto_rostro a Cloudinary...');
+          try {
+            const cloudinaryUrl = await subirBase64ACloudinary(data['13_foto_rostro'], uid);
+            
+            // Actualizar Firebase con la nueva URL
+            await doc.ref.update({
+              fotoPerfil: cloudinaryUrl,
+              fotoPerfilSubidaEn: new Date().toISOString()
+            });
+            
+            console.log('✅ Foto migrada a Cloudinary exitosamente');
+            
+            return res.status(200).json({
+              fotoPerfil: cloudinaryUrl,
+              fotoPerfilSubidaEn: new Date().toISOString()
+            });
+          } catch (error) {
+            console.error('❌ Error migrando foto:', error);
+            return res.status(500).json({ error: 'Error procesando foto de perfil' });
+          }
+        }
+        
+        return res.status(200).json({
+          fotoPerfil: data.fotoPerfil || null,
+          fotoPerfilSubidaEn: data.fotoPerfilSubidaEn || null
+        });
+      }
+    }
+
+    // Si no está en guías aprobados, buscar en guías pendientes
+    const pendientesSnapshot = await db.collection('usuarios')
+      .doc('guias')
+      .collection('pendientes')
+      .get();
+
+    for (const doc of pendientesSnapshot.docs) {
+      const data = doc.data();
+      if (data && data.uid === uid) {
+        console.log(`✅ Usuario encontrado en guías/pendientes`);
+        console.log(`📸 Foto de perfil: ${data.fotoPerfil ? 'SÍ existe' : 'NO existe'}`);
+        console.log(`📸 Campos disponibles: ${Object.keys(data).join(', ')}`);
+        
+        // Si no tiene fotoPerfil pero tiene 13_foto_rostro, subir a Cloudinary
+        if (!data.fotoPerfil && data['13_foto_rostro']) {
+          console.log('📤 Migrando 13_foto_rostro a Cloudinary...');
+          try {
+            const cloudinaryUrl = await subirBase64ACloudinary(data['13_foto_rostro'], uid);
+            
+            // Actualizar Firebase con la nueva URL
+            await doc.ref.update({
+              fotoPerfil: cloudinaryUrl,
+              fotoPerfilSubidaEn: new Date().toISOString()
+            });
+            
+            console.log('✅ Foto migrada a Cloudinary exitosamente');
+            
+            return res.status(200).json({
+              fotoPerfil: cloudinaryUrl,
+              fotoPerfilSubidaEn: new Date().toISOString()
+            });
+          } catch (error) {
+            console.error('❌ Error migrando foto:', error);
+            return res.status(500).json({ error: 'Error procesando foto de perfil' });
+          }
+        }
+        
+        return res.status(200).json({
+          fotoPerfil: data.fotoPerfil || null,
+          fotoPerfilSubidaEn: data.fotoPerfilSubidaEn || null
+        });
+      }
+    }
+
+    console.warn(`⚠️ Usuario no encontrado en ninguna colección: ${uid}`);
+    return res.status(404).json({ error: 'Usuario no encontrado' });
 
   } catch (error: any) {
     console.error('Error al obtener foto de perfil:', error);
