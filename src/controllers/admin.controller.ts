@@ -271,6 +271,26 @@ export const verificarEstadoUsuario = async (req: Request, res: Response) => {
             }
         }
 
+        // Si no está en guías aprobados, buscar en guías pendientes
+        const pendientesSnapshot = await db.collection("usuarios")
+            .doc("guias")
+            .collection("pendientes")
+            .get();
+
+        for (const doc of pendientesSnapshot.docs) {
+            const data = doc.data();
+            if (data && data.uid === uid) {
+                console.log(`✅ Usuario encontrado en guías/pendientes:`, data);
+                
+                return res.json({
+                    success: true,
+                    rol: "guia_pendiente",
+                    guide_status: "en_revision",
+                    userData: data
+                });
+            }
+        }
+
         console.warn(`⚠️ Usuario no encontrado en ninguna colección: ${uid}`);
         return res.status(404).json({ 
             success: false,
