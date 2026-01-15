@@ -17,23 +17,21 @@ export const authMiddleware = (
   next: NextFunction
 ) => {
   try {
+    let token: string | undefined;
+
+    // Intenta leer del header Authorization primero
     const authHeader = req.headers.authorization;
-
-    if (!authHeader) {
-      return res.status(401).json({ msg: "Authorization header requerido" });
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const parts = authHeader.split(" ");
+      if (parts.length === 2) {
+        token = parts[1];
+      }
     }
 
-    if (!authHeader.startsWith("Bearer ")) {
-      return res.status(401).json({ msg: "Formato de token inválido" });
+    // Si no hay token en header, intenta leer de las cookies
+    if (!token && req.cookies && req.cookies.authToken) {
+      token = req.cookies.authToken;
     }
-
-    const parts = authHeader.split(" ");
-
-    if (parts.length !== 2) {
-      return res.status(401).json({ msg: "Token malformado" });
-    }
-
-    const token = parts[1];
 
     if (!token) {
       return res.status(401).json({ msg: "Token no proporcionado" });
@@ -54,7 +52,7 @@ export const authMiddleware = (
     };
 
     next();
-  } catch (error) {
+  } catch (error: any) {
     return res.status(401).json({ msg: "Token inválido o expirado" });
   }
 };

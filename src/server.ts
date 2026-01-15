@@ -8,6 +8,7 @@ import businessRoutes from "./routes/business.routes";
 import ocrRoutes from './routes/ocr.routes';
 import adminRoutes from './routes/admin.routes';
 import paymentRoutes from "./routes/payment.routes";
+import perfilRoutes from './routes/perfil.routes';
 
 
 dotenv.config();
@@ -16,8 +17,9 @@ const PORT = process.env.PORT || 3001;
 
 app.use(cors({
   origin: "http://localhost:3000",
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+  allowedHeaders: ["Content-Type", "Authorization"],
+  credentials: true
 }));
 
 app.use(express.json({ limit: '50mb' }));
@@ -35,6 +37,7 @@ app.use("/api/business", businessRoutes);
 app.use('/api/ocr', ocrRoutes);
 app.use('/api/admin', adminRoutes);
 app.use("/api/payments", paymentRoutes);
+app.use('/api/perfil', perfilRoutes);
 
 
 app.get('/', (req, res) => {
