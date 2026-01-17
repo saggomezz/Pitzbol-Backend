@@ -115,6 +115,7 @@ export const login = async (req: Request, res: Response) => {
     
     let userData: any = null;
     let userRole: string = "";
+    let guideCollection: "lista" | "pendientes" | null = null;
 
     const categorias = ["turistas", "admins", "negocios"];
     const subCarpetasGuia = ["lista", "pendientes"];
@@ -140,14 +141,22 @@ export const login = async (req: Request, res: Response) => {
                 const doc = snap.docs[0];
                 if (doc && doc.exists) {
                     userData = doc.data();
-                    userRole = sub === "lista" ? "guia" : "turista"; 
+                    userRole = sub === "lista" ? "guia" : "turista";
+                    guideCollection = sub as any;
                     break;
                 }
             }
         }
     }
 
-    const especialidadesUnificadas = userData.especialidades || userData["07_especialidades"] || [];
+    // Normalizar campos para cualquier colección (turistas / guias lista / guias pendientes / admins / negocios)
+    const nombre = userData?.nombre || userData?.["01_nombre"] || "";
+    const apellido = userData?.apellido || userData?.["02_apellido"] || "";
+    const nacionalidad = userData?.nacionalidad || userData?.["05_nacionalidad"] || "No registrado";
+    const telefono = userData?.telefono || userData?.["06_telefono"] || "No registrado";
+    const especialidadesUnificadas = userData?.especialidades || userData?.["07_especialidades"] || [];
+    const guideStatusRaw = userData?.solicitudStatus || userData?.status || userData?.guide_status;
+    const guideStatus = guideStatusRaw || (guideCollection === "pendientes" ? "pendiente" : "ninguno");
 
     const token = jwt.sign(
       { uid: localId, email, role: userRole },
@@ -173,13 +182,13 @@ export const login = async (req: Request, res: Response) => {
       user: {
         uid: localId,
         email,
-        nombre: userData.nombre || "",
-        apellido: userData.apellido || "",
-        telefono: userData.telefono || "No registrado",
-        nacionalidad: userData.nacionalidad || "No registrado",
+        nombre,
+        apellido,
+        telefono,
+        nacionalidad,
         especialidades: especialidadesUnificadas,
         role: userRole,
-        guide_status: userData.solicitudStatus || "ninguno",
+        guide_status: guideStatus,
       },
     });
   }   
