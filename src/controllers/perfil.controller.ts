@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { db } from '../config/firebase';
 import sharp from 'sharp';
 import { v2 as cloudinary } from 'cloudinary';
+import stripe from '../config/stripe';
+import { saveCard, getUserCards, setDefaultCard, deleteCard } from '../services/wallet.service';
 
 // Configurar Cloudinary con validación
 if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
@@ -360,5 +362,182 @@ export const eliminarFotoPerfilAnterior = async (publicId: string) => {
     }
   } catch (error: any) {
     console.error('Error al eliminar foto anterior:', error);
+  }
+};
+
+/**
+ * WALLET CONTROLLERS
+ */
+
+// GET /api/perfil/wallet - Obtener tarjetas del usuario
+export const obtenerTarjetas = async (req: any, res: Response) => {
+  try {
+    const uid = req.user?.uid;
+
+    console.log('📋 [obtenerTarjetas] Iniciando...');
+    console.log(`   - UID del token: ${uid}`);
+    console.log(`   - req.user completo:`, req.user);
+
+    if (!uid) {
+      console.error('❌ [obtenerTarjetas] UID no encontrado en token');
+      return res.status(401).json({ error: 'No autenticado - UID no encontrado en token' });
+    }
+
+    console.log(`✅ [obtenerTarjetas] UID validado: ${uid}`);
+
+    const cards = await getUserCards(uid);
+    
+    console.log(`✅ [obtenerTarjetas] ${cards.length} tarjeta(s) encontrada(s) para UID: ${uid}`);
+    
+    res.json({ cards });
+  } catch (error: any) {
+    console.error('❌ Error obteniendo tarjetas:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener tarjetas' });
+  }
+};
+
+// POST /api/perfil/setup-intent - Crear Setup Intent
+export const crearSetupIntent = async (req: any, res: Response) => {
+  try {
+    const uid = req.user?.uid;
+    
+    console.log('🔐 [crearSetupIntent] Iniciando...');
+    console.log(`   - UID del token: ${uid}`);
+    console.log(`   - req.user completo:`, req.user);
+
+    if (!uid) {
+      console.error('❌ [crearSetupIntent] UID no encontrado en token');
+      return res.status(401).json({ error: 'No autenticado - UID no encontrado en token' });
+    }
+
+    console.log(`✅ [crearSetupIntent] UID validado: ${uid}`);
+
+    const setupIntent = await stripe.setupIntents.create({
+      payment_method_types: ['card'],
+      metadata: { uid },
+    });
+
+    console.log(`✅ [crearSetupIntent] Setup intent creado: ${setupIntent.id}`);
+
+    res.json({ clientSecret: setupIntent.client_secret });
+  } catch (error: any) {
+    console.error('❌ Error creando setup intent:', error);
+    res.status(500).json({ error: error.message || 'Error creando setup intent' });
+  }
+};
+
+// POST /api/perfil/save-card - Guardar tarjeta
+export const guardarTarjeta = async (req: any, res: Response) => {
+  try {
+    const uid = req.user?.uid;
+    const { paymentMethodId } = req.body;
+
+    console.log('💳 [guardarTarjeta] Iniciando...');
+    console.log(`   - UID del token: ${uid}`);
+    console.log(`   - Payment Method ID: ${paymentMethodId}`);
+    console.log(`   - req.user completo:`, req.user);
+
+    if (!uid) {
+      console.error('❌ [guardarTarjeta] UID no encontrado en token');
+      return res.status(401).json({ error: 'No autenticado - UID no encontrado en token' });
+    }
+
+    if (!paymentMethodId) {
+      console.error('❌ [guardarTarjeta] Payment method ID requerido');
+      return res.status(400).json({ error: 'Payment method ID requerido' });
+    }
+
+    console.log(`✅ [guardarTarjeta] Validaciones pasadas. UID: ${uid}`);
+
+    // Obtener detalles de Stripe
+    const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
+
+    if (!paymentMethod.card) {
+      console.error('❌ [guardarTarjeta] Payment method no válido');
+      return res.status(400).json({ error: 'Payment method no válido' });
+    }
+
+    const card = paymentMethod.card;
+
+    console.log(`✅ [guardarTarjeta] Payment method validado. Brand: ${card.brand}, Last4: ${card.last4}`);
+
+    // Guardar en Firestore
+    const newCard = await saveCard(uid, {
+      stripePaymentMethodId: paymentMethodId,
+      last4: card.last4 || '',
+      brand: (card.brand || 'unknown').toLowerCase(),
+      expMonth: card.exp_month || 0,
+      expYear: card.exp_year || 0,
+    });
+
+    console.log(`✅ [guardarTarjeta] Tarjeta guardada en Firestore. ID: ${newCard.id}, UID: ${uid}`);
+
+    res.json({
+      success: true,
+      message: 'Tarjeta guardada exitosamente',
+      card: {
+        id: newCard.id,
+        last4: newCard.last4,
+        brand: newCard.brand,
+        expMonth: newCard.expMonth,
+        expYear: newCard.expYear,
+        isDefault: newCard.isDefault,
+      },
+    });
+  } catch (error: any) {
+    console.error('❌ Error guardando tarjeta:', error);
+    res.status(500).json({ error: error.message || 'Error guardando tarjeta' });
+  }
+};
+
+// DELETE /api/perfil/card/:cardId - Eliminar tarjeta
+export const eliminarTarjeta = async (req: any, res: Response) => {
+  try {
+    const uid = req.user?.uid || (req as any).uid;
+    const { cardId } = req.params;
+
+    if (!uid) {
+      return res.status(401).json({ error: 'No autenticado' });
+    }
+
+    if (!cardId) {
+      return res.status(400).json({ error: 'Card ID requerido' });
+    }
+
+    await deleteCard(uid, cardId);
+
+    res.json({
+      success: true,
+      message: 'Tarjeta eliminada',
+    });
+  } catch (error: any) {
+    console.error('❌ Error eliminando tarjeta:', error);
+    res.status(500).json({ error: error.message || 'Error eliminando tarjeta' });
+  }
+};
+
+// POST /api/perfil/card/:cardId/default - Establecer como predeterminada
+export const establecerPredeterminada = async (req: any, res: Response) => {
+  try {
+    const uid = req.user?.uid || (req as any).uid;
+    const { cardId } = req.params;
+
+    if (!uid) {
+      return res.status(401).json({ error: 'No autenticado' });
+    }
+
+    if (!cardId) {
+      return res.status(400).json({ error: 'Card ID requerido' });
+    }
+
+    await setDefaultCard(uid, cardId);
+
+    res.json({
+      success: true,
+      message: 'Tarjeta establecida como predeterminada',
+    });
+  } catch (error: any) {
+    console.error('❌ Error estableciendo predeterminada:', error);
+    res.status(500).json({ error: error.message || 'Error estableciendo predeterminada' });
   }
 };
