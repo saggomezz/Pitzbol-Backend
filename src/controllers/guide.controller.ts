@@ -47,7 +47,7 @@ export const registerGuide = async (req: Request, res: Response) => {
         const datosSeguros = {
             "01_nombre": nombre ?? "",
             "02_apellido": apellido ?? "",
-            "03_rol": "guia_pendiente",
+            "03_rol": "turista",  // Permanece como turista hasta que el admin lo apruebe
             "04_correo": email ?? data.correo ?? "",
             "05_nacionalidad": nacionalidad ?? "",
             "05_rfc": data.rfc ?? "",
