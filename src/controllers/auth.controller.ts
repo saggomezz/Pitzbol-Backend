@@ -61,6 +61,24 @@ export const register = async (req: Request, res: Response) => {
         createdAt: new Date().toISOString(),
       });
 
+    // Guardar notificación de bienvenida en Firestore
+    try {
+      await db.collection('usuarios')
+        .doc('notificaciones')
+        .collection(userRecord.uid)
+        .add({
+          tipo: 'info',
+          titulo: '¡Bienvenido a Pitzbol! 🎉',
+          mensaje: 'Tu registro ha sido exitoso. Ahora puedes explorar nuestras guías turísticas y experiencias únicas.',
+          fecha: new Date().toISOString(),
+          leido: false,
+          enlace: '/futbol'
+        });
+      console.log(`📬 Notificación de bienvenida guardada para uid: ${userRecord.uid}`);
+    } catch (notifError) {
+      console.warn(`⚠️ Error al guardar notificación de bienvenida: ${notifError}`);
+    }
+
     res.status(201).json({
       msg: "Usuario creado correctamente",
       user: {
