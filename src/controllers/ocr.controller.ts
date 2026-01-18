@@ -51,10 +51,22 @@ export const verifyINE = async (req: Request, res: Response) => {
                 return res.status(400).json({ success: false, message: "No se detecta una INE frontal válida." });
             }
         } else {
-            const keywordsReverso = ["IDMEX", "ELECCION", "FECHA DE NACIMIENTO", "SEXO"];
-            const tieneKeywordsReverso = keywordsReverso.some(word => textUpper.includes(word));
-            if (!tieneKeywordsReverso && textUpper.length < 50) {
-                return res.status(400).json({ success: false, message: "No se detecta el reverso de la identificación." });
+            const mrzPattern = /IDMEX|MEX|INE|<<<<|<<[0-9]/i;
+
+            const numPattern = /[0-9]{8,}/;
+
+            const tieneMRZ = mrzPattern.test(textUpper);
+            const tieneNumerosLargos = numPattern.test(textUpper);
+            console.log("--- OCR REVERSO ---");
+            console.log("Texto detectado:", textUpper);
+            console.log("¿Tiene MRZ?:", tieneMRZ);
+            console.log("¿Tiene Números?:", tieneNumerosLargos);
+
+            if (!tieneMRZ && !tieneNumerosLargos) {
+                return res.status(400).json({ 
+                    success: false, 
+                    message: "No se detecta el patrón del reverso. Asegúrate de capturar bien la zona de los símbolos '<<' y los números inferiores." 
+                });
             }
         }
 
@@ -77,6 +89,7 @@ export const verifyINE = async (req: Request, res: Response) => {
         }
     }
 };
+
 const prepareImage = (base64String: string): Buffer => {
     if (!base64String) throw new Error("Imagen vacía");
     const cleanBase64 = base64String.replace(/^data:image\/\w+;base64,/, "");
