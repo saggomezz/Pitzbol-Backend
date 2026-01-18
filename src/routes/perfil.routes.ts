@@ -11,6 +11,7 @@ import {
   establecerPredeterminada
 } from '../controllers/perfil.controller';
 import multer from 'multer';
+import { actualizarPerfil } from '../controllers/perfil.controller';
 import { db } from '../config/firebase';
 
 const router = express.Router();
@@ -51,6 +52,7 @@ router.post(
  * Obtener foto de perfil del usuario autenticado
  */
 router.get('/foto-perfil', authMiddleware, obtenerFotoPerfil);
+router.patch('/update-profile', authMiddleware, actualizarPerfil);
 
 /**
  * WALLET ROUTES

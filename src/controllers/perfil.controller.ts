@@ -365,6 +365,55 @@ export const eliminarFotoPerfilAnterior = async (publicId: string) => {
   }
 };
 
+export const actualizarPerfil = async (req: Request, res: Response) => {
+  try {
+    const uid = (req as any).user?.uid;
+    const { descripcion } = req.body;
+
+    console.log("📥 Datos recibidos en el backend:", { uid, descripcion });
+
+    if (!uid) return res.status(401).json({ error: 'No autenticado' });
+
+    let userDocRef: any = null;
+
+    const snapT = await db.collection('usuarios').doc('turistas').collection('lista').where('uid', '==', uid).limit(1).get();
+    if (!snapT.empty) {
+      userDocRef = snapT.docs[0]?.ref; 
+    }
+
+    if (!userDocRef) {
+      const snapGL = await db.collection('usuarios').doc('guias').collection('lista').where('uid', '==', uid).limit(1).get();
+      if (!snapGL.empty) {
+        userDocRef = snapGL.docs[0]?.ref;
+      }
+    }
+
+    if (!userDocRef) {
+      const snapGP = await db.collection('usuarios').doc('guias').collection('pendientes').where('uid', '==', uid).limit(1).get();
+      if (!snapGP.empty) {
+        userDocRef = snapGP.docs[0]?.ref;
+      }
+    }
+
+    if (!userDocRef) {
+      return res.status(404).json({ error: 'Usuario no encontrado en Firebase' });
+    }
+
+    const camposAActualizar = {
+      descripcion: descripcion || "",
+      ultimaActualizacion: new Date().toISOString()
+    };
+
+    await userDocRef.update(camposAActualizar);
+
+    return res.status(200).json({
+      msg: 'Perfil actualizado exitosamente',
+      descripcion: descripcion || ""
+    });
+
+  } catch (error: any) {
+    console.error('❌ Error fatal en actualizarPerfil:', error);
+    return res.status(500).json({ msg: 'Error interno del servidor', details: error.message });
 /**
  * WALLET CONTROLLERS
  */
