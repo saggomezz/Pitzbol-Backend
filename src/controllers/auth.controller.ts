@@ -65,6 +65,24 @@ export const register = async (req: Request, res: Response) => {
         createdAt: new Date().toISOString(),
       });
 
+    // Guardar notificación de bienvenida en Firestore
+    try {
+      await db.collection('usuarios')
+        .doc('notificaciones')
+        .collection(userRecord.uid)
+        .add({
+          tipo: 'info',
+          titulo: '¡Bienvenido a Pitzbol! 🎉',
+          mensaje: 'Tu registro ha sido exitoso. Ahora puedes explorar nuestras guías turísticas y experiencias únicas.',
+          fecha: new Date().toISOString(),
+          leido: false,
+          enlace: '/futbol'
+        });
+      console.log(`📬 Notificación de bienvenida guardada para uid: ${userRecord.uid}`);
+    } catch (notifError) {
+      console.warn(`⚠️ Error al guardar notificación de bienvenida: ${notifError}`);
+    }
+
     res.status(201).json({
       msg: "Usuario creado correctamente",
       user: {
@@ -101,6 +119,7 @@ export const login = async (req: Request, res: Response) => {
     
     let userData: any = null;
     let userRole: string = "";
+    let guideCollection: "lista" | "pendientes" | null = null;
 
     const categorias = ["turistas", "admins", "negocios"];
     const subCarpetasGuia = ["lista", "pendientes"];
@@ -126,14 +145,22 @@ export const login = async (req: Request, res: Response) => {
                 const doc = snap.docs[0];
                 if (doc && doc.exists) {
                     userData = doc.data();
-                    userRole = sub === "lista" ? "guia" : "turista"; 
+                    userRole = sub === "lista" ? "guia" : "turista";
+                    guideCollection = sub as any;
                     break;
                 }
             }
         }
     }
 
-    const especialidadesUnificadas = userData.especialidades || userData["07_especialidades"] || [];
+    // Normalizar campos para cualquier colección (turistas / guias lista / guias pendientes / admins / negocios)
+    const nombre = userData?.nombre || userData?.["01_nombre"] || "";
+    const apellido = userData?.apellido || userData?.["02_apellido"] || "";
+    const nacionalidad = userData?.nacionalidad || userData?.["05_nacionalidad"] || "No registrado";
+    const telefono = userData?.telefono || userData?.["06_telefono"] || "No registrado";
+    const especialidadesUnificadas = userData?.especialidades || userData?.["07_especialidades"] || [];
+    const guideStatusRaw = userData?.solicitudStatus || userData?.status || userData?.guide_status;
+    const guideStatus = guideStatusRaw || (guideCollection === "pendientes" ? "pendiente" : "ninguno");
 
     const token = jwt.sign(
       { uid: localId, email, role: userRole },
