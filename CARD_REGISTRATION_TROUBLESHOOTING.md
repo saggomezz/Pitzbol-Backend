@@ -1,8 +1,3 @@
-# Solución de Problemas: Registro de Tarjetas en Wallet
-
-## Problema Reportado
-Las tarjetas no se guardan en la base de datos cuando se registran a través del modal de billetera.
-
 ## Cambios Realizados
 
 ### 1. **Backend - Logging Mejorado**

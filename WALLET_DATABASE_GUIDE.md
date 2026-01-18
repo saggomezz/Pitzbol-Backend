@@ -1,5 +1,3 @@
-# 💾 Guía de Base de Datos - Sistema de Billetera
-
 ## Estructura de datos
 
 ### Colección: `userCards`
