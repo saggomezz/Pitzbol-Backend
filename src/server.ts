@@ -9,6 +9,7 @@ import ocrRoutes from './routes/ocr.routes';
 import adminRoutes from './routes/admin.routes';
 import paymentRoutes from "./routes/payment.routes";
 import perfilRoutes from './routes/perfil.routes';
+import historialRoutes from './routes/historial.routes';
 
 
 dotenv.config();
@@ -38,6 +39,7 @@ app.use('/api/ocr', ocrRoutes);
 app.use('/api/admin', adminRoutes);
 app.use("/api/payments", paymentRoutes);
 app.use('/api/perfil', perfilRoutes);
+app.use('/api', historialRoutes);
 
 
 app.get('/', (req, res) => {
