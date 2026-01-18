@@ -16,6 +16,30 @@ export const registerGuide = async (req: Request, res: Response) => {
             return res.status(400).json({ message: 'El UID es obligatorio.' });
         }
 
+        // Buscar datos del usuario turista para obtener nacionalidad y teléfono si no vienen en el request
+        let telefono = data.telefono;
+        let nacionalidad = data.nacionalidad;
+
+        if (!telefono || !nacionalidad) {
+            try {
+                const turistaSnap = await db.collection("usuarios")
+                    .doc("turistas")
+                    .collection("lista")
+                    .where("uid", "==", uid)
+                    .limit(1)
+                    .get();
+
+                if (!turistaSnap.empty && turistaSnap.docs[0]) {
+                    const turistaData = turistaSnap.docs[0].data();
+                    if (!telefono) telefono = turistaData.telefono || "";
+                    if (!nacionalidad) nacionalidad = turistaData.nacionalidad || "";
+                    console.log("📋 Datos recuperados del turista - telefono:", telefono, "nacionalidad:", nacionalidad);
+                }
+            } catch (err) {
+                console.log("ℹ️ No se encontraron datos de turista, usando solo los del request");
+            }
+        }
+
         const safeApellido = apellido ? `_${apellido}` : "";
         const customId = `${nombre}${safeApellido}`.replace(/\s+/g, '_').toLowerCase();
 
@@ -25,7 +49,7 @@ export const registerGuide = async (req: Request, res: Response) => {
         const datosSeguros = {
             "01_nombre": nombre ?? "",
             "02_apellido": apellido ?? "",
-            "03_rol": "guia_pendiente",
+            "03_rol": "turista",
             "04_correo": email ?? "",
             "05_nacionalidad": data.nacionalidad ?? "",
             "06_telefono": data.telefono ?? "",

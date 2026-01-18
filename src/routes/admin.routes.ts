@@ -43,7 +43,7 @@ router.get(
 
 // PROTEGIDO - Marcar notificación como leída
 router.put(
-  '/notifications/:id/marcar-leida',
+  '/notifications/:id/marcar-leida/:uid',
   authMiddleware,
   adminController.marcarNotificacionComoLeida
 );
@@ -55,11 +55,5 @@ router.delete(
   adminController.eliminarNotificacion
 );
 
-// PROTEGIDO - Limpiar todas las notificaciones
-router.delete(
-  '/notifications/usuario/:uid/limpiar',
-  authMiddleware,
-  adminController.limpiarNotificacionesUsuario
-);
 
 export default router;
