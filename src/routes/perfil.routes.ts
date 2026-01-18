@@ -3,6 +3,7 @@ import { authMiddleware } from '../middlewares/auth.middleware';
 import { upload, uploadLimiter } from '../middleware/uploadMiddleware';
 import { subirFotoPerfil, obtenerFotoPerfil } from '../controllers/perfil.controller';
 import multer from 'multer';
+import { actualizarPerfil } from '../controllers/perfil.controller';
 
 const router = express.Router();
 
@@ -42,5 +43,6 @@ router.post(
  * Obtener foto de perfil del usuario autenticado
  */
 router.get('/foto-perfil', authMiddleware, obtenerFotoPerfil);
+router.patch('/update-profile', authMiddleware, actualizarPerfil);
 
 export default router;

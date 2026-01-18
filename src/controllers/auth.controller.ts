@@ -3,6 +3,7 @@ import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { auth, db } from "../config/firebase";
 import nodemailer from 'nodemailer';
+import { FieldValue } from "@google-cloud/firestore";
 
 const FIREBASE_WEB_API_KEY = process.env.FIREBASE_WEB_API_KEY;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -50,14 +51,17 @@ export const register = async (req: Request, res: Response) => {
       .doc(customId)
       .set({
         uid: userRecord.uid,
-        nombre,
-        apellido: apellido || "",
-        email,
-        telefono: telefono || "",
-        nacionalidad: nacionalidad || "",
+        "01_nombre": nombre,
+        "02_apellido": apellido || "",
+        "03_rol": "turista",
+        "04_correo": email,
+        "05_nacionalidad": nacionalidad || "",
+        "06_telefono": telefono || "",
+        "07_especialidades": [],
         role: "turista", 
         solicitudStatus: (aspiracion === "guia") ? "pendiente" : "ninguno",
-        tipoAspirante: aspiracion, 
+        tipoAspirante: aspiracion,
+        descripcion: "",
         createdAt: new Date().toISOString(),
       });
 
@@ -147,23 +151,28 @@ export const login = async (req: Request, res: Response) => {
 
     // Logging seguro (sin revelar datos sensibles)
     console.log(`✅ Login exitoso para usuario: ${localId}`);
-    
-    // Retorna token con datos completos del usuario
+
     res.json({
       success: true,
       token,
       user: {
         uid: localId,
         email,
-        nombre: userData.nombre || "",
-        apellido: userData.apellido || "",
-        telefono: userData.telefono || "No registrado",
-        nacionalidad: userData.nacionalidad || "No registrado",
-        especialidades: especialidadesUnificadas,
+        nombre: userData["01_nombre"] || "",
+        apellido: userData["02_apellido"] || "",
+        telefono: userData["06_telefono"] || "No registrado",
+        nacionalidad: userData["05_nacionalidad"] || "No registrado",
+        fotoPerfil: userData["14_foto_perfil"]?.url || "",
+        descripcion: userData["15_descripcion"] || "",
+        guide_status: userData["16_status"] || "ninguno",
+        tarifa: userData["17_tarifa_mxn"] || 0,
+        "01_nombre": userData["01_nombre"],
+        "06_telefono": userData["06_telefono"],
+        "15_descripcion": userData["15_descripcion"],
+        "14_foto_perfil": userData["14_foto_perfil"],
         role: userRole,
-        guide_status: userData.solicitudStatus || "ninguno",
       },
-    });
+    });;
   }   
   
   catch (error: any) {
@@ -270,58 +279,79 @@ export const recoverPassword = async (req: Request, res: Response) => {
 
 export const updateProfile = async (req: any, res: Response) => {
   try {
-    // Obtener uid del middleware de autenticación (JWT)
+    // 1. Mantenemos la extracción original y añadimos 'descripcion'
     const uid = req.user?.uid;
-    const { telefono, nacionalidad, especialidades } = req.body;
+    const { telefono, nacionalidad, especialidades, descripcion } = req.body;
 
     if (!uid) {
       return res.status(401).json({ msg: "Usuario no autenticado" });
     }
 
-    const updateData: any = {};
-    if (telefono !== undefined) updateData.telefono = telefono;
-    if (nacionalidad !== undefined) updateData.nacionalidad = nacionalidad;
-    if (especialidades !== undefined) updateData.especialidades = especialidades;
+    // 2. LÓGICA ORIGINAL DE TU COMPAÑERA: Validación de teléfono duplicado
     if (telefono) {
       const categorias = ["turistas", "guias", "admins", "negocios"];
-      
       for (const cat of categorias) {
         const querySnapshot = await db.collection("usuarios")
           .doc(cat)
           .collection("lista")
-          .where("telefono", "==", telefono)
+          .where("06_telefono", "==", telefono) // Buscamos en el campo numerado
           .get();
 
         const duplicados = querySnapshot.docs.filter(doc => doc.data().uid !== uid);
-        
         if (duplicados.length > 0) {
           return res.status(400).json({ msg: "Este teléfono ya está registrado" });
         }
       }
     }
 
+    // 3. BUSQUEDA ORIGINAL: Localizar el documento
     const categorias = ["turistas", "guias", "admins", "negocios"];
-    let documentoActualizado = false;
+    let docRef: any = null;
 
     for (const cat of categorias) {
-      const querySnapshot = await db.collection("usuarios")
-        .doc(cat)
-        .collection("lista")
-        .where("uid", "==", uid)
-        .limit(1)
-        .get();
+      const querySnapshot = await db.collection("usuarios").doc(cat).collection("lista")
+        .where("uid", "==", uid).limit(1).get();
 
-      if (!querySnapshot.empty && querySnapshot.docs[0]) {
-        const docRef = querySnapshot.docs[0].ref;
-        await docRef.update(updateData);
-        documentoActualizado = true;
+      if (!querySnapshot.empty) {
+        docRef = querySnapshot.docs[0]?.ref;
         break;
+      }
+
+      if (cat === "guias") {
+        const queryPendientes = await db.collection("usuarios").doc("guias").collection("pendientes")
+          .where("uid", "==", uid).limit(1).get();
+        if (!queryPendientes.empty) {
+          docRef = queryPendientes.docs[0]?.ref;
+          break;
+        }
       }
     }
 
-    if (!documentoActualizado) {
+    if (!docRef) {
       return res.status(404).json({ msg: "Usuario no encontrado" });
     }
+
+    const userData = (await docRef.get()).data() || {};
+
+    const updateData: any = {
+      "05_nacionalidad": nacionalidad || userData["05_nacionalidad"] || "",
+      "06_telefono": telefono !== undefined ? telefono : (userData["06_telefono"] || userData.telefono || ""),
+      "07_especialidades": especialidades !== undefined ? especialidades : (userData["07_especialidades"] || []),
+      "14_foto_perfil": {
+        url: userData.fotoPerfil || userData["14_foto_perfil"]?.url || "",
+        cloudinary_id: userData.fotoPerfilCloudinary || userData["14_foto_perfil"]?.cloudinary_id || "",
+        subida_en: userData.fotoPerfilSubidaEn || userData["14_foto_perfil"]?.subida_en || ""
+      },
+      "15_descripcion": descripcion !== undefined ? descripcion : (userData["15_descripcion"] || userData.descripcion || ""),
+      "16_status": userData.status || userData["16_status"] || "en_revision",
+      "17_tarifa_mxn": userData.tarifa_mxn || userData["17_tarifa_mxn"] || 0,
+      "18_validacion_biometrica": {
+        porcentaje: userData.validacion_biometrica?.porcentaje || userData["18_validacion_biometrica"]?.porcentaje || "0",
+        mensaje: userData.validacion_biometrica?.mensaje || userData["18_validacion_biometrica"]?.mensaje || ""
+      },
+    };
+
+    await docRef.update(updateData);
 
     res.json({ msg: "Perfil actualizado correctamente", data: updateData });
 

@@ -9,7 +9,7 @@ import {
 import { authMiddleware } from "../middlewares/auth.middleware";
 import { validateRegisterInput, validateLoginInput, validatePasswordRecoveryInput, validateProfileUpdate } from "../middlewares/validation.middleware";
 import { loginLimiter, registerLimiter, passwordLimiter } from "../middlewares/rateLimiter.middleware";
-
+import { actualizarPerfil as actualizarPerfilDescripcion } from "../controllers/perfil.controller";
 const router = Router();
 
 // POST /api/auth/register - Registro con validación y rate limiting
