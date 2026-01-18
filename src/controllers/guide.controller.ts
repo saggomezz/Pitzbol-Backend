@@ -2,6 +2,8 @@ import { Request, Response } from 'express';
 import { db } from "../config/firebase";
 import admin from "firebase-admin";
 
+const FieldValue = admin.firestore.FieldValue; 
+
 export const registerGuide = async (req: Request, res: Response) => {
     try {
         console.log("📥 Datos recibidos en registerGuide:", JSON.stringify(req.body, null, 2));
@@ -47,23 +49,24 @@ export const registerGuide = async (req: Request, res: Response) => {
         const datosSeguros = {
             "01_nombre": nombre ?? "",
             "02_apellido": apellido ?? "",
-            "03_rol": "turista",  // Permanece como turista hasta que el admin lo apruebe
-            "04_correo": email ?? data.correo ?? "",
-            "05_nacionalidad": nacionalidad ?? "",
-            "05_rfc": data.rfc ?? "",
-            "06_telefono": telefono ?? "",
+            "03_rol": "turista",
+            "04_correo": email ?? "",
+            "05_nacionalidad": data.nacionalidad ?? "",
+            "06_telefono": data.telefono ?? "",
             "07_especialidades": data.categorias ?? [], 
+            "08_rfc": data.rfc ?? "",
             "10_cp": data.codigoPostal ?? "",
             "11_foto_frente": data.ineFrente ?? "",
             "12_foto_reverso": data.ineReverso ?? "",
-            "13_foto_rostro": data.facePhoto ?? data.fotoRostro ?? "",
-            "tarifa_mxn": data.precioMXN ?? 0,
-            "validacion_biometrica": {
-                coincide: data.validacion_biometrica?.coincide ?? false,
+            "13_foto_rostro": data.facePhoto ?? "",
+            "14_foto_perfil": { url: "", cloudinary_id: "", subida_en: "" },
+            "15_descripcion": "",
+            "16_status": "en_revision",
+            "17_tarifa_mxn": data.precioMXN ?? 0,
+            "18_validacion_biometrica": {
                 porcentaje: data.validacion_biometrica?.porcentaje ?? 0,
                 mensaje: data.validacion_biometrica?.mensaje ?? "No validado"
             },
-            status: "en_revision",
             uid: uid, 
             createdAt: new Date().toISOString()
         };
