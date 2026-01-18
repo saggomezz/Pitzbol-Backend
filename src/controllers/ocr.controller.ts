@@ -1,13 +1,12 @@
 import { Request, Response } from 'express';
 import { createWorker } from 'tesseract.js';
 import * as faceapi from 'face-api.js';
-import { createCanvas, Image, loadImage } from 'canvas';
-import path from 'path';
-import * as tf from '@tensorflow/tfjs';
+import * as tf from '@tensorflow/tfjs-core';
+import * as canvas from 'canvas';
+import * as path from 'path';
 
-// Configuración de entorno para face-api.js
-// @ts-ignore
-faceapi.env.monkeyPatch({ Canvas: createCanvas().constructor, Image });
+const { Canvas, Image, ImageData } = canvas;
+faceapi.env.monkeyPatch({ Canvas, Image, ImageData });
 
 const MODELS_PATH = path.resolve(process.cwd(), 'models');
 let isModelsLoaded = false;
@@ -86,36 +85,51 @@ const prepareImage = (base64String: string): Buffer => {
 export const compareBiometry = async (req: Request, res: Response) => {
     try {
         const { faceBase64, ineBase64 } = req.body;
-        if (!faceBase64 || !ineBase64) return res.status(400).json({ success: false, message: "Faltan imágenes." });
+        console.log("[compareBiometry] body:", Object.keys(req.body));
+        if (!faceBase64 || !ineBase64) {
+            console.error("[compareBiometry] Faltan imágenes");
+            return res.status(400).json({ success: false, message: "Faltan imágenes." });
+        }
 
-        await ensureModelsLoaded();
+        try {
+            console.log("[compareBiometry] Cargando modelos...");
+            await ensureModelsLoaded();
+            console.log("[compareBiometry] Modelos cargados");
+        } catch (err) {
+            console.error("[compareBiometry] Error cargando modelos:", err);
+            return res.status(500).json({ success: false, message: "Error cargando modelos", error: String(err) });
+        }
 
         let confidence = "0";
         let isMatch = false;
         let nivelPrioridad = "BAJA";
 
         try {
-            const imgIne = await loadImage(Buffer.from(ineBase64.replace(/^data:image\/\w+;base64,/, ""), 'base64'));
-            const imgFace = await loadImage(Buffer.from(faceBase64.replace(/^data:image\/\w+;base64,/, ""), 'base64'));
+            console.log("[compareBiometry] Procesando imágenes...");
+            const imgIne = await canvas.loadImage(Buffer.from(ineBase64.replace(/^data:image\/\w+;base64,/, ""), 'base64'));
+            const imgFace = await canvas.loadImage(Buffer.from(faceBase64.replace(/^data:image\/\w+;base64,/, ""), 'base64'));
+            console.log("[compareBiometry] Imágenes cargadas");
 
             const detectionOptions = new faceapi.SsdMobilenetv1Options({ minConfidence: 0.4 });
 
             const detectionIne = await faceapi.detectSingleFace(imgIne as any, detectionOptions).withFaceLandmarks().withFaceDescriptor();
             const detectionFace = await faceapi.detectSingleFace(imgFace as any, detectionOptions).withFaceLandmarks().withFaceDescriptor();
+            console.log("[compareBiometry] Detección completada");
 
             if (detectionIne && detectionFace) {
                 const distance = faceapi.euclideanDistance(detectionIne.descriptor, detectionFace.descriptor);
                 const score = (1 - distance) * 100;
-                
                 confidence = score.toFixed(2);
                 isMatch = distance < 0.70; 
-
                 if (distance < 0.55) nivelPrioridad = "ALTA"; 
                 else if (distance < 0.70) nivelPrioridad = "MEDIA";
                 else nivelPrioridad = "BAJA";
+            } else {
+                console.warn("[compareBiometry] No se detectaron ambos rostros");
             }
         } catch (e) {
-            console.log("⚠️ Error en procesamiento de imagen:", e);
+            console.error("[compareBiometry] Error en procesamiento de imagen:", e);
+            return res.status(500).json({ success: false, message: "Error procesando imágenes", error: String(e) });
         }
         return res.json({
             success: true,
@@ -125,6 +139,7 @@ export const compareBiometry = async (req: Request, res: Response) => {
             message: isMatch ? "Coincidencia detectada" : "Baja coincidencia, requiere revisión manual"
         });
     } catch (error: any) {
-        return res.status(500).json({ success: false, message: "Error interno del servidor" });
+        console.error("[compareBiometry] Error inesperado:", error);
+        return res.status(500).json({ success: false, message: "Error interno del servidor", error: String(error) });
     }
 };
