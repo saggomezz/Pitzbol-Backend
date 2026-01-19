@@ -1,8 +1,18 @@
 ﻿import express, { Request, Response, NextFunction } from 'express';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { upload, uploadLimiter } from '../middleware/uploadMiddleware';
-import { subirFotoPerfil, obtenerFotoPerfil } from '../controllers/perfil.controller';
+import { 
+  subirFotoPerfil, 
+  obtenerFotoPerfil,
+  obtenerTarjetas,
+  crearSetupIntent,
+  guardarTarjeta,
+  eliminarTarjeta,
+  establecerPredeterminada
+} from '../controllers/perfil.controller';
 import multer from 'multer';
+import { actualizarPerfil } from '../controllers/perfil.controller';
+import { db } from '../config/firebase';
 
 const router = express.Router();
 
@@ -42,5 +52,37 @@ router.post(
  * Obtener foto de perfil del usuario autenticado
  */
 router.get('/foto-perfil', authMiddleware, obtenerFotoPerfil);
+router.patch('/update-profile', authMiddleware, actualizarPerfil);
+
+/**
+ * WALLET ROUTES
+ */
+
+// DEBUG: Verificar autenticación
+router.get("/debug/auth", authMiddleware, (req: any, res: Response) => {
+  console.log('🔍 [DEBUG] Endpoint de autenticación accedido');
+  console.log(`   - req.user:`, req.user);
+  res.json({
+    success: true,
+    message: "Autenticación verificada",
+    user: req.user,
+    timestamp: new Date().toISOString()
+  });
+});
+
+// Obtener tarjetas guardadas del usuario
+router.get("/wallet", authMiddleware, obtenerTarjetas);
+
+// Crear setup intent para guardar tarjeta
+router.post("/setup-intent", authMiddleware, crearSetupIntent);
+
+// Guardar tarjeta
+router.post("/save-card", authMiddleware, guardarTarjeta);
+
+// Eliminar tarjeta
+router.delete("/card/:cardId", authMiddleware, eliminarTarjeta);
+
+// Establecer tarjeta como predeterminada
+router.post("/card/:cardId/default", authMiddleware, establecerPredeterminada);
 
 export default router;
