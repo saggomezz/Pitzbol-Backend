@@ -414,7 +414,11 @@ export const actualizarPerfil = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('❌ Error fatal en actualizarPerfil:', error);
     return res.status(500).json({ msg: 'Error interno del servidor', details: error.message });
-/**
+  } // <--- ESTA LLAVE FALTABA PARA CERRAR EL CATCH
+};
+
+
+    /**
  * WALLET CONTROLLERS
  */
 
