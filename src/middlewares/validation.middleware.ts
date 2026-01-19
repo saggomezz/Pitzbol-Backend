@@ -57,10 +57,10 @@ export const validatePasswordRecoveryInput = (req: Request, res: Response, next:
 
 // Validación de entrada para actualización de perfil
 export const validateProfileUpdate = (req: Request, res: Response, next: NextFunction) => {
-  const { nombre, apellido, telefono, nacionalidad, especialidades } = req.body;
+  const { nombre, apellido, telefono, nacionalidad, especialidades, descripcion } = req.body;
 
   // Al menos uno de estos campos debe estar presente
-  if (!nombre && !apellido && !telefono && !nacionalidad && !especialidades) {
+  if (!nombre && !apellido && !telefono && !nacionalidad && !especialidades && !descripcion) {
     return res.status(400).json({ msg: "Debe proporcionar al menos un campo para actualizar" });
   }
 
