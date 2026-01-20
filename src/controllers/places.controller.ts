@@ -225,19 +225,19 @@ export const geocodeAddress = async (req: Request, res: Response) => {
       
       if (partes.length > 0) {
         // Primera parte: calle (puede incluir número)
-        let primeraParte = partes[0];
+        let primeraParte = partes[0] ?? '';
         calle = primeraParte;
-        
+
         // Extraer número de la calle si está presente
         const matchNumero = primeraParte.match(patronNumero);
         if (matchNumero && matchNumero.index !== undefined && matchNumero.index < primeraParte.length / 2) {
-          numero = matchNumero[1];
+          numero = matchNumero[1] ?? '';
           calle = primeraParte.replace(patronNumero, '').trim();
         }
-        
+
         // Buscar colonia y ciudad en las siguientes partes
         for (let i = 1; i < partes.length; i++) {
-          const parte = partes[i];
+          const parte = partes[i] ?? '';
           if (parte.toLowerCase().includes('guadalajara') || parte.toLowerCase().includes('gdl')) {
             ciudad = 'Guadalajara';
           } else if (!colonia && i <= 2 && !parte.match(/^(Guadalajara|Jalisco|México|Méx)$/i)) {
@@ -245,7 +245,7 @@ export const geocodeAddress = async (req: Request, res: Response) => {
           }
         }
       }
-      
+
       return { calle, numero, colonia, ciudad };
     };
 
@@ -258,8 +258,8 @@ export const geocodeAddress = async (req: Request, res: Response) => {
       componentes.calle ? {
         method: 'structured',
         params: {
-          street: componentes.calle,
-          city: componentes.ciudad,
+          street: componentes.calle ?? '',
+          city: componentes.ciudad ?? '',
           state: 'Jalisco',
           country: 'México'
         }
@@ -280,7 +280,7 @@ export const geocodeAddress = async (req: Request, res: Response) => {
       // 4. Búsqueda por query solo con calle y ciudad
       componentes.calle ? {
         method: 'query',
-        params: { q: `${componentes.calle}, ${componentes.ciudad}, Jalisco` }
+        params: { q: `${componentes.calle ?? ''}, ${componentes.ciudad ?? ''}, Jalisco` }
       } : null,
       
       // 5. Búsqueda estructurada solo con ciudad y estado
@@ -390,15 +390,21 @@ export const geocodeAddress = async (req: Request, res: Response) => {
  */
 export const getPlaceByName = async (req: Request, res: Response) => {
   try {
-    const { nombre } = req.params;
+    let { nombre } = req.params;
+    if (!nombre) {
+      return res.status(400).json({ message: 'Nombre de lugar requerido' });
+    }
+    if (Array.isArray(nombre)) {
+      nombre = nombre.join(' ');
+    }
     const placeId = normalizePlaceName(nombre);
-    
+
     const doc = await db.collection('lugares').doc(placeId).get();
-    
+
     if (!doc.exists) {
       return res.status(404).json({ message: 'Lugar no encontrado' });
     }
-    
+
     return res.status(200).json({
       id: doc.id,
       ...doc.data()
@@ -417,16 +423,19 @@ export const addPlacePhotos = async (req: any, res: Response) => {
     const { nombre } = req.params;
     const { fotosUrl } = req.body; // Array de URLs si se envían URLs
     const files = req.files || []; // Archivos subidos via multer
-    
+
+    if (!nombre) {
+      return res.status(400).json({ message: 'Nombre de lugar requerido' });
+    }
     const placeId = normalizePlaceName(nombre);
-    
+
     // Obtener o crear el documento del lugar
     const placeRef = db.collection('lugares').doc(placeId);
     const placeDoc = await placeRef.get();
-    
+
     const currentData = placeDoc.exists ? placeDoc.data() : {};
-    const currentPhotos = currentData.fotos || [];
-    
+    const currentPhotos = (currentData && currentData.fotos) ? currentData.fotos : [];
+
     const newPhotos: string[] = [];
     
     // 1. Procesar URLs si se proporcionaron
@@ -518,31 +527,37 @@ export const addPlacePhotos = async (req: any, res: Response) => {
  */
 export const deletePlacePhoto = async (req: Request, res: Response) => {
   try {
-    const { nombre, index } = req.params;
+    let { nombre, index } = req.params;
+    if (!nombre || typeof index === 'undefined') {
+      return res.status(400).json({ message: 'Nombre e índice requeridos' });
+    }
+    if (Array.isArray(nombre)) {
+      nombre = nombre.join(' ');
+    }
     const placeId = normalizePlaceName(nombre);
-    const photoIndex = parseInt(index);
-    
+    const photoIndex = parseInt(index as string);
+
     const placeRef = db.collection('lugares').doc(placeId);
     const placeDoc = await placeRef.get();
-    
+
     if (!placeDoc.exists) {
       return res.status(404).json({ message: 'Lugar no encontrado' });
     }
-    
+
     const data = placeDoc.data();
-    const fotos = data?.fotos || [];
-    
+    const fotos = (data && data.fotos) ? data.fotos : [];
+
     if (photoIndex < 0 || photoIndex >= fotos.length) {
       return res.status(400).json({ message: 'Índice de foto inválido' });
     }
-    
+
     // Eliminar foto de Cloudinary si es una URL de Cloudinary
     const photoUrl = fotos[photoIndex];
     if (photoUrl && photoUrl.includes('cloudinary.com')) {
       try {
         // Extraer public_id de la URL de Cloudinary
         const urlParts = photoUrl.split('/');
-        const filenameIndex = urlParts.findIndex(part => part.includes('upload')) + 1;
+        const filenameIndex = urlParts.findIndex((part: string) => part.includes('upload')) + 1;
         const filename = urlParts[filenameIndex]?.split('.')[0];
         if (filename) {
           await cloudinary.uploader.destroy(`pitzbol/lugares/${placeId}/${filename}`);
@@ -552,15 +567,15 @@ export const deletePlacePhoto = async (req: Request, res: Response) => {
         // Continuar aunque falle la eliminación en Cloudinary
       }
     }
-    
+
     // Eliminar de array
     fotos.splice(photoIndex, 1);
-    
+
     await placeRef.update({
       fotos,
       ultimaActualizacion: new Date().toISOString()
     });
-    
+
     return res.status(200).json({
       message: 'Foto eliminada correctamente',
       fotos
@@ -576,17 +591,23 @@ export const deletePlacePhoto = async (req: Request, res: Response) => {
  */
 export const updatePlace = async (req: Request, res: Response) => {
   try {
-    const { nombre } = req.params;
+    let { nombre } = req.params;
+    if (!nombre) {
+      return res.status(400).json({ message: 'Nombre de lugar requerido' });
+    }
+    if (Array.isArray(nombre)) {
+      nombre = nombre.join(' ');
+    }
     const updateData = req.body;
-    
+
     const placeId = normalizePlaceName(nombre);
-    
+
     await db.collection('lugares').doc(placeId).set({
       nombre,
       ...updateData,
       ultimaActualizacion: new Date().toISOString()
     }, { merge: true });
-    
+
     return res.status(200).json({
       message: 'Lugar actualizado correctamente'
     });
