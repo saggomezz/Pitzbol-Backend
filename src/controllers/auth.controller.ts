@@ -185,14 +185,14 @@ export const login = async (req: Request, res: Response) => {
       user: {
         uid: localId,
         email,
-        nombre: userData["01_nombre"] || "",
-        apellido: userData["02_apellido"] || "",
-        telefono: userData["06_telefono"] || "No registrado",
-        nacionalidad: userData["05_nacionalidad"] || "No registrado",
-        fotoPerfil: userData["14_foto_perfil"]?.url || "",
-        descripcion: userData["15_descripcion"] || "",
-        guide_status: userData["16_status"] || "ninguno",
-        tarifa: userData["17_tarifa_mxn"] || 0,
+        nombre: userData.nombre || userData["01_nombre"] || "",
+        apellido: userData.apellido || userData["02_apellido"] || "",
+        telefono: userData.telefono || userData["06_telefono"] || "No registrado",
+        nacionalidad: userData.nacionalidad || userData["05_nacionalidad"] || "No registrado",
+        fotoPerfil: userData.fotoPerfil || userData["14_foto_perfil"]?.url || "",
+        descripcion: userData.descripcion || userData["15_descripcion"] || "",
+        guide_status: userData.guide_status || userData["16_status"] || "ninguno",
+        tarifa: userData.tarifa_mxn || userData["17_tarifa_mxn"] || 0,
         "01_nombre": userData["01_nombre"],
         "06_telefono": userData["06_telefono"],
         "15_descripcion": userData["15_descripcion"],
@@ -448,6 +448,36 @@ export const solicitarGuia = async (req: any, res: Response) => {
       guide_status: "pendiente",
       tipoAspirante: "guia"
     });
+
+
+    // Notificar a todos los administradores SOLO si la solicitud está pendiente
+    try {
+      if (true) { // Siempre es pendiente en este flujo
+        const adminsSnapshot = await db.collection('usuarios').doc('admins').collection('lista').get();
+        const notificacion = {
+          tipo: 'solicitud_guia_pendiente',
+          titulo: 'Nueva solicitud de guía pendiente',
+          mensaje: `El usuario ${turistaData.nombre} ${turistaData.apellido} ha enviado una solicitud para ser guía.`,
+          fecha: new Date().toISOString(),
+          leido: false,
+          enlace: `/admin/solicitud-guia/${docId}`,
+          solicitudId: docId,
+          uidSolicitante: uid
+        };
+        const batch = db.batch();
+        adminsSnapshot.forEach(adminDoc => {
+          const adminUid = adminDoc.data().uid;
+          if (adminUid) {
+            const notifRef = db.collection('usuarios').doc('notificaciones').collection(adminUid).doc();
+            batch.set(notifRef, notificacion);
+          }
+        });
+        await batch.commit();
+        console.log('✅ Notificación enviada a administradores');
+      }
+    } catch (notifError) {
+      console.warn('⚠️ Error al notificar a administradores:', notifError);
+    }
 
     console.log(`✅ Solicitud de guía creada para uid: ${uid}`);
 
