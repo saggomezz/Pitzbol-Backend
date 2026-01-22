@@ -3,7 +3,7 @@ import rateLimit from 'express-rate-limit';
 // Rate limiter para registro: 3 intentos por hora
 export const registerLimiter = rateLimit({
   windowMs: 60 * 60 * 1000, // 1 hora
-  max: 3,
+  max: 10,
   message: JSON.stringify({ success: false, msg: "Demasiados intentos de registro, intente más tarde" }),
   standardHeaders: true,
   legacyHeaders: false,
