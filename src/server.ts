@@ -11,6 +11,7 @@ import paymentRoutes from "./routes/payment.routes";
 import perfilRoutes from './routes/perfil.routes';
 import historialRoutes from './routes/historial.routes';
 import placesRoutes from './routes/places.routes';
+import supportRoutes from './routes/support.routes';
 
 
 dotenv.config();
@@ -42,6 +43,7 @@ app.use("/api/payments", paymentRoutes);
 app.use('/api/perfil', perfilRoutes);
 app.use('/api', historialRoutes);
 app.use('/api/lugares', placesRoutes);
+app.use('/api/support', supportRoutes);
 
 
 app.get('/', (req, res) => {
