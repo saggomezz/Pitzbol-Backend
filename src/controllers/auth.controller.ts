@@ -165,14 +165,14 @@ export const login = async (req: Request, res: Response) => {
     const token = jwt.sign(
       { uid: localId, email, role: userRole },
       JWT_SECRET!,
-      { expiresIn: "1d" }
+      { expiresIn: "7d" }
     );
 
     // Establecer HTTP-only cookie
     res.cookie('authToken', token, {
       httpOnly: true,
       sameSite: 'lax',
-      maxAge: 24 * 60 * 60 * 1000, // 24 horas en milisegundos
+      maxAge: 7 * 24 * 60 * 60 * 1000, // 7 días en milisegundos
       secure: process.env.NODE_ENV === 'production' // Solo en HTTPS en producción
     });
 
