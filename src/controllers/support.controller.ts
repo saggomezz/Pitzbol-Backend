@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { db } from "../config/firebase";
 import nodemailer from "nodemailer";
+import { DocumentData, QueryDocumentSnapshot } from "@google-cloud/firestore";
 
 const ADMIN_EMAIL = "pitzbol2026@gmail.com";
 
@@ -33,8 +34,8 @@ export const submitContactForm = async (req: Request, res: Response) => {
     const timestamp = new Date().toISOString();
     const contactId = `contact_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
-    // Guardar en Firestore
-    await db.collection("support").collection("contactForms").doc(contactId).set({
+    // Guardar en Firestore 
+    await db.collection("support_contactForms").doc(contactId).set({
       id: contactId,
       name,
       email,
@@ -81,14 +82,14 @@ export const submitContactForm = async (req: Request, res: Response) => {
       enlace: `/admin/mensajes?id=${contactId}`,
     });
 
-    console.log(`✅ Formulario de contacto guardado: ${contactId}`);
+    console.log(`Formulario de contacto guardado: ${contactId}`);
 
     res.status(200).json({
       msg: "Formulario enviado exitosamente",
       contactId,
     });
   } catch (error: any) {
-    console.error("❌ Error al procesar formulario de contacto:", error);
+    console.error("Error al procesar formulario de contacto:", error);
     res.status(500).json({
       msg: "Error al enviar el formulario",
       error: error.message,
@@ -114,7 +115,7 @@ export const submitCallRequest = async (req: Request, res: Response) => {
     const callId = `call_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
 
     // Guardar en Firestore
-    await db.collection("support").collection("callRequests").doc(callId).set({
+    await db.collection("support_callRequests").doc(callId).set({
       id: callId,
       name,
       phone: fullPhone,
@@ -177,12 +178,11 @@ export const submitCallRequest = async (req: Request, res: Response) => {
 export const getContactForms = async (req: Request, res: Response) => {
   try {
     const snapshot = await db
-      .collection("support")
-      .collection("contactForms")
+      .collection("support_contactForms")
       .orderBy("timestamp", "desc")
       .get();
 
-    const forms = snapshot.docs.map((doc) => ({
+    const forms = snapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => ({
       id: doc.id,
       ...doc.data(),
     }));
@@ -201,12 +201,11 @@ export const getContactForms = async (req: Request, res: Response) => {
 export const getCallRequests = async (req: Request, res: Response) => {
   try {
     const snapshot = await db
-      .collection("support")
-      .collection("callRequests")
+      .collection("support_callRequests")
       .orderBy("timestamp", "desc")
       .get();
 
-    const calls = snapshot.docs.map((doc) => ({
+    const calls = snapshot.docs.map((doc: QueryDocumentSnapshot<DocumentData>) => ({
       id: doc.id,
       ...doc.data(),
     }));
@@ -254,7 +253,14 @@ export const getSupportNotifications = async (req: Request, res: Response) => {
  */
 export const markSupportNotificationAsRead = async (req: Request, res: Response) => {
   try {
-    const { id } = req.params;
+    const { id } = req.params as { id: string };
+
+    if (!id) {
+      return res.status(400).json({
+        success: false,
+        msg: "ID de notificación requerido",
+      });
+    }
 
     await db.collection("notificaciones").doc(id).update({
       leido: true,
