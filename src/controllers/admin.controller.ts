@@ -1,3 +1,7 @@
+import { Request, Response } from 'express';
+import { db, auth } from '../config/firebase';
+import { sendNotificationToUser } from '../services/notification.service';
+
 // Obtener negocios archivados (solo admin)
 export const obtenerNegociosArchivados = async (req: Request, res: Response) => {
     try {
@@ -9,9 +13,6 @@ export const obtenerNegociosArchivados = async (req: Request, res: Response) => 
         return res.status(500).json({ success: false, error: error.message });
     }
 };
-
-import { Request, Response } from 'express';
-import { db, auth } from '../config/firebase';
 
 // Obtener negocios pendientes (solo admin)
 export const obtenerNegociosPendientes = async (req: Request, res: Response) => {
@@ -186,8 +187,6 @@ export const archivarNegocio = async (req: Request, res: Response) => {
         return res.status(500).json({ success: false, error: error.message });
     }
 };
-import { sendNotificationToUser } from '../services/notification.service';
-
 // Recibir notificación desde frontend y guardarla para el usuario
 export const recibirNotificacion = async (req: any, res: any) => {
     let { userId } = req.params;
@@ -201,8 +200,6 @@ export const recibirNotificacion = async (req: any, res: any) => {
         return res.status(500).json({ success: false, error: error.message });
     }
 };
-import { Request, Response } from 'express';
-import { db, auth } from '../config/firebase';
 
 export const getSolicitudesPendientes = async (req: any, res: any) => {
     try {
