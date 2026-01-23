@@ -259,6 +259,24 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
       });
     }
 
+    // Buscar en admins
+    const adminSnap = await db.collection('usuarios')
+      .doc('admins')
+      .collection('lista')
+      .where('uid', '==', uid)
+      .limit(1)
+      .get();
+
+    if (!adminSnap.empty) {
+      const adminDoc = adminSnap.docs[0];
+      const adminData = adminDoc ? adminDoc.data() : null;
+      console.log(`✅ Usuario encontrado en admins`);
+      return res.status(200).json({
+        fotoPerfil: adminData?.fotoPerfil || null,
+        fotoPerfilSubidaEn: adminData?.fotoPerfilSubidaEn || null
+      });
+    }
+
     // Si no está en turistas, buscar en guías lista
     const guiasSnapshot = await db.collection('usuarios')
       .doc('guias')
@@ -374,13 +392,24 @@ export const actualizarPerfil = async (req: Request, res: Response) => {
 
     if (!uid) return res.status(401).json({ error: 'No autenticado' });
 
+
     let userDocRef: any = null;
 
+    // Buscar en turistas
     const snapT = await db.collection('usuarios').doc('turistas').collection('lista').where('uid', '==', uid).limit(1).get();
     if (!snapT.empty) {
-      userDocRef = snapT.docs[0]?.ref; 
+      userDocRef = snapT.docs[0]?.ref;
     }
 
+    // Buscar en admins
+    if (!userDocRef) {
+      const snapA = await db.collection('usuarios').doc('admins').collection('lista').where('uid', '==', uid).limit(1).get();
+      if (!snapA.empty) {
+        userDocRef = snapA.docs[0]?.ref;
+      }
+    }
+
+    // Buscar en guías lista
     if (!userDocRef) {
       const snapGL = await db.collection('usuarios').doc('guias').collection('lista').where('uid', '==', uid).limit(1).get();
       if (!snapGL.empty) {
@@ -388,6 +417,7 @@ export const actualizarPerfil = async (req: Request, res: Response) => {
       }
     }
 
+    // Buscar en guías pendientes
     if (!userDocRef) {
       const snapGP = await db.collection('usuarios').doc('guias').collection('pendientes').where('uid', '==', uid).limit(1).get();
       if (!snapGP.empty) {

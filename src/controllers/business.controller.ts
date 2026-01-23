@@ -1,6 +1,7 @@
 import { Request, Response } from "express";
 import { auth, db } from "../config/firebase";
 import admin from "firebase-admin";
+import { sendNotificationToAdmins } from "../services/notification.service";
 
 export const registerBusiness = async (req: Request, res: Response) => {
   try {
@@ -44,6 +45,16 @@ export const registerBusiness = async (req: Request, res: Response) => {
         cp,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       },
+    });
+
+    // Notificar a los administradores de nueva solicitud de negocio
+    await sendNotificationToAdmins({
+      tipo: 'nueva_solicitud_negocio',
+      titulo: 'Nueva solicitud de negocio',
+      mensaje: `Se ha recibido una nueva solicitud de negocio: ${businessName}`,
+      fecha: new Date().toISOString(),
+      leido: false,
+      enlace: `/admin/historial-solicitudes` // Ajusta la ruta si es necesario
     });
 
     return res.status(201).json({
