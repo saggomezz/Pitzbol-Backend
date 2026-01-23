@@ -95,6 +95,32 @@ export const registerGuide = async (req: Request, res: Response) => {
 
         console.log("✅ Registro de guía completado exitosamente");
         
+
+        // Notificar a todos los administradores
+        try {
+            const adminsSnapshot = await db.collection('usuarios').doc('admins').collection('lista').get();
+            const notificacion = {
+                tipo: 'nueva_solicitud_guia',
+                titulo: 'Nueva solicitud de guía',
+                mensaje: `El usuario ${nombre} ${apellido} ha enviado una solicitud para ser guía.`,
+                fecha: new Date().toISOString(),
+                leido: false,
+                enlace: '/admin/solicitudes-guias'
+            };
+            const batch = db.batch();
+            adminsSnapshot.forEach(adminDoc => {
+                const adminUid = adminDoc.data().uid;
+                if (adminUid) {
+                    const notifRef = db.collection('usuarios').doc('notificaciones').collection(adminUid).doc();
+                    batch.set(notifRef, notificacion);
+                }
+            });
+            await batch.commit();
+            console.log('✅ Notificación enviada a administradores');
+        } catch (notifError) {
+            console.warn('⚠️ Error al notificar a administradores:', notifError);
+        }
+
         res.status(201).json({ 
             message: 'Solicitud enviada a revisión con éxito', 
             status: "pendiente"
