@@ -1,3 +1,29 @@
+// Obtener negocios archivados (solo admin)
+export const obtenerNegociosArchivados = async (req: Request, res: Response) => {
+    try {
+        // Buscar todos los negocios en la colección 'negocios_archivados'
+        const negociosSnap = await db.collection("negocios_archivados").get();
+        const negocios = negociosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        return res.json({ success: true, negocios });
+    } catch (error: any) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+import { Request, Response } from 'express';
+import { db, auth } from '../config/firebase';
+
+// Obtener negocios pendientes (solo admin)
+export const obtenerNegociosPendientes = async (req: Request, res: Response) => {
+    try {
+        // Buscar negocios con status 'pendiente' en la colección 'negocios'
+        const negociosSnap = await db.collection("negocios").where("status", "==", "pendiente").get();
+        const negocios = negociosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        return res.json({ success: true, negocios });
+    } catch (error: any) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
 // Obtener todos los negocios (solo admin)
 export const obtenerNegocios = async (req: Request, res: Response) => {
     try {
