@@ -6,8 +6,11 @@ import {
   getCallRequests,
   getSupportNotifications,
   markSupportNotificationAsRead,
+  deleteContactForm,
+  deleteCallRequest,
 } from "../controllers/support.controller";
 import { authMiddleware } from "../middlewares/auth.middleware";
+import { requireAdmin } from "../middlewares/admin.middleware";
 
 const router = Router();
 
@@ -52,5 +55,19 @@ router.get("/notifications", authMiddleware, getSupportNotifications);
  * Requiere autenticación
  */
 router.patch("/notifications/:id", authMiddleware, markSupportNotificationAsRead);
+
+/**
+ * DELETE /api/support/contact-forms/:id
+ * Eliminar formulario de contacto (solo admin)
+ * Requiere autenticación y rol admin
+ */
+router.delete("/contact-forms/:id", authMiddleware, requireAdmin, deleteContactForm);
+
+/**
+ * DELETE /api/support/call-requests/:id
+ * Eliminar solicitud de llamada (solo admin)
+ * Requiere autenticación y rol admin
+ */
+router.delete("/call-requests/:id", authMiddleware, requireAdmin, deleteCallRequest);
 
 export default router;

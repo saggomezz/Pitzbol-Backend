@@ -2,6 +2,7 @@ import cors from 'cors';
 import dotenv from "dotenv";
 dotenv.config();
 import express from 'express';
+import cookieParser from 'cookie-parser';
 import authRoutes from './routes/auth.routes';
 import guideRoutes from './routes/guide.routes';
 import businessRoutes from "./routes/business.routes";
@@ -27,6 +28,7 @@ app.use(cors({
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
+app.use(cookieParser());
 
 // (Middleware)
 app.use((req, res, next) => {
@@ -44,6 +46,26 @@ app.use('/api/perfil', perfilRoutes);
 app.use('/api', historialRoutes);
 app.use('/api/lugares', placesRoutes);
 app.use('/api/support', supportRoutes);
+// Manejo de rutas no encontradas
+app.use('/api', (req, res) => {
+  console.warn(`⚠️ Ruta no encontrada: [${req.method}] ${req.url}`);
+  res.status(404).json({
+    success: false,
+    msg: 'Endpoint no encontrado',
+    path: req.url
+  });
+});
+
+// Manejo global de errores
+app.use((err: any, req: any, res: any, next: any) => {
+  console.error('❌ Error en el servidor:', err);
+  res.status(err.status || 500).json({
+    success: false,
+    msg: err.message || 'Error interno del servidor',
+    error: process.env.NODE_ENV === 'development' ? err.stack : undefined
+  });
+});
+
 
 
 app.get('/', (req, res) => {

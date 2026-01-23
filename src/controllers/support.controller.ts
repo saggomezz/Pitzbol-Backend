@@ -5,14 +5,22 @@ import { DocumentData, QueryDocumentSnapshot } from "@google-cloud/firestore";
 
 const ADMIN_EMAIL = "pitzbol2026@gmail.com";
 
-// Configurar el transporter de email
+// Configurar el transporter de email (Gmail con App Password)
 const getEmailTransporter = () => {
+  const user = process.env.GMAIL_USER;
+  const pass = process.env.GMAIL_APP_PASSWORD || process.env.GMAIL_PASS;
+
+  if (!user || !pass) {
+    throw new Error(
+      "Faltan credenciales de Gmail. Define GMAIL_USER y GMAIL_APP_PASSWORD (o GMAIL_PASS) en .env"
+    );
+  }
+
   return nodemailer.createTransport({
-    service: "gmail",
-    auth: {
-      user: process.env.GMAIL_USER,
-      pass: process.env.GMAIL_PASS,
-    },
+    host: "smtp.gmail.com",
+    port: 465,
+    secure: true, // SSL
+    auth: { user, pass },
   });
 };
 
@@ -48,27 +56,6 @@ export const submitContactForm = async (req: Request, res: Response) => {
       leido: false,
     });
 
-    // Enviar email de notificación al admin
-    const transporter = getEmailTransporter();
-    const emailContent = `
-      <h2>📧 Nuevo Formulario de Contacto en Pitzbol</h2>
-      <p><strong>Nombre:</strong> ${name}</p>
-      <p><strong>Email:</strong> ${email}</p>
-      <p><strong>Teléfono:</strong> ${fullPhone}</p>
-      <p><strong>Categoría:</strong> ${category}</p>
-      <p><strong>Asunto:</strong> ${subject}</p>
-      <p><strong>Mensaje:</strong></p>
-      <p>${message.replace(/\n/g, "<br>")}</p>
-      <p><strong>Fecha:</strong> ${new Date(timestamp).toLocaleString("es-MX")}</p>
-    `;
-
-    await transporter.sendMail({
-      from: process.env.GMAIL_USER,
-      to: ADMIN_EMAIL,
-      subject: `[Pitzbol] Nuevo contacto: ${subject}`,
-      html: emailContent,
-    });
-
     // Crear notificación para el admin en la BD
     const notificationId = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     await db.collection("notificaciones").doc(notificationId).set({
@@ -78,11 +65,37 @@ export const submitContactForm = async (req: Request, res: Response) => {
       mensaje: `${name} (${category}) ha enviado un mensaje de contacto`,
       fecha: timestamp,
       leido: false,
-      usuarioId: "admin", // Para el administrador
+      usuarioId: "admin",
       enlace: `/admin/mensajes?id=${contactId}`,
     });
 
-    console.log(`Formulario de contacto guardado: ${contactId}`);
+    console.log(`✅ Formulario de contacto guardado: ${contactId}`);
+
+    // Intentar enviar email (opcional, no bloquea si falla)
+    try {
+      const transporter = getEmailTransporter();
+      const emailContent = `
+        <h2>📧 Nuevo Formulario de Contacto en Pitzbol</h2>
+        <p><strong>Nombre:</strong> ${name}</p>
+        <p><strong>Email:</strong> ${email}</p>
+        <p><strong>Teléfono:</strong> ${fullPhone}</p>
+        <p><strong>Categoría:</strong> ${category}</p>
+        <p><strong>Asunto:</strong> ${subject}</p>
+        <p><strong>Mensaje:</strong></p>
+        <p>${message.replace(/\n/g, "<br>")}</p>
+        <p><strong>Fecha:</strong> ${new Date(timestamp).toLocaleString("es-MX")}</p>
+      `;
+
+      await transporter.sendMail({
+        from: process.env.GMAIL_USER,
+        to: ADMIN_EMAIL,
+        subject: `[Pitzbol] Nuevo contacto: ${subject}`,
+        html: emailContent,
+      });
+      console.log(`📧 Email de contacto enviado al admin`);
+    } catch (emailError: any) {
+      console.warn(`⚠️ No se pudo enviar email (no crítico):`, emailError.message);
+    }
 
     res.status(200).json({
       msg: "Formulario enviado exitosamente",
@@ -90,9 +103,16 @@ export const submitContactForm = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error("Error al procesar formulario de contacto:", error);
+
+    const isAuthError = error?.code === "EAUTH" || /Invalid login/i.test(String(error?.message));
+    const hint = isAuthError
+      ? "Autenticación SMTP fallida. Verifica GMAIL_USER y usa un App Password (cuenta con 2FA)."
+      : undefined;
+
     res.status(500).json({
       msg: "Error al enviar el formulario",
       error: error.message,
+      hint,
     });
   }
 };
@@ -125,24 +145,6 @@ export const submitCallRequest = async (req: Request, res: Response) => {
       leido: false,
     });
 
-    // Enviar email de notificación al admin
-    const transporter = getEmailTransporter();
-    const emailContent = `
-      <h2>📞 Nueva Solicitud de Llamada en Pitzbol</h2>
-      <p><strong>Nombre:</strong> ${name}</p>
-      <p><strong>Teléfono:</strong> ${fullPhone}</p>
-      <p><strong>Motivo:</strong> ${reason}</p>
-      <p><strong>Fecha:</strong> ${new Date(timestamp).toLocaleString("es-MX")}</p>
-      <p style="color: #0D601E; font-weight: bold;">👉 Por favor, contacta al usuario lo antes posible.</p>
-    `;
-
-    await transporter.sendMail({
-      from: process.env.GMAIL_USER,
-      to: ADMIN_EMAIL,
-      subject: `[Pitzbol] Solicitud de llamada de ${name}`,
-      html: emailContent,
-    });
-
     // Crear notificación para el admin en la BD
     const notificationId = `notif_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
     await db.collection("notificaciones").doc(notificationId).set({
@@ -158,15 +160,45 @@ export const submitCallRequest = async (req: Request, res: Response) => {
 
     console.log(`✅ Solicitud de llamada guardada: ${callId}`);
 
+    // Intentar enviar email (opcional, no bloquea si falla)
+    try {
+      const transporter = getEmailTransporter();
+      const emailContent = `
+        <h2>📞 Nueva Solicitud de Llamada en Pitzbol</h2>
+        <p><strong>Nombre:</strong> ${name}</p>
+        <p><strong>Teléfono:</strong> ${fullPhone}</p>
+        <p><strong>Motivo:</strong> ${reason}</p>
+        <p><strong>Fecha:</strong> ${new Date(timestamp).toLocaleString("es-MX")}</p>
+        <p style="color: #0D601E; font-weight: bold;">👉 Por favor, contacta al usuario lo antes posible.</p>
+      `;
+
+      await transporter.sendMail({
+        from: process.env.GMAIL_USER,
+        to: ADMIN_EMAIL,
+        subject: `[Pitzbol] Solicitud de llamada de ${name}`,
+        html: emailContent,
+      });
+      console.log(`📧 Email de llamada enviado al admin`);
+    } catch (emailError: any) {
+      console.warn(`⚠️ No se pudo enviar email (no crítico):`, emailError.message);
+    }
+
     res.status(200).json({
       msg: "Solicitud de llamada enviada exitosamente",
       callId,
     });
   } catch (error: any) {
     console.error("❌ Error al procesar solicitud de llamada:", error);
+
+    const isAuthError = error?.code === "EAUTH" || /Invalid login/i.test(String(error?.message));
+    const hint = isAuthError
+      ? "Autenticación SMTP fallida. Verifica GMAIL_USER y usa un App Password (cuenta con 2FA)."
+      : undefined;
+
     res.status(500).json({
       msg: "Error al enviar la solicitud de llamada",
       error: error.message,
+      hint,
     });
   }
 };
@@ -275,6 +307,102 @@ export const markSupportNotificationAsRead = async (req: Request, res: Response)
     res.status(500).json({
       success: false,
       msg: "Error al actualizar notificación",
+    });
+  }
+};
+
+/**
+ * Eliminar formulario de contacto
+ * DELETE /api/support/contact-forms/:id
+ */
+export const deleteContactForm = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params as { id: string };
+
+    console.log(`🗑️ Intentando eliminar formulario: ${id}`);
+
+    if (!id) {
+      console.warn("⚠️ ID de formulario no proporcionado");
+      return res.status(400).json({
+        success: false,
+        msg: "ID de formulario requerido",
+      });
+    }
+
+    // Verificar que el documento existe
+    const docRef = db.collection("support_contactForms").doc(id);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      console.warn(`⚠️ Formulario no encontrado: ${id}`);
+      return res.status(404).json({
+        success: false,
+        msg: "Formulario no encontrado",
+      });
+    }
+
+    await docRef.delete();
+
+    console.log(`✅ Formulario de contacto eliminado: ${id}`);
+
+    res.status(200).json({
+      success: true,
+      msg: "Formulario eliminado exitosamente",
+    });
+  } catch (error: any) {
+    console.error("❌ Error al eliminar formulario:", error);
+    res.status(500).json({
+      success: false,
+      msg: "Error al eliminar formulario",
+      error: error.message,
+    });
+  }
+};
+
+/**
+ * Eliminar solicitud de llamada
+ * DELETE /api/support/call-requests/:id
+ */
+export const deleteCallRequest = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params as { id: string };
+
+    console.log(`🗑️ Intentando eliminar solicitud: ${id}`);
+
+    if (!id) {
+      console.warn("⚠️ ID de solicitud no proporcionado");
+      return res.status(400).json({
+        success: false,
+        msg: "ID de solicitud requerido",
+      });
+    }
+
+    // Verificar que el documento existe
+    const docRef = db.collection("support_callRequests").doc(id);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      console.warn(`⚠️ Solicitud no encontrada: ${id}`);
+      return res.status(404).json({
+        success: false,
+        msg: "Solicitud no encontrada",
+      });
+    }
+
+    await docRef.delete();
+
+    console.log(`✅ Solicitud de llamada eliminada: ${id}`);
+
+    res.status(200).json({
+      success: true,
+      msg: "Solicitud eliminada exitosamente",
+    });
+  } catch (error: any) {
+    console.error("❌ Error al eliminar solicitud:", error);
+    res.status(500).json({
+      success: false,
+      msg: "Error al eliminar solicitud",
+      error: error.message,
     });
   }
 };
