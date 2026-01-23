@@ -1,9 +1,43 @@
+
 import { Router } from 'express';
 import * as adminController from '../controllers/admin.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 import { requireAdmin } from '../middlewares/admin.middleware';
+import { recibirNotificacion } from '../controllers/admin.controller';
 
 const router = Router();
+
+// PROTEGIDO - Obtener todos los negocios
+router.get(
+  '/negocios',
+  authMiddleware,
+  requireAdmin,
+  adminController.obtenerNegocios
+);
+// PROTEGIDO - Editar negocio manualmente
+router.patch(
+  '/negocios/:negocioId/editar',
+  authMiddleware,
+  requireAdmin,
+  adminController.editarNegocio
+);
+// PROTEGIDO - Aprobar o rechazar negocio pendiente
+router.post(
+  '/negocios/gestionar',
+  authMiddleware,
+  requireAdmin,
+  adminController.gestionarNegocioPendiente
+);
+// PROTEGIDO - Archivar (eliminar) un negocio
+router.post(
+  '/negocios/:negocioId/archivar',
+  authMiddleware,
+  requireAdmin,
+  adminController.archivarNegocio
+);
+
+// Recibir notificación desde frontend y guardarla para el usuario
+router.post('/notificaciones/:userId', recibirNotificacion);
 
 /**
  * TODAS las rutas admin requieren:
@@ -54,6 +88,5 @@ router.delete(
   authMiddleware,
   adminController.eliminarNotificacion
 );
-
 
 export default router;

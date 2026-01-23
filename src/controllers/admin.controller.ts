@@ -1,3 +1,180 @@
+// Obtener todos los negocios (solo admin)
+export const obtenerNegocios = async (req: Request, res: Response) => {
+    try {
+        const negociosSnap = await db.collection("negocios").get();
+        const negocios = negociosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        return res.json({ success: true, negocios });
+    } catch (error: any) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+// Editar un negocio manualmente por el admin
+export const editarNegocio = async (req: Request, res: Response) => {
+    let { negocioId } = req.params;
+    if (Array.isArray(negocioId)) negocioId = negocioId[0];
+    if (!negocioId) negocioId = "";
+    const { adminUid, ...data } = req.body;
+    if (!adminUid) {
+        return res.status(400).json({ success: false, message: "adminUid requerido" });
+    }
+    try {
+        const negocioRef = db.collection("negocios").doc(negocioId);
+        const negocioSnap = await negocioRef.get();
+        if (!negocioSnap.exists) {
+            return res.status(404).json({ success: false, message: "Negocio no encontrado" });
+        }
+        const negocioData = negocioSnap.data();
+        // Actualizar campos permitidos
+        const camposEditables = ["name", "description", "category", "phone", "location", "website", "rfc", "cp", "images"];
+        const updateData: any = { updatedAt: new Date().toISOString() };
+        for (const campo of camposEditables) {
+            if (data[campo] !== undefined) updateData[campo] = data[campo];
+        }
+        updateData.history = [
+            ...(negocioData?.history || []),
+            { action: "editado_admin", date: new Date().toISOString(), by: adminUid, changes: updateData }
+        ];
+        await negocioRef.update(updateData);
+        // Notificar al dueño
+        if (negocioData?.owner) {
+            await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
+                tipo: 'negocio_editado',
+                titulo: 'Negocio editado por el admin',
+                mensaje: `Tu negocio "${negocioData.name}" ha sido editado por el administrador. Revisa los cambios realizados en tu panel.`,
+                fecha: new Date().toISOString(),
+                leido: false,
+                enlace: '/negocio/estatus'
+            });
+        }
+        return res.json({ success: true, message: "Negocio editado y notificado" });
+    } catch (error: any) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+// Aprobar o rechazar un negocio pendiente
+export const gestionarNegocioPendiente = async (req: Request, res: Response) => {
+    const { negocioId, accion, adminUid } = req.body;
+    if (!negocioId || !accion || !adminUid) {
+        return res.status(400).json({ success: false, message: "Faltan datos obligatorios" });
+    }
+    try {
+        const negocioRef = db.collection("negocios").doc(negocioId);
+        const negocioSnap = await negocioRef.get();
+        if (!negocioSnap.exists) {
+            return res.status(404).json({ success: false, message: "Negocio no encontrado" });
+        }
+        const negocioData = negocioSnap.data();
+        if (accion === "aprobar") {
+            await negocioRef.update({
+                status: "aprobado",
+                updatedAt: new Date().toISOString(),
+                history: [
+                    ...(negocioData?.history || []),
+                    { action: "aprobado", date: new Date().toISOString(), by: adminUid }
+                ]
+            });
+            // Notificar al dueño
+            if (negocioData?.owner) {
+                await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
+                    tipo: 'negocio_aprobado',
+                    titulo: 'Negocio aprobado',
+                    mensaje: `Tu negocio "${negocioData.name}" ha sido aprobado y ya es visible para los usuarios.`,
+                    fecha: new Date().toISOString(),
+                    leido: false,
+                    enlace: '/negocio/estatus'
+                });
+            }
+            return res.json({ success: true, message: "Negocio aprobado y notificado" });
+        } else if (accion === "rechazar") {
+            await negocioRef.update({
+                status: "rechazado",
+                updatedAt: new Date().toISOString(),
+                history: [
+                    ...(negocioData?.history || []),
+                    { action: "rechazado", date: new Date().toISOString(), by: adminUid }
+                ]
+            });
+            // Notificar al dueño
+            if (negocioData?.owner) {
+                await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
+                    tipo: 'negocio_rechazado',
+                    titulo: 'Negocio rechazado',
+                    mensaje: `Tu negocio "${negocioData.name}" ha sido rechazado. Puedes editarlo y volver a enviarlo para revisión.`,
+                    fecha: new Date().toISOString(),
+                    leido: false,
+                    enlace: '/negocio/estatus'
+                });
+            }
+            return res.json({ success: true, message: "Negocio rechazado y notificado" });
+        } else {
+            return res.status(400).json({ success: false, message: "Acción no válida" });
+        }
+    } catch (error: any) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+// Archivar (eliminar) un negocio, guardar motivo y notificar al dueño
+export const archivarNegocio = async (req: Request, res: Response) => {
+    let { negocioId } = req.params;
+    if (Array.isArray(negocioId)) negocioId = negocioId[0];
+    if (!negocioId) negocioId = "";
+    const { motivo, adminUid } = req.body;
+    if (!motivo || !adminUid) {
+        return res.status(400).json({ success: false, message: "Motivo y adminUid requeridos" });
+    }
+    try {
+        // Buscar el negocio
+        const negocioRef = db.collection("negocios").doc(negocioId);
+        const negocioSnap = await negocioRef.get();
+        if (!negocioSnap.exists) {
+            return res.status(404).json({ success: false, message: "Negocio no encontrado" });
+        }
+        const negocioData = negocioSnap.data();
+        // Mover a colección archivados
+        await db.collection("negocios_archivados").doc(negocioId).set({
+            ...negocioData,
+            status: "archivado",
+            archivedReason: motivo,
+            archivedAt: new Date().toISOString(),
+            archivedBy: adminUid,
+            history: [
+                ...(negocioData?.history || []),
+                { action: "archivado", date: new Date().toISOString(), by: adminUid, reason: motivo }
+            ]
+        });
+        // Eliminar de negocios activos
+        await negocioRef.delete();
+        // Notificar al dueño
+        if (negocioData?.owner) {
+            await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
+                tipo: 'negocio_archivado',
+                titulo: 'Negocio eliminado',
+                mensaje: `Tu negocio "${negocioData.name}" ha sido eliminado por el administrador. Motivo: ${motivo}`,
+                fecha: new Date().toISOString(),
+                leido: false,
+                enlace: '/negocio/estatus'
+            });
+        }
+        return res.json({ success: true, message: "Negocio archivado y notificado" });
+    } catch (error: any) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+import { sendNotificationToUser } from '../services/notification.service';
+
+// Recibir notificación desde frontend y guardarla para el usuario
+export const recibirNotificacion = async (req: any, res: any) => {
+    let { userId } = req.params;
+    if (Array.isArray(userId)) userId = userId[0];
+    if (!userId) userId = "";
+    const notificacion = req.body;
+    try {
+        await sendNotificationToUser(String(userId), notificacion);
+        return res.json({ success: true });
+    } catch (error: any) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
 import { Request, Response } from 'express';
 import { db, auth } from '../config/firebase';
 
@@ -74,10 +251,10 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
             await db.collection('usuarios')
                 .doc('guias')
                 .collection('lista')
-                .doc(customId) 
+                .doc(String(customId)) 
                 .set({
                     ...data,
-                    uid: uid,
+                    uid: String(uid),
                     "03_rol": "guia", 
                     status: 'activo',
                     guide_status: 'aprobado',
@@ -98,7 +275,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
             const turistaQuery = await db.collection("usuarios")
                 .doc("turistas")
                 .collection("lista")
-                .where("uid", "==", uid)
+                .where("uid", "==", String(uid))
                 .limit(1)
                 .get();
 
@@ -141,6 +318,16 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
             // Eliminar de pendientes
             await docPendiente.ref.delete();
             console.log(`🗑️ Solicitud eliminada de pendientes`);
+
+            // Notificar al usuario de aprobación de negocio
+            await sendNotificationToUser(uid, {
+                tipo: 'aprobado',
+                titulo: '¡Felicidades! 🎉',
+                mensaje: 'Tu solicitud de negocio ha sido aprobada. Pronto estará publicada.',
+                fecha: new Date().toISOString(),
+                leido: false,
+                enlace: '/negocio/estatus'
+            });
             
             return res.json({ 
                 success: true, 
@@ -199,6 +386,16 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
             // Eliminar de pendientes
             await docPendiente.ref.delete();
             console.log(`🗑️ Solicitud eliminada de pendientes`);
+
+            // Notificar al usuario de rechazo de negocio
+            await sendNotificationToUser(uid, {
+                tipo: 'rechazado',
+                titulo: 'Solicitud Rechazada',
+                mensaje: 'Lamentablemente, tu solicitud de negocio no fue aprobada esta vez. Puedes volver a intentar más adelante.',
+                fecha: new Date().toISOString(),
+                leido: false,
+                enlace: '/negocio/estatus'
+            });
             
             return res.json({ 
                 success: true, 
@@ -307,7 +504,9 @@ export const verificarEstadoUsuario = async (req: Request, res: Response) => {
 };
 
 export const marcarNotificacionComoLeida = async (req: Request, res: Response) => {
-    const { id, uid } = req.params;
+    let { id, uid } = req.params;
+    if (Array.isArray(id)) id = id[0];
+    if (Array.isArray(uid)) uid = uid[0];
 
     try {
         if (!uid || !id) {
@@ -338,7 +537,9 @@ export const marcarNotificacionComoLeida = async (req: Request, res: Response) =
 };
 
 export const eliminarNotificacion = async (req: Request, res: Response) => {
-    const { id, uid } = req.params;
+    let { id, uid } = req.params;
+    if (Array.isArray(id)) id = id[0];
+    if (Array.isArray(uid)) uid = uid[0];
 
     try {
         if (!uid || !id) {
@@ -369,7 +570,8 @@ export const eliminarNotificacion = async (req: Request, res: Response) => {
 };
 
 export const limpiarNotificacionesUsuario = async (req: Request, res: Response) => {
-    const { uid } = req.params;
+    let { uid } = req.params;
+    if (Array.isArray(uid)) uid = uid[0];
 
     try {
         if (!uid) {
@@ -401,7 +603,8 @@ export const limpiarNotificacionesUsuario = async (req: Request, res: Response) 
 };
 
 export const obtenerNotificacionesUsuario = async (req: Request, res: Response) => {
-    const { uid } = req.params;
+    let { uid } = req.params;
+    if (Array.isArray(uid)) uid = uid[0];
 
     try {
         if (!uid) {
