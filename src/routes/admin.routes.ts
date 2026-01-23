@@ -14,6 +14,22 @@ router.get(
   requireAdmin,
   adminController.obtenerNegocios
 );
+
+// PROTEGIDO - Obtener negocios pendientes
+router.get(
+  '/negocios/pendientes',
+  authMiddleware,
+  requireAdmin,
+  adminController.obtenerNegociosPendientes
+);
+
+// PROTEGIDO - Obtener negocios archivados
+router.get(
+  '/negocios/archivados',
+  authMiddleware,
+  requireAdmin,
+  adminController.obtenerNegociosArchivados
+);
 // PROTEGIDO - Editar negocio manualmente
 router.patch(
   '/negocios/:negocioId/editar',
