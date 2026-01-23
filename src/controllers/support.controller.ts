@@ -255,16 +255,23 @@ export const getCallRequests = async (req: Request, res: Response) => {
  */
 export const getSupportNotifications = async (req: Request, res: Response) => {
   try {
+    // Primero hacemos el where, luego el sort en memoria para evitar índices compuestos
     const snapshot = await db
       .collection("notificaciones")
       .where("usuarioId", "==", "admin")
-      .orderBy("fecha", "desc")
       .get();
 
-    const notifications = snapshot.docs.map((doc) => ({
-      id: doc.id,
-      ...doc.data(),
-    }));
+    const notifications = snapshot.docs
+      .map((doc) => ({
+        id: doc.id,
+        ...doc.data(),
+      }))
+      .sort((a: any, b: any) => {
+        // Ordenar por fecha descendente
+        const fechaA = new Date(a.fecha).getTime();
+        const fechaB = new Date(b.fecha).getTime();
+        return fechaB - fechaA;
+      });
 
     res.status(200).json({
       success: true,
