@@ -1,5 +1,5 @@
 import { Router } from "express";
-import {registerGuide, addTourToGuide, updateGuideProfile} from "../controllers/guide.controller";
+import {registerGuide, addTourToGuide, updateGuideProfile, getVerifiedGuides} from "../controllers/guide.controller";
 import { recoverPassword } from "../controllers/auth.controller";
 import { authMiddleware } from "../middlewares/auth.middleware";
 import { isGuide } from "../middlewares/guide.middleware";
@@ -7,6 +7,7 @@ import { isGuide } from "../middlewares/guide.middleware";
 const router = Router();
 router.post("/register", registerGuide);
 router.post("/recover-password", recoverPassword);
+router.get("/verified", getVerifiedGuides);
 
 router.post(
   "/add-tour",

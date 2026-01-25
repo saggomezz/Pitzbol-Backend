@@ -219,3 +219,52 @@ export const updateGuideProfile = async (req: Request, res: Response) => {
         return res.status(500).json({ message: "Error interno al actualizar" });
     }
 };
+
+export const getVerifiedGuides = async (req: Request, res: Response) => {
+    try {
+        console.log("📋 Obteniendo guías verificados...");
+
+        const guidesSnapshot = await db.collection('usuarios')
+            .doc('guias')
+            .collection('lista')
+            .get();
+
+        if (guidesSnapshot.empty) {
+            console.log("ℹ️ No hay guías verificados registrados");
+            return res.status(200).json({ guides: [] });
+        }
+
+        const guides = guidesSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                uid: data.uid,
+                nombre: data["01_nombre"] || data.nombre || "",
+                apellido: data["02_apellido"] || data.apellido || "",
+                fotoPerfil: data["14_foto_perfil"]?.url || data.fotoPerfil || "",
+                descripcion: data["15_descripcion"] || data.descripcion || "",
+                idiomas: data["09_idiomas"] || data.idiomas || [],
+                especialidades: data["07_especialidades"] || data.especialidades || [],
+                tarifa: data["17_tarifa_mxn"] || data.tarifa || 0,
+                ubicacion: data.ubicacion || "Guadalajara, Jalisco",
+                email: data["04_correo"] || data.email || "",
+                telefono: data["06_telefono"] || data.telefono || "",
+                calificacion: data.calificacion || 0,
+                numeroResenas: data.numeroResenas || 0
+            };
+        });
+
+        console.log(`✅ Se encontraron ${guides.length} guías verificados`);
+        
+        return res.status(200).json({ 
+            guides,
+            total: guides.length 
+        });
+
+    } catch (error: any) {
+        console.error("❌ Error al obtener guías verificados:", error);
+        return res.status(500).json({ 
+            message: 'Error interno al obtener guías',
+            error: error.message 
+        });
+    }
+};
