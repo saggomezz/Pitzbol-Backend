@@ -17,8 +17,8 @@ export const obtenerNegociosArchivados = async (req: Request, res: Response) => 
 // Obtener negocios pendientes (solo admin)
 export const obtenerNegociosPendientes = async (req: Request, res: Response) => {
     try {
-        // Buscar negocios con status 'pendiente' en la colección 'negocios'
-        const negociosSnap = await db.collection("negocios").where("status", "==", "pendiente").get();
+        // Buscar negocios pendientes en la subcolección 'negocios/Pendientes/items'
+        const negociosSnap = await db.collection("negocios").doc("Pendientes").collection("items").get();
         const negocios = negociosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
         return res.json({ success: true, negocios });
     } catch (error: any) {
