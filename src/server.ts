@@ -2,6 +2,8 @@ import cors from 'cors';
 import dotenv from "dotenv";
 dotenv.config();
 import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
 import cookieParser from 'cookie-parser';
 import authRoutes from './routes/auth.routes';
 import guideRoutes from './routes/guide.routes';
@@ -14,10 +16,21 @@ import historialRoutes from './routes/historial.routes';
 import placesRoutes from './routes/places.routes';
 import supportRoutes from './routes/support.routes';
 import favoritesRoutes from './routes/favorites.routes';
+import chatRoutes from './routes/chat.routes';
+import bookingRoutes from './routes/booking.routes';
+import { ChatService } from './services/chat.service';
 
 
 dotenv.config();
 const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: "http://localhost:3000",
+    methods: ["GET", "POST"],
+    credentials: true
+  }
+});
 const PORT = process.env.PORT || 3001;
 
 app.use(cors({
@@ -48,6 +61,8 @@ app.use('/api', historialRoutes);
 app.use('/api/lugares', placesRoutes);
 app.use('/api/support', supportRoutes);
 app.use('/api/favorites', favoritesRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/bookings', bookingRoutes);
 // Manejo de rutas no encontradas
 app.use('/api', (req, res) => {
   console.warn(`⚠️ Ruta no encontrada: [${req.method}] ${req.url}`);
@@ -70,6 +85,58 @@ app.use((err: any, req: any, res: any, next: any) => {
 
 
 
+// Socket.IO para chat en tiempo real
+io.on('connection', (socket) => {
+  console.log('Usuario conectado:', socket.id);
+
+  // Unirse a una sala de chat
+  socket.on('join-chat', (chatId: string) => {
+    socket.join(chatId);
+    console.log(`Usuario ${socket.id} se unió al chat ${chatId}`);
+  });
+
+  // Enviar mensaje
+  socket.on('send-message', async (data: {
+    chatId: string;
+    senderId: string;
+    senderName: string;
+    senderType: 'tourist' | 'guide';
+    content: string;
+  }) => {
+    try {
+      const message = await ChatService.saveMessage({
+        chatId: data.chatId,
+        senderId: data.senderId,
+        senderName: data.senderName,
+        senderType: data.senderType,
+        content: data.content,
+        timestamp: new Date(),
+        read: false,
+      });
+
+      // Emitir mensaje a todos en la sala
+      io.to(data.chatId).emit('new-message', message);
+    } catch (error) {
+      console.error('Error al guardar mensaje:', error);
+      socket.emit('message-error', { error: 'Error al enviar mensaje' });
+    }
+  });
+
+  // Usuario está escribiendo
+  socket.on('typing', (data: { chatId: string; userName: string }) => {
+    socket.to(data.chatId).emit('user-typing', data);
+  });
+
+  // Usuario dejó de escribir
+  socket.on('stop-typing', (data: { chatId: string }) => {
+    socket.to(data.chatId).emit('user-stop-typing', data);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Usuario desconectado:', socket.id);
+  });
+});
+
 app.get('/', (req, res) => {
     res.send(`
         <h1>El Backend sí funcionaa</h1>
@@ -78,6 +145,7 @@ app.get('/', (req, res) => {
     `);
 });
 
-app.listen(PORT, () => {
+httpServer.listen(PORT, () => {
   console.log(`Servidor corriendo en http://localhost:${PORT}`);
+  console.log(`Socket.IO corriendo en http://localhost:${PORT}`);
 });
