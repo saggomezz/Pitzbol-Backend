@@ -11,8 +11,16 @@ import { isBusiness } from "../middlewares/business.middleware";
 
 const router = Router();
 
-// Nuevo endpoint para registro de negocio con imágenes (hasta 3)
-router.post("/register-with-images", upload.array('images', 3), registerBusinessWithImages);
+
+// Nuevo endpoint para registro de negocio con logo y hasta 3 imágenes
+router.post(
+  "/register-with-images",
+  upload.fields([
+    { name: 'logo', maxCount: 1 },
+    { name: 'images', maxCount: 3 }
+  ]),
+  registerBusinessWithImages
+);
 
 router.post("/register", registerBusiness);
 router.post("/recover-password", recoverPassword);
