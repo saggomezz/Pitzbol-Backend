@@ -56,16 +56,33 @@ export class ChatService {
   // Obtener mensajes de un chat
   static async getMessages(chatId: string, limit: number = 50): Promise<Message[]> {
     const messagesRef = db.collection('messages');
-    const snapshot = await messagesRef
-      .where('chatId', '==', chatId)
-      .orderBy('timestamp', 'desc')
-      .limit(limit)
-      .get();
+    
+    try {
+      const snapshot = await messagesRef
+        .where('chatId', '==', chatId)
+        .get();
 
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Message[];
+      const messages = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          timestamp: data.timestamp?.toDate ? data.timestamp.toDate() : data.timestamp,
+        };
+      }) as Message[];
+
+      // Ordenar en memoria por timestamp y limitar
+      return messages
+        .sort((a, b) => {
+          const dateA = new Date(a.timestamp).getTime();
+          const dateB = new Date(b.timestamp).getTime();
+          return dateA - dateB;
+        })
+        .slice(0, limit);
+    } catch (error) {
+      console.error('Error al obtener mensajes:', error);
+      throw error;
+    }
   }
 
   // Obtener chats de un usuario
@@ -73,15 +90,32 @@ export class ChatService {
     const chatsRef = db.collection('chats');
     const field = userType === 'tourist' ? 'touristId' : 'guideId';
     
-    const snapshot = await chatsRef
-      .where(field, '==', userId)
-      .orderBy('updatedAt', 'desc')
-      .get();
+    try {
+      const snapshot = await chatsRef
+        .where(field, '==', userId)
+        .get();
 
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Chat[];
+      const chats = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
+          updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
+          lastMessageTime: data.lastMessageTime?.toDate ? data.lastMessageTime.toDate() : data.lastMessageTime,
+        };
+      }) as Chat[];
+
+      // Ordenar en memoria por updatedAt
+      return chats.sort((a, b) => {
+        const dateA = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const dateB = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return dateB - dateA;
+      });
+    } catch (error) {
+      console.error('Error al obtener chats:', error);
+      throw error;
+    }
   }
 
   // Marcar mensajes como leídos
@@ -111,6 +145,15 @@ export class ChatService {
     const chatDoc = await db.collection('chats').doc(chatId).get();
     if (!chatDoc.exists) return null;
     
-    return { id: chatDoc.id, ...chatDoc.data() } as Chat;
+    const data = chatDoc.data();
+    if (!data) return null;
+    
+    return {
+      id: chatDoc.id,
+      ...data,
+      createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
+      updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
+      lastMessageTime: data.lastMessageTime?.toDate ? data.lastMessageTime.toDate() : data.lastMessageTime,
+    } as Chat;
   }
 }
