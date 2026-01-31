@@ -13,6 +13,7 @@ import perfilRoutes from './routes/perfil.routes';
 import historialRoutes from './routes/historial.routes';
 import placesRoutes from './routes/places.routes';
 import supportRoutes from './routes/support.routes';
+import favoritesRoutes from './routes/favorites.routes';
 
 
 dotenv.config();
@@ -46,6 +47,7 @@ app.use('/api/perfil', perfilRoutes);
 app.use('/api', historialRoutes);
 app.use('/api/lugares', placesRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/favorites', favoritesRoutes);
 // Manejo de rutas no encontradas
 app.use('/api', (req, res) => {
   console.warn(`⚠️ Ruta no encontrada: [${req.method}] ${req.url}`);
