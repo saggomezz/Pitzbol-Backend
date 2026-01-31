@@ -19,7 +19,30 @@ export const obtenerNegociosPendientes = async (req: Request, res: Response) => 
     try {
         // Buscar negocios pendientes en la subcolección 'negocios/Pendientes/items'
         const negociosSnap = await db.collection("negocios").doc("Pendientes").collection("items").get();
-        const negocios = negociosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const negocios = negociosSnap.docs.map(doc => {
+            const data = doc.data();
+            // Aplanar los datos del negocio para facilitar el frontend
+            const business = data.business || {};
+            // Formatear fecha de entrada si existe
+            let createdAt = business.createdAt;
+            if (createdAt && createdAt._seconds) {
+                createdAt = new Date(createdAt._seconds * 1000).toISOString();
+            } else if (createdAt && createdAt.seconds) {
+                createdAt = new Date(createdAt.seconds * 1000).toISOString();
+            }
+            return {
+                id: doc.id,
+                email: data.email || business.email || '',
+                name: business.name || '',
+                logo: business.logo || '',
+                createdAt: createdAt || '',
+                ...data,
+                business: {
+                    ...business,
+                    createdAt: createdAt || '',
+                }
+            };
+        });
         return res.json({ success: true, negocios });
     } catch (error: any) {
         return res.status(500).json({ success: false, error: error.message });

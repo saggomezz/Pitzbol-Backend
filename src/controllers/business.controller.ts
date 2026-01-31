@@ -1,4 +1,13 @@
-import { Request, Response } from "express";
+import { Request as ExpressRequest, Response } from "express";
+
+// Extender la interfaz Request para incluir user
+interface RequestWithUser extends ExpressRequest {
+  user?: {
+    uid: string;
+    email?: string;
+    [key: string]: any;
+  };
+}
 import { auth, db } from "../config/firebase";
 import admin from "firebase-admin";
 import { sendNotificationToAdmins } from "../services/notification.service";
@@ -10,11 +19,10 @@ cloudinary.config({
   api_secret: process.env.CLOUDINARY_API_SECRET || '',
 });
 // Nuevo endpoint para registro de negocio con imágenes
-export const registerBusinessWithImages = async (req: Request, res: Response) => {
+export const registerBusinessWithImages = async (req: RequestWithUser, res: Response) => {
   try {
+
     const {
-      email,
-      password,
       businessName,
       category,
       phone,
@@ -23,34 +31,25 @@ export const registerBusinessWithImages = async (req: Request, res: Response) =>
       rfc,
       cp,
       description,
-      owner
+      owner,
+      email
     } = req.body;
 
-    if (!email || !password || !businessName || !rfc || !cp) {
-      return res.status(400).json({ message: "Datos incompletos" });
+    // El usuario debe estar autenticado y su UID debe venir de req.user o del campo owner
+    const uid = req.user?.uid || owner;
+    if (!uid || !businessName || !rfc || !cp) {
+      return res.status(400).json({ message: "Datos incompletos o usuario no autenticado" });
     }
-
-    // Crear usuario
-    const userRecord = await auth.createUser({
-      email,
-      password,
-    });
-    const uid = userRecord.uid;
 
     // Procesar logo y otras imágenes
     let imageUrls: string[] = [];
     let logoUrl = "";
-    // req.files puede ser un array o un objeto (según multer config)
-    // Si usas upload.array, req.files es un array; si usas upload.fields, es un objeto
-    // Aquí soportamos ambos para robustez
-    const filesArr = Array.isArray(req.files) ? req.files : (req.files ? Object.values(req.files).flat() : []);
-    // Buscar el logo (campo 'logo')
+    // req.files es un objeto: { logo: [File], images: [File, ...] }
     let logoFile = null;
-    if (req.file) logoFile = req.file; // Si usas upload.single('logo')
-    if (!logoFile && req.files && !Array.isArray(req.files) && req.files['logo']) logoFile = req.files['logo'][0];
-    if (!logoFile && filesArr.length) {
-      // Buscar por nombre de campo
-      logoFile = filesArr.find((f:any) => f.fieldname === 'logo');
+    // Tipar req.files como un objeto con campos string: File[]
+    const filesObj = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+    if (filesObj && Array.isArray(filesObj['logo']) && filesObj['logo'][0]) {
+      logoFile = filesObj['logo'][0];
     }
     if (!logoFile) {
       return res.status(400).json({ message: "El logo del negocio es obligatorio." });
@@ -67,10 +66,9 @@ export const registerBusinessWithImages = async (req: Request, res: Response) =>
       });
       stream.end(logoFile.buffer);
     });
-    // Subir imágenes (excluyendo el logo)
-    for (const file of filesArr) {
-      if (file === logoFile) continue;
-      if (file.fieldname === 'images') {
+    // Subir imágenes (campo 'images')
+    if (filesObj && Array.isArray(filesObj['images'])) {
+      for (const file of filesObj['images']) {
         const url = await new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload_stream({
             folder: 'negocios/pendientes',
@@ -89,7 +87,7 @@ export const registerBusinessWithImages = async (req: Request, res: Response) =>
     // Guardar negocio en Firestore
     await db.collection("negocios").doc("Pendientes").collection("items").doc(uid).set({
       uid,
-      email,
+      email: email || '',
       role: "BUSINESS",
       status: "PENDING",
       business: {
@@ -103,7 +101,7 @@ export const registerBusinessWithImages = async (req: Request, res: Response) =>
         description: description || "",
         images: imageUrls,
         logo: logoUrl,
-        owner: owner || "",
+        owner: uid,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       },
     });
@@ -120,7 +118,7 @@ export const registerBusinessWithImages = async (req: Request, res: Response) =>
 
     return res.status(201).json({
       message: "Business registrado correctamente",
-      uid,
+      uid: owner,
     });
   } catch (error: any) {
     console.error("Error registerBusinessWithImages:", error);
@@ -131,11 +129,10 @@ export const registerBusinessWithImages = async (req: Request, res: Response) =>
   }
 };
 
-export const registerBusiness = async (req: Request, res: Response) => {
+
+export const registerBusiness = async (req: RequestWithUser, res: Response) => {
   try {
     const {
-      email,
-      password,
       businessName,
       category,
       phone,
@@ -144,26 +141,18 @@ export const registerBusiness = async (req: Request, res: Response) => {
       rfc,
       cp,
       images,
-      description,
-      owner
+      description
     } = req.body;
-
-    if (!email || !password || !businessName || !rfc || !cp) {
-      return res.status(400).json({ message: "Datos incompletos" });
+    const owner = req.user?.uid;
+    const email = req.user?.email;
+    if (!owner || !businessName || !rfc || !cp) {
+      return res.status(400).json({ message: "Datos incompletos o usuario no autenticado" });
     }
 
-    // Crear usuario
-    const userRecord = await auth.createUser({
-      email,
-      password,
-    });
-
-    const uid = userRecord.uid;
-
     // Guardar negocio en Businnes/Pendientes/items
-    await db.collection("negocios").doc("Pendientes").collection("items").doc(uid).set({
-      uid,
-      email,
+    await db.collection("negocios").doc("Pendientes").collection("items").doc(owner).set({
+      uid: owner,
+      email: email || '',
       role: "BUSINESS",
       status: "PENDING",
       business: {
@@ -176,11 +165,10 @@ export const registerBusiness = async (req: Request, res: Response) => {
         cp,
         description: description || "",
         images: images || [],
-        owner: owner || "",
+        owner: owner,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       },
     });
-
     // Notificar a los administradores de nueva solicitud de negocio
     await sendNotificationToAdmins({
       tipo: 'nueva_solicitud_negocio',
@@ -191,10 +179,7 @@ export const registerBusiness = async (req: Request, res: Response) => {
       enlace: `/admin/historial-solicitudes` // Ajusta la ruta si es necesario
     });
 
-    return res.status(201).json({
-      message: "Business registrado correctamente",
-      uid,
-    });
+    return res.status(201).json({ message: "Business registrado correctamente", uid: owner });
   } catch (error: any) {
     console.error("Error registerBusiness:", error);
 
