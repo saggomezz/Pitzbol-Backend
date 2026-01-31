@@ -268,3 +268,71 @@ export const getVerifiedGuides = async (req: Request, res: Response) => {
         });
     }
 };
+
+export const getGuidePublicProfile = async (req: Request, res: Response) => {
+    try {
+        const { uid } = req.params;
+        
+        if (!uid) {
+            return res.status(400).json({ 
+                success: false,
+                message: 'UID es requerido' 
+            });
+        }
+
+        console.log("📋 Obteniendo perfil público del guía:", uid);
+
+        // Buscar el guía en la colección de verificados
+        const guidesSnapshot = await db.collection('usuarios')
+            .doc('guias')
+            .collection('lista')
+            .where('uid', '==', uid)
+            .limit(1)
+            .get();
+
+        if (guidesSnapshot.empty) {
+            console.log("ℹ️ No se encontró el guía con UID:", uid);
+            return res.status(404).json({ 
+                success: false,
+                message: 'Guía no encontrado' 
+            });
+        }
+
+        const guideDoc = guidesSnapshot.docs[0];
+        const data = guideDoc.data();
+
+        const guideProfile = {
+            uid: data.uid,
+            nombre: `${data["01_nombre"] || data.nombre || ""} ${data["02_apellido"] || data.apellido || ""}`.trim(),
+            fotoPerfil: data["14_foto_perfil"]?.url || data.fotoPerfil || "",
+            descripcion: data["15_descripcion"] || data.descripcion || "",
+            biografia: data["19_biografia"] || data.biografia || data["15_descripcion"] || data.descripcion || "",
+            idiomas: data["09_idiomas"] || data.idiomas || [],
+            especialidades: data["07_especialidades"] || data.especialidades || [],
+            tarifa: data["17_tarifa_mxn"] || data.tarifa || 0,
+            tarifaCompleta: data["18_tarifa_dia_completo"] || data.tarifaCompleta || null,
+            ubicacion: data.ubicacion || "Guadalajara, Jalisco",
+            experiencia: data.experiencia || null,
+            certificaciones: data.certificaciones || [],
+            disponibilidad: data.disponibilidad || null,
+            toursPorDia: data.toursPorDia || null,
+            calificacion: data.calificacion || 4.5,
+            resenas: data.numeroResenas || 0,
+        };
+
+        console.log(`✅ Perfil del guía encontrado:`, guideProfile.nombre);
+        
+        return res.status(200).json({ 
+            success: true,
+            guide: guideProfile
+        });
+
+    } catch (error: any) {
+        console.error("❌ Error al obtener perfil público del guía:", error);
+        return res.status(500).json({ 
+            success: false,
+            message: 'Error interno al obtener perfil del guía',
+            error: error.message 
+        });
+    }
+};
