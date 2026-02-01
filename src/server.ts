@@ -88,11 +88,26 @@ app.use((err: any, req: any, res: any, next: any) => {
 // Socket.IO para chat en tiempo real
 io.on('connection', (socket) => {
   console.log('Usuario conectado:', socket.id);
+  
+  const userId = socket.handshake.auth.userId;
+  const userType = socket.handshake.auth.userType;
+  
+  if (userId) {
+    // Unir al usuario a su sala personal para notificaciones
+    socket.join(`user:${userId}`);
+    console.log(`Usuario ${userId} (${userType}) unido a su sala personal`);
+  }
 
   // Unirse a una sala de chat
   socket.on('join-chat', (chatId: string) => {
     socket.join(chatId);
     console.log(`Usuario ${socket.id} se unió al chat ${chatId}`);
+  });
+
+  // Salir de una sala de chat
+  socket.on('leave-chat', (chatId: string) => {
+    socket.leave(chatId);
+    console.log(`Usuario ${socket.id} salió del chat ${chatId}`);
   });
 
   // Enviar mensaje
@@ -130,6 +145,13 @@ io.on('connection', (socket) => {
   // Usuario dejó de escribir
   socket.on('stop-typing', (data: { chatId: string }) => {
     socket.to(data.chatId).emit('user-stop-typing', data);
+  });
+
+  // Marcar mensajes como leídos
+  socket.on('mark-as-read', (data: { chatId: string; userId: string }) => {
+    // Notificar a todos en el chat que los mensajes fueron leídos
+    io.to(data.chatId).emit('messages-read', data);
+    console.log(`Mensajes del chat ${data.chatId} marcados como leídos por ${data.userId}`);
   });
 
   socket.on('disconnect', () => {
