@@ -5,6 +5,7 @@ import {
   getUserChats,
   markAsRead,
   getChatInfo,
+  getUnreadMessages,
 } from '../controllers/chat.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
@@ -24,6 +25,10 @@ router.get('/user/:userId', getUserChats);
 
 // Marcar mensajes como leídos
 router.put('/:chatId/read', markAsRead);
+router.post('/:chatId/read', markAsRead);
+
+// Obtener mensajes no leídos de un usuario
+router.get('/unread/:userId', getUnreadMessages);
 
 // Obtener información de un chat
 router.get('/:chatId', getChatInfo);

@@ -156,4 +156,68 @@ export class ChatService {
       lastMessageTime: data.lastMessageTime?.toDate ? data.lastMessageTime.toDate() : data.lastMessageTime,
     } as Chat;
   }
+
+  // Obtener mensajes no leídos de un usuario
+  static async getUnreadMessages(userId: string, userType: 'tourist' | 'guide'): Promise<{
+    totalUnread: number;
+    chats: Array<{
+      chatId: string;
+      count: number;
+      lastMessage: string;
+      senderName: string;
+      timestamp: Date;
+    }>;
+  }> {
+    const chatsRef = db.collection('chats');
+    const messagesRef = db.collection('messages');
+    const field = userType === 'tourist' ? 'touristId' : 'guideId';
+    const receiverField = userType === 'tourist' ? 'guide' : 'tourist';
+    
+    try {
+      // Obtener todos los chats del usuario
+      const chatsSnapshot = await chatsRef
+        .where(field, '==', userId)
+        .get();
+
+      let totalUnread = 0;
+      const unreadChats = [];
+
+      for (const chatDoc of chatsSnapshot.docs) {
+        const chatData = chatDoc.data();
+        
+        // Contar mensajes no leídos en este chat
+        const unreadSnapshot = await messagesRef
+          .where('chatId', '==', chatDoc.id)
+          .where('senderId', '!=', userId)
+          .where('read', '==', false)
+          .get();
+
+        const unreadCount = unreadSnapshot.size;
+        
+        if (unreadCount > 0) {
+          totalUnread += unreadCount;
+          
+          // Obtener el último mensaje no leído
+          const lastUnreadDoc = unreadSnapshot.docs[unreadSnapshot.docs.length - 1];
+          const lastUnreadData = lastUnreadDoc?.data();
+          
+          unreadChats.push({
+            chatId: chatDoc.id,
+            count: unreadCount,
+            lastMessage: lastUnreadData?.content || '',
+            senderName: lastUnreadData?.senderName || '',
+            timestamp: lastUnreadData?.timestamp?.toDate ? lastUnreadData.timestamp.toDate() : new Date(),
+          });
+        }
+      }
+
+      return {
+        totalUnread,
+        chats: unreadChats,
+      };
+    } catch (error) {
+      console.error('Error al obtener mensajes no leídos:', error);
+      throw error;
+    }
+  }
 }
