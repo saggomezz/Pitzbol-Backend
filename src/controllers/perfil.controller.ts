@@ -386,9 +386,9 @@ export const eliminarFotoPerfilAnterior = async (publicId: string) => {
 export const actualizarPerfil = async (req: Request, res: Response) => {
   try {
     const uid = (req as any).user?.uid;
-    const { descripcion } = req.body;
+    const { descripcion, idiomas, especialidades, nombre, apellido } = req.body;
 
-    console.log("📥 Datos recibidos en el backend:", { uid, descripcion });
+    console.log("📥 Datos recibidos en el backend:", { uid, descripcion, idiomas, especialidades, nombre, apellido });
 
     if (!uid) return res.status(401).json({ error: 'No autenticado' });
 
@@ -429,22 +429,49 @@ export const actualizarPerfil = async (req: Request, res: Response) => {
       return res.status(404).json({ error: 'Usuario no encontrado en Firebase' });
     }
 
-    const camposAActualizar = {
-      descripcion: descripcion || "",
+    const camposAActualizar: any = {
       ultimaActualizacion: new Date().toISOString()
     };
 
+    // Solo actualizar campos que fueron enviados
+    if (descripcion !== undefined) {
+      camposAActualizar.descripcion = descripcion;
+      camposAActualizar["15_descripcion"] = descripcion;
+    }
+
+    if (idiomas !== undefined) {
+      camposAActualizar.idiomas = idiomas;
+      camposAActualizar["09_idiomas"] = idiomas;
+    }
+
+    if (especialidades !== undefined) {
+      camposAActualizar.especialidades = especialidades;
+      camposAActualizar["07_especialidades"] = especialidades;
+    }
+
+    if (nombre !== undefined) {
+      camposAActualizar.nombre = nombre;
+      camposAActualizar["01_nombre"] = nombre;
+    }
+
+    if (apellido !== undefined) {
+      camposAActualizar.apellido = apellido;
+      camposAActualizar["02_apellido"] = apellido;
+    }
+
     await userDocRef.update(camposAActualizar);
+
+    console.log("✅ Perfil actualizado exitosamente");
 
     return res.status(200).json({
       msg: 'Perfil actualizado exitosamente',
-      descripcion: descripcion || ""
+      ...camposAActualizar
     });
 
   } catch (error: any) {
     console.error('❌ Error fatal en actualizarPerfil:', error);
     return res.status(500).json({ msg: 'Error interno del servidor', details: error.message });
-  } // <--- ESTA LLAVE FALTABA PARA CERRAR EL CATCH
+  }
 };
 
 
