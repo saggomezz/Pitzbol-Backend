@@ -184,6 +184,10 @@ export const updateGuideProfile = async (req: Request, res: Response) => {
             { ref: db.collection('usuarios').doc('turistas').collection('lista'), field: "especialidades" }
         ];
 
+        const ubicacionesActualizadas: string[] = [];
+        let encontrado = false;
+
+        // Actualizar TODAS las colecciones donde se encuentre el usuario
         for (const item of config) {
             const snap = await item.ref.where('uid', '==', uid).limit(1).get();
             
@@ -191,28 +195,38 @@ export const updateGuideProfile = async (req: Request, res: Response) => {
                 const docSnapshot = snap.docs[0];
                 
                 if (docSnapshot && docSnapshot.exists) {
+                    encontrado = true;
+                    
                     // Preparamos el objeto de actualización
                     const updateData: { [key: string]: any } = {
                         [item.field]: categorias,
                         "updatedAt": new Date().toISOString()
                     };
 
+                    // Sincronizar ambos campos en guías
                     if (item.field === "07_especialidades") {
-                        updateData["especialidades"] = admin.firestore.FieldValue.delete();
+                        updateData["especialidades"] = categorias;
+                    } else if (item.field === "especialidades") {
+                        updateData["07_especialidades"] = categorias;
                     }
 
                     await docSnapshot.ref.update(updateData);
+                    ubicacionesActualizadas.push(item.ref.path);
                     
-                    return res.status(200).json({ 
-                        message: "Sincronizado", 
-                        ubicacion: item.ref.path,
-                        campoActualizado: item.field
-                    });
+                    console.log(`✅ Especialidades actualizadas en: ${item.ref.path}`);
                 }
             }
         }
 
-        return res.status(404).json({ message: "No se encontró el documento en ninguna colección" });
+        if (!encontrado) {
+            return res.status(404).json({ message: "No se encontró el documento en ninguna colección" });
+        }
+
+        return res.status(200).json({ 
+            message: "Sincronizado en todas las ubicaciones", 
+            ubicacionesActualizadas,
+            especialidades: categorias
+        });
         
     } catch (error: any) {
         console.error("Error en updateGuideProfile:", error);
@@ -236,10 +250,22 @@ export const getVerifiedGuides = async (req: Request, res: Response) => {
 
         const guides = guidesSnapshot.docs.map(doc => {
             const data = doc.data();
-            return {
+            const nombre = data["01_nombre"] || data.nombre || "";
+            const apellido = data["02_apellido"] || data.apellido || "";
+            const nombreCompleto = `${nombre} ${apellido}`.trim();
+            
+            // Log para debug
+            console.log(`🔍 Guía ${doc.id}:`, {
+                "01_nombre": data["01_nombre"],
+                "02_apellido": data["02_apellido"],
+                "nombre": data.nombre,
+                "apellido": data.apellido,
+                "nombreCompleto": nombreCompleto
+            });
+            
+            const guideData = {
                 uid: data.uid,
-                nombre: data["01_nombre"] || data.nombre || "",
-                apellido: data["02_apellido"] || data.apellido || "",
+                nombre: nombreCompleto,
                 fotoPerfil: data["14_foto_perfil"]?.url || data.fotoPerfil || "",
                 descripcion: data["15_descripcion"] || data.descripcion || "",
                 idiomas: data["09_idiomas"] || data.idiomas || [],
@@ -251,9 +277,22 @@ export const getVerifiedGuides = async (req: Request, res: Response) => {
                 calificacion: data.calificacion || 0,
                 numeroResenas: data.numeroResenas || 0
             };
+            
+            return guideData;
         });
 
         console.log(`✅ Se encontraron ${guides.length} guías verificados`);
+        
+        // Log detallado del primer guía
+        if (guides.length > 0) {
+            console.log("📌 Ejemplo de guía devuelto:", {
+                uid: guides[0].uid,
+                nombre: guides[0].nombre,
+                descripcion: guides[0].descripcion?.substring(0, 50) + "...",
+                idiomas: guides[0].idiomas,
+                especialidades: guides[0].especialidades
+            });
+        }
         
         return res.status(200).json({ 
             guides,

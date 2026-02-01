@@ -120,60 +120,84 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
     const uploadData = uploadResult as any;
     const fotoPerfil = uploadData.secure_url;
 
-    // ACTUALIZAR EN FIRESTORE
-    // Primero buscar en turistas
-    let userDocRef: any = null;
-    let snapshot = await db.collection('usuarios')
+    // ACTUALIZAR EN FIRESTORE - Buscar en TODAS las colecciones
+    const userDocRefs: any[] = [];
+    let ubicacionesActualizadas: string[] = [];
+    let oldPublicId: string | null = null;
+
+    // Buscar en turistas
+    const snapshot = await db.collection('usuarios')
       .doc('turistas')
       .collection('lista')
       .where('uid', '==', uid)
       .limit(1)
       .get();
 
-    if (!snapshot.empty && snapshot.docs.length > 0) {
-      userDocRef = snapshot.docs[0]!.ref;
-    } else {
-      // Si no está en turistas, buscar en guías lista
-      const guiasSnapshot = await db.collection('usuarios')
-        .doc('guias')
-        .collection('lista')
-        .get();
-
-      for (const doc of guiasSnapshot.docs) {
-        const data = doc.data();
-        if (data && data.uid === uid) {
-          userDocRef = doc.ref;
-          break;
-        }
-      }
-
-      // Si no está en guías aprobados, buscar en guías pendientes
-      if (!userDocRef) {
-        const pendientesSnapshot = await db.collection('usuarios')
-          .doc('guias')
-          .collection('pendientes')
-          .get();
-
-        for (const doc of pendientesSnapshot.docs) {
-          const data = doc.data();
-          if (data && data.uid === uid) {
-            userDocRef = doc.ref;
-            break;
-          }
-        }
+    if (!snapshot.empty && snapshot.docs[0]) {
+      userDocRefs.push(snapshot.docs[0].ref);
+      ubicacionesActualizadas.push('turistas/lista');
+      const userData = snapshot.docs[0].data();
+      if (!oldPublicId && userData?.fotoPerfilCloudinary) {
+        oldPublicId = userData.fotoPerfilCloudinary;
       }
     }
 
-    if (!userDocRef) {
+    // Buscar en guías lista (IMPORTANTE: Para que se actualice en tours)
+    const guiasSnapshot = await db.collection('usuarios')
+      .doc('guias')
+      .collection('lista')
+      .where('uid', '==', uid)
+      .limit(1)
+      .get();
+
+    if (!guiasSnapshot.empty && guiasSnapshot.docs[0]) {
+      userDocRefs.push(guiasSnapshot.docs[0].ref);
+      ubicacionesActualizadas.push('guias/lista');
+      const userData = guiasSnapshot.docs[0].data();
+      if (!oldPublicId && userData?.fotoPerfilCloudinary) {
+        oldPublicId = userData.fotoPerfilCloudinary;
+      }
+    }
+
+    // Buscar en guías pendientes
+    const pendientesSnapshot = await db.collection('usuarios')
+      .doc('guias')
+      .collection('pendientes')
+      .where('uid', '==', uid)
+      .limit(1)
+      .get();
+
+    if (!pendientesSnapshot.empty && pendientesSnapshot.docs[0]) {
+      userDocRefs.push(pendientesSnapshot.docs[0].ref);
+      ubicacionesActualizadas.push('guias/pendientes');
+      const userData = pendientesSnapshot.docs[0].data();
+      if (!oldPublicId && userData?.fotoPerfilCloudinary) {
+        oldPublicId = userData.fotoPerfilCloudinary;
+      }
+    }
+
+    // Buscar en admins
+    const adminsSnapshot = await db.collection('usuarios')
+      .doc('admins')
+      .collection('lista')
+      .where('uid', '==', uid)
+      .limit(1)
+      .get();
+
+    if (!adminsSnapshot.empty && adminsSnapshot.docs[0]) {
+      userDocRefs.push(adminsSnapshot.docs[0].ref);
+      ubicacionesActualizadas.push('admins/lista');
+      const userData = adminsSnapshot.docs[0].data();
+      if (!oldPublicId && userData?.fotoPerfilCloudinary) {
+        oldPublicId = userData.fotoPerfilCloudinary;
+      }
+    }
+
+    if (userDocRefs.length === 0) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
-    // Obtener datos actuales del usuario
-    const userSnapshot = await userDocRef.get();
-    const userData = userSnapshot.data();
-
     // Eliminar foto anterior de Cloudinary si existe
-    const oldPublicId = userData?.fotoPerfilCloudinary;
     if (oldPublicId) {
       try {
         await cloudinary.uploader.destroy(oldPublicId);
@@ -183,14 +207,19 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
       }
     }
 
-    // Actualizar documento con nueva foto
-    await userDocRef.update({
+    // Actualizar TODAS las referencias encontradas
+    const fotoData = {
       fotoPerfil: fotoPerfil,
+      "14_foto_perfil": { url: fotoPerfil, cloudinary_id: uploadData.public_id, subida_en: new Date().toISOString() },
       fotoPerfilSubidaEn: new Date().toISOString(),
       fotoPerfilCloudinary: uploadData.public_id
-    });
+    };
 
-    console.log('Foto de perfil actualizada para uid:', uid);
+    console.log(`🔄 Actualizando foto en ${userDocRefs.length} ubicación(es): ${ubicacionesActualizadas.join(', ')}`);
+    const updatePromises = userDocRefs.map(ref => ref.update(fotoData));
+    await Promise.all(updatePromises);
+
+    console.log(`✅ Foto de perfil actualizada en: ${ubicacionesActualizadas.join(', ')}`);
 
     return res.status(200).json({
       message: 'Foto de perfil actualizada exitosamente',
@@ -385,49 +414,13 @@ export const eliminarFotoPerfilAnterior = async (publicId: string) => {
 
 export const actualizarPerfil = async (req: Request, res: Response) => {
   try {
+    console.log("🔵 actualizarPerfil llamado");
     const uid = (req as any).user?.uid;
     const { descripcion, idiomas, especialidades, nombre, apellido } = req.body;
 
     console.log("📥 Datos recibidos en el backend:", { uid, descripcion, idiomas, especialidades, nombre, apellido });
 
     if (!uid) return res.status(401).json({ error: 'No autenticado' });
-
-
-    let userDocRef: any = null;
-
-    // Buscar en turistas
-    const snapT = await db.collection('usuarios').doc('turistas').collection('lista').where('uid', '==', uid).limit(1).get();
-    if (!snapT.empty) {
-      userDocRef = snapT.docs[0]?.ref;
-    }
-
-    // Buscar en admins
-    if (!userDocRef) {
-      const snapA = await db.collection('usuarios').doc('admins').collection('lista').where('uid', '==', uid).limit(1).get();
-      if (!snapA.empty) {
-        userDocRef = snapA.docs[0]?.ref;
-      }
-    }
-
-    // Buscar en guías lista
-    if (!userDocRef) {
-      const snapGL = await db.collection('usuarios').doc('guias').collection('lista').where('uid', '==', uid).limit(1).get();
-      if (!snapGL.empty) {
-        userDocRef = snapGL.docs[0]?.ref;
-      }
-    }
-
-    // Buscar en guías pendientes
-    if (!userDocRef) {
-      const snapGP = await db.collection('usuarios').doc('guias').collection('pendientes').where('uid', '==', uid).limit(1).get();
-      if (!snapGP.empty) {
-        userDocRef = snapGP.docs[0]?.ref;
-      }
-    }
-
-    if (!userDocRef) {
-      return res.status(404).json({ error: 'Usuario no encontrado en Firebase' });
-    }
 
     const camposAActualizar: any = {
       ultimaActualizacion: new Date().toISOString()
@@ -459,12 +452,60 @@ export const actualizarPerfil = async (req: Request, res: Response) => {
       camposAActualizar["02_apellido"] = apellido;
     }
 
-    await userDocRef.update(camposAActualizar);
+    // Array para almacenar todas las referencias encontradas
+    const userDocRefs: any[] = [];
+    let ubicacionesActualizadas: string[] = [];
 
-    console.log("✅ Perfil actualizado exitosamente");
+    // Buscar en turistas
+    const snapT = await db.collection('usuarios').doc('turistas').collection('lista').where('uid', '==', uid).limit(1).get();
+    if (!snapT.empty && snapT.docs[0]) {
+      userDocRefs.push(snapT.docs[0].ref);
+      ubicacionesActualizadas.push('turistas/lista');
+    }
+
+    // Buscar en admins
+    const snapA = await db.collection('usuarios').doc('admins').collection('lista').where('uid', '==', uid).limit(1).get();
+    if (!snapA.empty && snapA.docs[0]) {
+      userDocRefs.push(snapA.docs[0].ref);
+      ubicacionesActualizadas.push('admins/lista');
+    }
+
+    // Buscar en guías lista (IMPORTANTE: Para que se actualice en tours)
+    const snapGL = await db.collection('usuarios').doc('guias').collection('lista').where('uid', '==', uid).limit(1).get();
+    if (!snapGL.empty && snapGL.docs[0]) {
+      userDocRefs.push(snapGL.docs[0].ref);
+      ubicacionesActualizadas.push('guias/lista');
+    }
+
+    // Buscar en guías pendientes
+    const snapGP = await db.collection('usuarios').doc('guias').collection('pendientes').where('uid', '==', uid).limit(1).get();
+    if (!snapGP.empty && snapGP.docs[0]) {
+      userDocRefs.push(snapGP.docs[0].ref);
+      ubicacionesActualizadas.push('guias/pendientes');
+    }
+
+    if (userDocRefs.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado en Firebase' });
+    }
+
+    // Actualizar TODAS las referencias encontradas
+    console.log(`🔄 Actualizando perfil en ${userDocRefs.length} ubicación(es): ${ubicacionesActualizadas.join(', ')}`);
+    console.log(`📝 Campos a actualizar:`, {
+      nombre: camposAActualizar.nombre,
+      apellido: camposAActualizar.apellido,
+      descripcion: camposAActualizar.descripcion?.substring(0, 30),
+      idiomas: camposAActualizar.idiomas,
+      especialidades: camposAActualizar.especialidades
+    });
+    
+    const updatePromises = userDocRefs.map(ref => ref.update(camposAActualizar));
+    await Promise.all(updatePromises);
+
+    console.log(`✅ Perfil actualizado exitosamente en: ${ubicacionesActualizadas.join(', ')}`);
 
     return res.status(200).json({
       msg: 'Perfil actualizado exitosamente',
+      ubicacionesActualizadas,
       ...camposAActualizar
     });
 
