@@ -6,6 +6,7 @@ import {
   markAsRead,
   getChatInfo,
   getUnreadMessages,
+  deleteChat,
 } from '../controllers/chat.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
@@ -30,7 +31,10 @@ router.post('/:chatId/read', markAsRead);
 // Obtener mensajes no leídos de un usuario
 router.get('/unread/:userId', getUnreadMessages);
 
-// Obtener información de un chat
+// Eliminar un chat
+router.delete('/:chatId', deleteChat);
+
+// Obtener información de un chat (debe ir al final para evitar conflictos)
 router.get('/:chatId', getChatInfo);
 
 export default router;
