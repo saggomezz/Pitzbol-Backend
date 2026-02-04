@@ -26,18 +26,37 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: "http://localhost:3000",
+    origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001'],
     methods: ["GET", "POST"],
-    credentials: true
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"]
   }
 });
 const PORT = process.env.PORT || 3001;
 
+// Configuración CORS más permisiva para desarrollo
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001'
+];
+
 app.use(cors({
-  origin: "http://localhost:3000",
+  origin: function (origin, callback) {
+    // Permitir requests sin origin (como mobile apps o curl)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true
+  allowedHeaders: ["Content-Type", "Authorization", "Cache-Control", "Pragma"],
+  credentials: true,
+  optionsSuccessStatus: 200
 }));
 
 app.use(express.json({ limit: '50mb' }));
@@ -88,11 +107,26 @@ app.use((err: any, req: any, res: any, next: any) => {
 // Socket.IO para chat en tiempo real
 io.on('connection', (socket) => {
   console.log('Usuario conectado:', socket.id);
+  
+  const userId = socket.handshake.auth.userId;
+  const userType = socket.handshake.auth.userType;
+  
+  if (userId) {
+    // Unir al usuario a su sala personal para notificaciones
+    socket.join(`user:${userId}`);
+    console.log(`Usuario ${userId} (${userType}) unido a su sala personal`);
+  }
 
   // Unirse a una sala de chat
   socket.on('join-chat', (chatId: string) => {
     socket.join(chatId);
     console.log(`Usuario ${socket.id} se unió al chat ${chatId}`);
+  });
+
+  // Salir de una sala de chat
+  socket.on('leave-chat', (chatId: string) => {
+    socket.leave(chatId);
+    console.log(`Usuario ${socket.id} salió del chat ${chatId}`);
   });
 
   // Enviar mensaje
@@ -130,6 +164,13 @@ io.on('connection', (socket) => {
   // Usuario dejó de escribir
   socket.on('stop-typing', (data: { chatId: string }) => {
     socket.to(data.chatId).emit('user-stop-typing', data);
+  });
+
+  // Marcar mensajes como leídos
+  socket.on('mark-as-read', (data: { chatId: string; userId: string }) => {
+    // Notificar a todos en el chat que los mensajes fueron leídos
+    io.to(data.chatId).emit('messages-read', data);
+    console.log(`Mensajes del chat ${data.chatId} marcados como leídos por ${data.userId}`);
   });
 
   socket.on('disconnect', () => {

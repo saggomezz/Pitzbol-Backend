@@ -95,16 +95,47 @@ export class ChatService {
         .where(field, '==', userId)
         .get();
 
-      const chats = snapshot.docs.map(doc => {
+      const chats = await Promise.all(snapshot.docs.map(async doc => {
         const data = doc.data();
+        
+        // Obtener nombre actualizado del guía
+        let guideName = data.guideName;
+        try {
+          const guideDoc = await db.collection('usuarios').doc('guias').collection('lista').doc(data.guideId).get();
+          if (guideDoc.exists) {
+            const guideData = guideDoc.data();
+            const nombre = guideData?.['01_nombre'] || guideData?.nombre || '';
+            const apellido = guideData?.['02_apellido'] || guideData?.apellido || '';
+            guideName = `${nombre} ${apellido}`.trim() || guideName;
+          }
+        } catch (err) {
+          console.error('Error al obtener nombre del guía:', err);
+        }
+
+        // Obtener nombre actualizado del turista
+        let touristName = data.touristName;
+        try {
+          const touristDoc = await db.collection('usuarios').doc('turistas').collection('lista').doc(data.touristId).get();
+          if (touristDoc.exists) {
+            const touristData = touristDoc.data();
+            const nombre = touristData?.['01_nombre'] || touristData?.nombre || '';
+            const apellido = touristData?.['02_apellido'] || touristData?.apellido || '';
+            touristName = `${nombre} ${apellido}`.trim() || touristName;
+          }
+        } catch (err) {
+          console.error('Error al obtener nombre del turista:', err);
+        }
+
         return {
           id: doc.id,
           ...data,
+          guideName,
+          touristName,
           createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
           updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
           lastMessageTime: data.lastMessageTime?.toDate ? data.lastMessageTime.toDate() : data.lastMessageTime,
         };
-      }) as Chat[];
+      })) as Chat[];
 
       // Ordenar en memoria por updatedAt
       return chats.sort((a, b) => {
@@ -155,5 +186,99 @@ export class ChatService {
       updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
       lastMessageTime: data.lastMessageTime?.toDate ? data.lastMessageTime.toDate() : data.lastMessageTime,
     } as Chat;
+  }
+
+  // Obtener mensajes no leídos de un usuario
+  static async getUnreadMessages(userId: string, userType: 'tourist' | 'guide'): Promise<{
+    totalUnread: number;
+    chats: Array<{
+      chatId: string;
+      count: number;
+      lastMessage: string;
+      senderName: string;
+      timestamp: Date;
+    }>;
+  }> {
+    const chatsRef = db.collection('chats');
+    const messagesRef = db.collection('messages');
+    const field = userType === 'tourist' ? 'touristId' : 'guideId';
+    
+    try {
+      // Obtener todos los chats del usuario
+      const chatsSnapshot = await chatsRef
+        .where(field, '==', userId)
+        .get();
+
+      let totalUnread = 0;
+      const unreadChats = [];
+
+      for (const chatDoc of chatsSnapshot.docs) {
+        const chatData = chatDoc.data();
+        
+        // Query simplificada: obtener todos los mensajes del chat y filtrar en memoria
+        const messagesSnapshot = await messagesRef
+          .where('chatId', '==', chatDoc.id)
+          .where('read', '==', false)
+          .get();
+
+        // Filtrar en memoria los mensajes que NO son del usuario actual
+        const unreadMessages = messagesSnapshot.docs.filter(doc => {
+          const data = doc.data();
+          return data.senderId !== userId;
+        });
+
+        const unreadCount = unreadMessages.length;
+        
+        if (unreadCount > 0) {
+          totalUnread += unreadCount;
+          
+          // Obtener el último mensaje no leído
+          const lastUnreadDoc = unreadMessages[unreadMessages.length - 1];
+          const lastUnreadData = lastUnreadDoc?.data();
+          
+          unreadChats.push({
+            chatId: chatDoc.id,
+            count: unreadCount,
+            lastMessage: lastUnreadData?.content || '',
+            senderName: lastUnreadData?.senderName || '',
+            timestamp: lastUnreadData?.timestamp?.toDate ? lastUnreadData.timestamp.toDate() : new Date(),
+          });
+        }
+      }
+
+      return {
+        totalUnread,
+        chats: unreadChats,
+      };
+    } catch (error) {
+      console.error('Error al obtener mensajes no leídos:', error);
+      throw error;
+    }
+  }
+
+  // Eliminar un chat y todos sus mensajes
+  static async deleteChat(chatId: string): Promise<boolean> {
+    try {
+      // Eliminar todos los mensajes del chat
+      const messagesRef = db.collection('messages');
+      const messagesSnapshot = await messagesRef.where('chatId', '==', chatId).get();
+      
+      const batch = db.batch();
+      messagesSnapshot.docs.forEach(doc => {
+        batch.delete(doc.ref);
+      });
+      
+      // Eliminar el chat
+      const chatRef = db.collection('chats').doc(chatId);
+      batch.delete(chatRef);
+      
+      await batch.commit();
+      
+      console.log(`✅ Chat ${chatId} y sus mensajes eliminados correctamente`);
+      return true;
+    } catch (error) {
+      console.error('Error al eliminar chat:', error);
+      throw error;
+    }
   }
 }

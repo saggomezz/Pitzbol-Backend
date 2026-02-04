@@ -164,3 +164,68 @@ export const getChatInfo = async (req: Request, res: Response) => {
     });
   }
 };
+
+// Obtener mensajes no leídos
+export const getUnreadMessages = async (req: Request, res: Response) => {
+  try {
+    const { userId } = req.params;
+    const { userType } = req.query;
+
+    if (!userId || Array.isArray(userId)) {
+      return res.status(400).json({
+        success: false,
+        msg: 'userId es requerido',
+      });
+    }
+
+    if (!userType || (userType !== 'tourist' && userType !== 'guide')) {
+      return res.status(400).json({
+        success: false,
+        msg: 'Tipo de usuario inválido',
+      });
+    }
+
+    const unreadData = await ChatService.getUnreadMessages(userId, userType as 'tourist' | 'guide');
+    
+    res.status(200).json({
+      success: true,
+      totalUnread: unreadData.totalUnread,
+      chats: unreadData.chats,
+    });
+  } catch (error: any) {
+    console.error('Error al obtener mensajes no leídos:', error);
+    res.status(500).json({
+      success: false,
+      msg: 'Error al obtener mensajes no leídos',
+      error: error.message,
+    });
+  }
+};
+
+// Eliminar un chat
+export const deleteChat = async (req: Request, res: Response) => {
+  try {
+    const { chatId } = req.params;
+
+    if (!chatId || Array.isArray(chatId)) {
+      return res.status(400).json({
+        success: false,
+        msg: 'chatId es requerido',
+      });
+    }
+
+    await ChatService.deleteChat(chatId);
+    
+    res.status(200).json({
+      success: true,
+      msg: 'Chat eliminado correctamente',
+    });
+  } catch (error: any) {
+    console.error('Error al eliminar chat:', error);
+    res.status(500).json({
+      success: false,
+      msg: 'Error al eliminar chat',
+      error: error.message,
+    });
+  }
+};
