@@ -108,14 +108,21 @@ export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
     
-    console.log('📧 Intento de login para email:', email);
-    console.log('🔑 Password length:', password?.length, 'chars');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('🔐 INTENTO DE LOGIN');
+    console.log('📧 Email:', email);
+    console.log('🔑 Password length:', password?.length, 'caracteres');
+    console.log('🌐 Firebase API Key configurada:', FIREBASE_WEB_API_KEY ? 'Sí ✅' : 'NO ❌');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_WEB_API_KEY}`;
+    
+    console.log('🔄 Intentando autenticar con Firebase...');
     const response = await axios.post(url, { email, password, returnSecureToken: true });
     const { localId } = response.data;
     
-    console.log('✅ Firebase autenticó correctamente, UID:', localId);
+    console.log('✅ Firebase autenticó correctamente');
+    console.log('👤 UID:', localId);
     
     let userData: any = null;
     let userRole: string = "";
@@ -206,15 +213,55 @@ export const login = async (req: Request, res: Response) => {
     const firebaseError = error.response?.data?.error;
     const code = firebaseError?.message;
 
-    console.error("🔥 ERROR EN LOGIN:", code || error.message);
-    console.error("📋 Request email:", req.body.email);
-    console.error("📋 Firebase response:", JSON.stringify(error.response?.data, null, 2));
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.error('❌ ERROR EN LOGIN');
+    console.error('📋 Email intentado:', req.body.email);
+    console.error('🔥 Código de error Firebase:', code || 'Sin código');
+    console.error('📝 Mensaje de error:', error.message);
+    console.error('📊 Respuesta completa de Firebase:', JSON.stringify(error.response?.data, null, 2));
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    if (code === "INVALID_LOGIN_CREDENTIALS" || code === "EMAIL_NOT_FOUND" || code === "INVALID_PASSWORD") {
-      return res.status(401).json({ msg: "Credenciales inválidas" });
+    // Mensajes de error más descriptivos
+    if (code === "INVALID_LOGIN_CREDENTIALS") {
+      return res.status(401).json({ 
+        msg: "Correo o contraseña incorrectos. Por favor verifica tus credenciales.",
+        error_code: "INVALID_CREDENTIALS"
+      });
+    }
+    
+    if (code === "EMAIL_NOT_FOUND") {
+      return res.status(401).json({ 
+        msg: "No existe una cuenta con este correo electrónico.",
+        error_code: "EMAIL_NOT_FOUND"
+      });
+    }
+    
+    if (code === "INVALID_PASSWORD") {
+      return res.status(401).json({ 
+        msg: "Contraseña incorrecta.",
+        error_code: "INVALID_PASSWORD"
+      });
+    }
+    
+    if (code === "USER_DISABLED") {
+      return res.status(403).json({ 
+        msg: "Esta cuenta ha sido deshabilitada.",
+        error_code: "USER_DISABLED"
+      });
+    }
+    
+    if (code === "TOO_MANY_ATTEMPTS_TRY_LATER") {
+      return res.status(429).json({ 
+        msg: "Demasiados intentos fallidos. Por favor intenta más tarde.",
+        error_code: "TOO_MANY_ATTEMPTS"
+      });
     }
 
-    return res.status(500).json({ msg: "Error interno en el servidor", error: code || error.message });
+    return res.status(500).json({ 
+      msg: "Error interno en el servidor", 
+      error: code || error.message,
+      details: "Revisa los logs del servidor para más información"
+    });
   }
 };
 
