@@ -203,19 +203,17 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
       rfc,
       cp,
       description,
-      email,
-      password
+      email
     } = req.body;
 
     console.log("[registerBusinessWithImages] Body recibido:", req.body);
     console.log("[registerBusinessWithImages] Files recibidos:", req.files);
 
     // Validar que los campos obligatorios estén presentes
-    if (!businessName || !email || !password || !rfc || !cp || !category || !phone || !location || !website) {
+    if (!businessName || !email || !rfc || !cp || !category || !phone || !location || !website) {
       const missingFields = [];
       if (!businessName) missingFields.push("businessName");
       if (!email) missingFields.push("email");
-      if (!password) missingFields.push("password");
       if (!rfc) missingFields.push("rfc");
       if (!cp) missingFields.push("cp");
       if (!category) missingFields.push("category");
@@ -229,29 +227,11 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
       });
     }
 
-    let uid: string;
+    // Generar un UID para el negocio (sin crear usuario en Firebase Auth)
+    // El email de contacto se guarda como campo del negocio, no como credencial de usuario
+    const uid = db.collection("negocios").doc().id;
 
-    try {
-      // Crear usuario en Firebase Auth
-      const userRecord = await auth.createUser({
-        email: email,
-        password: password,
-      });
-
-      uid = userRecord.uid;
-
-      // Crear claims personalizados para el rol de negocio
-      await auth.setCustomUserClaims(uid, { role: "BUSINESS" });
-    } catch (authError: any) {
-      console.error("Error en Firebase Auth:", authError);
-      if (authError.code === "auth/email-already-exists") {
-        return res.status(400).json({ message: "Este correo electrónico ya está registrado." });
-      }
-      if (authError.code === "auth/invalid-password") {
-        return res.status(400).json({ message: "La contraseña debe tener al menos 6 caracteres." });
-      }
-      throw authError;
-    }
+    console.log("[registerBusinessWithImages] UID generado para negocio:", uid);
 
     // Procesar logo y otras imágenes
     let imageUrls: string[] = [];
@@ -260,16 +240,26 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
     let logoFile = null;
     // Tipar req.files como un objeto con campos string: File[]
     const filesObj = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+    
+    console.log("[registerBusinessWithImages] Contenido detallado de req.files:");
+    if (filesObj) {
+      console.log("[registerBusinessWithImages] Keys de filesObj:", Object.keys(filesObj));
+      console.log("[registerBusinessWithImages] Logo files:", filesObj['logo']);
+      console.log("[registerBusinessWithImages] Images files:", filesObj['images']);
+    } else {
+      console.log("[registerBusinessWithImages] filesObj es undefined");
+    }
+    
     if (filesObj && Array.isArray(filesObj['logo']) && filesObj['logo'][0]) {
       logoFile = filesObj['logo'][0];
     }
     if (!logoFile) {
       return res.status(400).json({ message: "El logo del negocio es obligatorio." });
     }
-    // Subir logo a Cloudinary
+    // Subir logo a Cloudinary con estructura: pitzbol/negocios/pendientes/{uid}/logo
     logoUrl = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream({
-        folder: 'negocios/pendientes/logos',
+        folder: `pitzbol/negocios/pendientes/${uid}/logo`,
         resource_type: 'image',
       }, (error, result) => {
         if (error) return reject(error);
@@ -278,12 +268,12 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
       });
       stream.end(logoFile.buffer);
     });
-    // Subir imágenes (campo 'images')
+    // Subir imágenes (campo 'images') con estructura: pitzbol/negocios/pendientes/{uid}/galeria
     if (filesObj && Array.isArray(filesObj['images'])) {
       for (const file of filesObj['images']) {
         const url = await new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload_stream({
-            folder: 'negocios/pendientes',
+            folder: `pitzbol/negocios/pendientes/${uid}/galeria`,
             resource_type: 'image',
           }, (error, result) => {
             if (error) return reject(error);
