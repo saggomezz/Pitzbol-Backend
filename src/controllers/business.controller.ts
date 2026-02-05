@@ -194,7 +194,6 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
 
 export const registerBusinessWithImages = async (req: RequestWithUser, res: Response) => {
   try {
-
     const {
       businessName,
       category,
@@ -204,14 +203,54 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
       rfc,
       cp,
       description,
-      owner,
-      email
+      email,
+      password
     } = req.body;
 
-    // El usuario debe estar autenticado y su UID debe venir de req.user o del campo owner
-    const uid = req.user?.uid || owner;
-    if (!uid || !businessName || !rfc || !cp) {
-      return res.status(400).json({ message: "Datos incompletos o usuario no autenticado" });
+    console.log("[registerBusinessWithImages] Body recibido:", req.body);
+    console.log("[registerBusinessWithImages] Files recibidos:", req.files);
+
+    // Validar que los campos obligatorios estén presentes
+    if (!businessName || !email || !password || !rfc || !cp || !category || !phone || !location || !website) {
+      const missingFields = [];
+      if (!businessName) missingFields.push("businessName");
+      if (!email) missingFields.push("email");
+      if (!password) missingFields.push("password");
+      if (!rfc) missingFields.push("rfc");
+      if (!cp) missingFields.push("cp");
+      if (!category) missingFields.push("category");
+      if (!phone) missingFields.push("phone");
+      if (!location) missingFields.push("location");
+      if (!website) missingFields.push("website");
+      console.log("[registerBusinessWithImages] Campos faltantes:", missingFields);
+      return res.status(400).json({ 
+        message: "Datos incompletos. Verifica todos los campos obligatorios.",
+        missingFields 
+      });
+    }
+
+    let uid: string;
+
+    try {
+      // Crear usuario en Firebase Auth
+      const userRecord = await auth.createUser({
+        email: email,
+        password: password,
+      });
+
+      uid = userRecord.uid;
+
+      // Crear claims personalizados para el rol de negocio
+      await auth.setCustomUserClaims(uid, { role: "BUSINESS" });
+    } catch (authError: any) {
+      console.error("Error en Firebase Auth:", authError);
+      if (authError.code === "auth/email-already-exists") {
+        return res.status(400).json({ message: "Este correo electrónico ya está registrado." });
+      }
+      if (authError.code === "auth/invalid-password") {
+        return res.status(400).json({ message: "La contraseña debe tener al menos 6 caracteres." });
+      }
+      throw authError;
     }
 
     // Procesar logo y otras imágenes
@@ -290,8 +329,8 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
     });
 
     return res.status(201).json({
-      message: "Business registrado correctamente",
-      uid: owner,
+      message: "Negocio registrado correctamente. Por favor, inicia sesión con tus credenciales.",
+      uid: uid,
     });
   } catch (error: any) {
     console.error("Error registerBusinessWithImages:", error);
