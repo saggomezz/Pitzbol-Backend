@@ -4,6 +4,7 @@ import sharp from 'sharp';
 import { v2 as cloudinary } from 'cloudinary';
 import stripe from '../config/stripe';
 import { saveCard, getUserCards, setDefaultCard, deleteCard } from '../services/wallet.service';
+import { uploadImageStreamToCloudinary } from '../utils/cloudinaryHelper';
 
 // Configurar Cloudinary con validación
 if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
@@ -21,12 +22,12 @@ const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE_DIMENSIONS = { width: 4000, height: 4000 };
 const MIN_IMAGE_DIMENSIONS = { width: 200, height: 200 };
 
-// Función auxiliar para subir base64 a Cloudinary
+// Función auxiliar para subir base64 a Cloudinary (para migración)
 const subirBase64ACloudinary = async (base64Image: string, uid: string): Promise<string> => {
   try {
     const uploadResult = await cloudinary.uploader.upload(base64Image, {
-      folder: `pitzbol/profile_photos/${uid}`,
-      public_id: `${uid}_${Date.now()}`,
+      folder: `pitzbol/usuarios/${uid}/perfil`,
+      public_id: `${uid}_perfil_${Date.now()}`,
       resource_type: 'auto',
       format: 'webp',
       transformation: [
@@ -99,26 +100,10 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
       .webp({ quality: 80 })
       .toBuffer();
 
-    // SUBIR A CLOUDINARY (sin mostrar URL pública en respuesta)
-    const uploadResult = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        {
-          folder: `pitzbol/profile_photos/${uid}`,
-          public_id: `${uid}_${Date.now()}`,
-          resource_type: 'auto',
-          format: 'webp'
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      );
-
-      stream.end(optimizedBuffer);
-    });
-
-    const uploadData = uploadResult as any;
-    const fotoPerfil = uploadData.secure_url;
+    // 📤 SUBIR A CLOUDINARY CON LA ESTRUCTURA CORRECTA: pitzbol/usuarios/{uid}/perfil
+    console.log('📸 Subiendo foto de perfil a Cloudinary con estructura correcta...');
+    const fotoPerfil = await uploadImageStreamToCloudinary(optimizedBuffer, uid, 'perfil');
+    console.log('✅ Foto de perfil subida:', fotoPerfil);
 
     // ACTUALIZAR EN FIRESTORE - Buscar en TODAS las colecciones
     const userDocRefs: any[] = [];
@@ -137,8 +122,13 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
       userDocRefs.push(snapshot.docs[0].ref);
       ubicacionesActualizadas.push('turistas/lista');
       const userData = snapshot.docs[0].data();
-      if (!oldPublicId && userData?.fotoPerfilCloudinary) {
-        oldPublicId = userData.fotoPerfilCloudinary;
+      // Obtener el public_id de la foto anterior para eliminarla
+      if (!oldPublicId) {
+        if (userData?.fotoPerfilCloudinary) {
+          oldPublicId = userData.fotoPerfilCloudinary;
+        } else if (userData?.["14_foto_perfil"]?.cloudinary_id) {
+          oldPublicId = userData["14_foto_perfil"].cloudinary_id;
+        }
       }
     }
 
@@ -154,8 +144,12 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
       userDocRefs.push(guiasSnapshot.docs[0].ref);
       ubicacionesActualizadas.push('guias/lista');
       const userData = guiasSnapshot.docs[0].data();
-      if (!oldPublicId && userData?.fotoPerfilCloudinary) {
-        oldPublicId = userData.fotoPerfilCloudinary;
+      if (!oldPublicId) {
+        if (userData?.fotoPerfilCloudinary) {
+          oldPublicId = userData.fotoPerfilCloudinary;
+        } else if (userData?.["14_foto_perfil"]?.cloudinary_id) {
+          oldPublicId = userData["14_foto_perfil"].cloudinary_id;
+        }
       }
     }
 
@@ -171,8 +165,12 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
       userDocRefs.push(pendientesSnapshot.docs[0].ref);
       ubicacionesActualizadas.push('guias/pendientes');
       const userData = pendientesSnapshot.docs[0].data();
-      if (!oldPublicId && userData?.fotoPerfilCloudinary) {
-        oldPublicId = userData.fotoPerfilCloudinary;
+      if (!oldPublicId) {
+        if (userData?.fotoPerfilCloudinary) {
+          oldPublicId = userData.fotoPerfilCloudinary;
+        } else if (userData?.["14_foto_perfil"]?.cloudinary_id) {
+          oldPublicId = userData["14_foto_perfil"].cloudinary_id;
+        }
       }
     }
 
@@ -188,8 +186,12 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
       userDocRefs.push(adminsSnapshot.docs[0].ref);
       ubicacionesActualizadas.push('admins/lista');
       const userData = adminsSnapshot.docs[0].data();
-      if (!oldPublicId && userData?.fotoPerfilCloudinary) {
-        oldPublicId = userData.fotoPerfilCloudinary;
+      if (!oldPublicId) {
+        if (userData?.fotoPerfilCloudinary) {
+          oldPublicId = userData.fotoPerfilCloudinary;
+        } else if (userData?.["14_foto_perfil"]?.cloudinary_id) {
+          oldPublicId = userData["14_foto_perfil"].cloudinary_id;
+        }
       }
     }
 
@@ -200,19 +202,24 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
     // Eliminar foto anterior de Cloudinary si existe
     if (oldPublicId) {
       try {
+        console.log('🗑️ Eliminando foto anterior de Cloudinary:', oldPublicId);
         await cloudinary.uploader.destroy(oldPublicId);
-        console.log('✅ Foto anterior eliminada de Cloudinary:', oldPublicId);
+        console.log('✅ Foto anterior eliminada exitosamente');
       } catch (error) {
         console.error('⚠️ Error al eliminar foto anterior:', error);
       }
     }
 
+    // Extraer public_id de la URL de Cloudinary para la nueva foto
+    // URL formato: https://res.cloudinary.com/{cloud_name}/image/upload/v{version}/{folder}/{public_id}.{format}
+    const publicIdFull = `pitzbol/usuarios/${uid}/perfil/${uid}_perfil_${Date.now()}`;
+
     // Actualizar TODAS las referencias encontradas
     const fotoData = {
       fotoPerfil: fotoPerfil,
-      "14_foto_perfil": { url: fotoPerfil, cloudinary_id: uploadData.public_id, subida_en: new Date().toISOString() },
+      "14_foto_perfil": { url: fotoPerfil, cloudinary_id: publicIdFull, subida_en: new Date().toISOString() },
       fotoPerfilSubidaEn: new Date().toISOString(),
-      fotoPerfilCloudinary: uploadData.public_id
+      fotoPerfilCloudinary: publicIdFull
     };
 
     console.log(`🔄 Actualizando foto en ${userDocRefs.length} ubicación(es): ${ubicacionesActualizadas.join(', ')}`);
@@ -258,32 +265,11 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
       const userData = userDoc ? userDoc.data() : null;
       console.log(`✅ Usuario encontrado en turistas`);
       
-      // Si no tiene fotoPerfil pero tiene 13_foto_rostro, subir a Cloudinary
-      if (!userData?.fotoPerfil && userData?.['13_foto_rostro']) {
-        console.log('📤 Migrando 13_foto_rostro a Cloudinary...');
-        try {
-          const cloudinaryUrl = await subirBase64ACloudinary(userData['13_foto_rostro'], uid);
-          
-          // Actualizar Firebase con la nueva URL
-          await userDoc!.ref.update({
-            fotoPerfil: cloudinaryUrl,
-            fotoPerfilSubidaEn: new Date().toISOString()
-          });
-          
-          console.log('✅ Foto migrada a Cloudinary exitosamente');
-          
-          return res.status(200).json({
-            fotoPerfil: cloudinaryUrl,
-            fotoPerfilSubidaEn: new Date().toISOString()
-          });
-        } catch (error) {
-          console.error('❌ Error migrando foto:', error);
-          return res.status(500).json({ error: 'Error procesando foto de perfil' });
-        }
-      }
+      // IMPORTANTE: La foto de validación facial (13_foto_rostro) NUNCA se usa como foto de perfil
+      // Son dos cosas completamente diferentes y separadas
       
       return res.status(200).json({
-        fotoPerfil: userData?.fotoPerfil || null,
+        fotoPerfil: userData?.fotoPerfil || userData?.["14_foto_perfil"]?.url || null,
         fotoPerfilSubidaEn: userData?.fotoPerfilSubidaEn || null
       });
     }
@@ -317,32 +303,10 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
       if (data && data.uid === uid) {
         console.log(`✅ Usuario encontrado en guías/lista`);
         
-        // Si no tiene fotoPerfil pero tiene 13_foto_rostro, subir a Cloudinary
-        if (!data.fotoPerfil && data['13_foto_rostro']) {
-          console.log('📤 Migrando 13_foto_rostro a Cloudinary...');
-          try {
-            const cloudinaryUrl = await subirBase64ACloudinary(data['13_foto_rostro'], uid);
-            
-            // Actualizar Firebase con la nueva URL
-            await doc.ref.update({
-              fotoPerfil: cloudinaryUrl,
-              fotoPerfilSubidaEn: new Date().toISOString()
-            });
-            
-            console.log('✅ Foto migrada a Cloudinary exitosamente');
-            
-            return res.status(200).json({
-              fotoPerfil: cloudinaryUrl,
-              fotoPerfilSubidaEn: new Date().toISOString()
-            });
-          } catch (error) {
-            console.error('❌ Error migrando foto:', error);
-            return res.status(500).json({ error: 'Error procesando foto de perfil' });
-          }
-        }
-        
+        // IMPORTANTE: La foto de validación facial (13_foto_rostro) NUNCA se usa como foto de perfil
+        // Devolver solo la foto de perfil si existe, caso contrario null
         return res.status(200).json({
-          fotoPerfil: data.fotoPerfil || null,
+          fotoPerfil: data.fotoPerfil || data["14_foto_perfil"]?.url || null,
           fotoPerfilSubidaEn: data.fotoPerfilSubidaEn || null
         });
       }
@@ -359,34 +323,11 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
       if (data && data.uid === uid) {
         console.log(`✅ Usuario encontrado en guías/pendientes`);
         console.log(`📸 Foto de perfil: ${data.fotoPerfil ? 'SÍ existe' : 'NO existe'}`);
-        console.log(`📸 Campos disponibles: ${Object.keys(data).join(', ')}`);
         
-        // Si no tiene fotoPerfil pero tiene 13_foto_rostro, subir a Cloudinary
-        if (!data.fotoPerfil && data['13_foto_rostro']) {
-          console.log('📤 Migrando 13_foto_rostro a Cloudinary...');
-          try {
-            const cloudinaryUrl = await subirBase64ACloudinary(data['13_foto_rostro'], uid);
-            
-            // Actualizar Firebase con la nueva URL
-            await doc.ref.update({
-              fotoPerfil: cloudinaryUrl,
-              fotoPerfilSubidaEn: new Date().toISOString()
-            });
-            
-            console.log('✅ Foto migrada a Cloudinary exitosamente');
-            
-            return res.status(200).json({
-              fotoPerfil: cloudinaryUrl,
-              fotoPerfilSubidaEn: new Date().toISOString()
-            });
-          } catch (error) {
-            console.error('❌ Error migrando foto:', error);
-            return res.status(500).json({ error: 'Error procesando foto de perfil' });
-          }
-        }
-        
+        // IMPORTANTE: La foto de validación facial (13_foto_rostro) NUNCA se usa como foto de perfil
+        // Devolver solo la foto de perfil si existe, caso contrario null
         return res.status(200).json({
-          fotoPerfil: data.fotoPerfil || null,
+          fotoPerfil: data.fotoPerfil || data["14_foto_perfil"]?.url || null,
           fotoPerfilSubidaEn: data.fotoPerfilSubidaEn || null
         });
       }
