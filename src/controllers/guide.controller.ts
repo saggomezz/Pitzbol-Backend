@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { db } from "../config/firebase";
 import admin from "firebase-admin";
+import { uploadImageToCloudinary } from "../utils/cloudinaryHelper";
 
 const FieldValue = admin.firestore.FieldValue; 
 
@@ -45,6 +46,65 @@ export const registerGuide = async (req: Request, res: Response) => {
 
         console.log("🔑 UID recibido:", uid);
         console.log("📝 Custom ID generado:", customId);
+
+        // �️ RECUPERAR FOTO DE PERFIL EXISTENTE DEL USUARIO TURISTA
+        let fotoPerfil_existente = { url: "", cloudinary_id: "", subida_en: "" };
+        try {
+            const turistaSnap = await db.collection("usuarios")
+                .doc("turistas")
+                .collection("lista")
+                .where("uid", "==", uid)
+                .limit(1)
+                .get();
+
+            if (!turistaSnap.empty && turistaSnap.docs[0]) {
+                const turistaData = turistaSnap.docs[0].data();
+                // Preservar la foto de perfil existente
+                if (turistaData["14_foto_perfil"]) {
+                    fotoPerfil_existente = turistaData["14_foto_perfil"];
+                    console.log("✅ Foto de perfil existente preservada:", fotoPerfil_existente.url);
+                } else if (turistaData.fotoPerfil) {
+                    fotoPerfil_existente = { url: turistaData.fotoPerfil, cloudinary_id: "", subida_en: "" };
+                    console.log("✅ Foto de perfil heredada de campo fotoPerfil");
+                }
+            }
+        } catch (err) {
+            console.log("ℹ️ No se encontró foto de perfil existente o error al recuperarla");
+        }
+
+        // 📤 SUBIR IMÁGENES A CLOUDINARY
+        let ineFrente_url = "";
+        let ineReverso_url = "";
+        let facePhoto_url = "";
+
+        try {
+            // Subir foto frontal de INE
+            if (data.ineFrente) {
+                console.log("📸 Subiendo foto frontal de INE a Cloudinary...");
+                ineFrente_url = await uploadImageToCloudinary(data.ineFrente, uid, 'ine_frente');
+                console.log("✅ INE frontal subida:", ineFrente_url);
+            }
+
+            // Subir foto reverso de INE
+            if (data.ineReverso) {
+                console.log("📸 Subiendo foto reverso de INE a Cloudinary...");
+                ineReverso_url = await uploadImageToCloudinary(data.ineReverso, uid, 'ine_reverso');
+                console.log("✅ INE reverso subida:", ineReverso_url);
+            }
+
+            // Subir foto de validación facial (SEPARADA DE LA FOTO DE PERFIL)
+            if (data.facePhoto) {
+                console.log("📸 Subiendo foto de validación facial a Cloudinary...");
+                facePhoto_url = await uploadImageToCloudinary(data.facePhoto, uid, 'rostro');
+                console.log("✅ Foto de rostro subida:", facePhoto_url);
+            }
+        } catch (uploadError) {
+            console.error("❌ Error al subir imágenes a Cloudinary:", uploadError);
+            return res.status(500).json({ 
+                message: 'Error al procesar imágenes. Por favor, intenta de nuevo.',
+                error: uploadError instanceof Error ? uploadError.message : 'Error desconocido'
+            });
+        }
        
         const datosSeguros = {
             "01_nombre": nombre ?? "",
@@ -56,10 +116,10 @@ export const registerGuide = async (req: Request, res: Response) => {
             "07_especialidades": data.categorias ?? [], 
             "08_rfc": data.rfc ?? "",
             "10_cp": data.codigoPostal ?? "",
-            "11_foto_frente": data.ineFrente ?? "",
-            "12_foto_reverso": data.ineReverso ?? "",
-            "13_foto_rostro": data.facePhoto ?? "",
-            "14_foto_perfil": { url: "", cloudinary_id: "", subida_en: "" },
+            "11_foto_frente": ineFrente_url,
+            "12_foto_reverso": ineReverso_url,
+            "13_foto_rostro": facePhoto_url,
+            "14_foto_perfil": fotoPerfil_existente,
             "15_descripcion": "",
             "16_status": "en_revision",
             "17_tarifa_mxn": data.precioMXN ?? 0,
