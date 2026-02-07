@@ -368,6 +368,113 @@ export const getVerifiedGuides = async (req: Request, res: Response) => {
     }
 };
 
+export const getGuideRequest = async (req: Request, res: Response) => {
+    try {
+        // Obtener el UID del usuario autenticado del middleware
+        const uid = (req as any).user?.uid;
+        
+        if (!uid) {
+            return res.status(400).json({ 
+                success: false,
+                message: 'No se pudo obtener el UID del usuario autenticado' 
+            });
+        }
+
+        console.log("📋 Obteniendo solicitud de guía para UID:", uid);
+
+        // Buscar en la colección de pendientes
+        const pendientesSnapshot = await db.collection('usuarios')
+            .doc('guias')
+            .collection('pendientes')
+            .where('uid', '==', uid)
+            .limit(1)
+            .get();
+
+        if (!pendientesSnapshot.empty) {
+            const doc = pendientesSnapshot.docs[0];
+            const data = doc.data();
+            
+            console.log("✅ Solicitud pendiente encontrada para UID:", uid);
+            
+            const facePhotoUrl =
+                data["13_foto_rostro"]?.url ||
+                data["13_foto_rostro"]?.secure_url ||
+                data["13_foto_rostro"] ||
+                data.facePhoto ||
+                data.fotoRostro ||
+                "";
+
+            return res.status(200).json({
+                success: true,
+                status: "pendiente",
+                uid: data.uid,
+                nombre: data["01_nombre"] || "",
+                email: data["04_correo"] || "",
+                rfc: data["08_rfc"] || "",
+                codigoPostal: data["10_cp"] || "",
+                categorias: data["07_especialidades"] || [],
+                validacion_biometrica: data["18_validacion_biometrica"] || {},
+                facePhoto: facePhotoUrl,
+                createdAt: data.createdAt || "",
+                updatedAt: data.createdAt || ""
+            });
+        }
+
+        // Buscar en la colección de aprobados
+        const aprobadosSnapshot = await db.collection('usuarios')
+            .doc('guias')
+            .collection('lista')
+            .where('uid', '==', uid)
+            .limit(1)
+            .get();
+
+        if (!aprobadosSnapshot.empty) {
+            const doc = aprobadosSnapshot.docs[0];
+            const data = doc.data();
+            
+            console.log("✅ Guía aprobado encontrado para UID:", uid);
+            
+            const facePhotoUrl =
+                data["13_foto_rostro"]?.url ||
+                data["13_foto_rostro"]?.secure_url ||
+                data["13_foto_rostro"] ||
+                data.facePhoto ||
+                data.fotoRostro ||
+                "";
+
+            return res.status(200).json({
+                success: true,
+                status: "aprobado",
+                uid: data.uid,
+                nombre: data["01_nombre"] || "",
+                email: data["04_correo"] || "",
+                rfc: data["08_rfc"] || "",
+                codigoPostal: data["10_cp"] || "",
+                categorias: data["07_especialidades"] || [],
+                validacion_biometrica: data["18_validacion_biometrica"] || {},
+                facePhoto: facePhotoUrl,
+                createdAt: data.createdAt || "",
+                updatedAt: data.createdAt || ""
+            });
+        }
+
+        // Si no se encontró en ninguna colección
+        console.log("ℹ️ No se encontró solicitud para UID:", uid);
+        return res.status(404).json({ 
+            success: false,
+            message: 'No se encontró solicitud de guía para este usuario' 
+        });
+
+    } catch (error: any) {
+        console.error("❌ Error al obtener solicitud de guía:", error);
+        return res.status(500).json({ 
+            success: false,
+            message: 'Error interno al obtener solicitud',
+            error: error.message 
+        });
+    }
+};
+
 export const getGuidePublicProfile = async (req: Request, res: Response) => {
     try {
         const { uid } = req.params;
