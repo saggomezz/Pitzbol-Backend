@@ -160,6 +160,13 @@ export const login = async (req: Request, res: Response) => {
         }
     }
 
+    if (!userData) {
+      return res.status(404).json({
+        msg: "No se encontró el perfil del usuario en Firestore.",
+        details: "El usuario existe en Firebase Auth pero no tiene documento en la base de datos.",
+      });
+    }
+
     // Normalizar campos para cualquier colección (turistas / guias lista / guias pendientes / admins / negocios)
     const nombre = userData?.nombre || userData?.["01_nombre"] || "";
     const apellido = userData?.apellido || userData?.["02_apellido"] || "";
@@ -192,13 +199,13 @@ export const login = async (req: Request, res: Response) => {
       user: {
         uid: localId,
         email,
-        nombre: userData.nombre || userData["01_nombre"] || "",
-        apellido: userData.apellido || userData["02_apellido"] || "",
-        telefono: userData.telefono || userData["06_telefono"] || "No registrado",
-        nacionalidad: userData.nacionalidad || userData["05_nacionalidad"] || "No registrado",
+        nombre,
+        apellido,
+        telefono,
+        nacionalidad,
         fotoPerfil: userData.fotoPerfil || userData["14_foto_perfil"]?.url || "",
         descripcion: userData.descripcion || userData["15_descripcion"] || "",
-        guide_status: userData.guide_status || userData["16_status"] || "ninguno",
+        guide_status: userData.guide_status || userData["16_status"] || guideStatus,
         tarifa: userData.tarifa_mxn || userData["17_tarifa_mxn"] || 0,
         "01_nombre": userData["01_nombre"],
         "06_telefono": userData["06_telefono"],
