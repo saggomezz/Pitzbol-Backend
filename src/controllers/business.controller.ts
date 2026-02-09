@@ -50,16 +50,6 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
 
     // Verificar correo electrónico
     if (email) {
-      try {
-        await auth.getUserByEmail(email);
-        errors.email = "Este correo electrónico ya está registrado";
-      } catch (error: any) {
-        // Si no existe el usuario, está disponible (código 'auth/user-not-found')
-        if (error.code !== 'auth/user-not-found') {
-          console.error("Error verificando email:", error);
-        }
-      }
-
       // Verificar en negocios pendientes
       const pendientesSnapshot = await db.collection("negocios").doc("Pendientes").collection("items").get();
       const emailPendiente = pendientesSnapshot.docs.some(doc => 
