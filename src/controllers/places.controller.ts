@@ -97,7 +97,7 @@ export const createPlace = async (req: Request, res: Response) => {
 
 /**
  * POST /api/lugares/geocode - Obtener coordenadas de una dirección usando Nominatim
- * Versión mejorada con búsquedas más precisas y mejor filtrado de resultados
+ * Versión optimizada con mejor precisión para calles de Guadalajara
  */
 export const geocodeAddress = async (req: Request, res: Response) => {
   console.log('📍 geocodeAddress llamado con:', req.body);
@@ -111,253 +111,277 @@ export const geocodeAddress = async (req: Request, res: Response) => {
     const direccionOriginal = direccion.trim();
     console.log('🔍 Buscando coordenadas para:', direccionOriginal);
     
-    // Función para hacer búsqueda con diferentes parámetros
-    const buscarConParams = async (params: Record<string, string>, limit: number = 25) => {
+    // Función para normalizar texto (quitar acentos)
+    const normalizar = (texto: string): string => {
+      return texto
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/\s+/g, ' ')
+        .trim();
+    };
+    
+    // Función para generar variantes de calle (con/sin abreviaturas y con/sin acentos)
+    const generarVariantesCalle = (calle: string): string[] => {
+      const variantes: string[] = [];
+      const vistos = new Set<string>();
+      
+      // Helper para agregar sin duplicados (normalizado)
+      const agregar = (v: string) => {
+        const normalizado = normalizar(v);
+        if (!vistos.has(normalizado) && v.trim().length > 0) {
+          vistos.add(normalizado);
+          variantes.push(v);
+        }
+      };
+      
+      // 1. Original
+      agregar(calle);
+      
+      // 2. Sin acentos (PRIORIDAD ALTA - muchos usuarios no escriben acentos)
+      agregar(normalizar(calle));
+      
+      const calleLower = calle.toLowerCase();
+      
+      // 3. Expandir abreviaturas comunes
+      if (calleLower.match(/\bav\b|\bave\b/)) {
+        agregar(calle.replace(/\bav\b|\bave\b/gi, 'avenida'));
+        agregar(normalizar(calle.replace(/\bav\b|\bave\b/gi, 'avenida')));
+      } else if (calleLower.includes('avenida')) {
+        agregar(calle.replace(/\bavenida\b/gi, 'av'));
+        agregar(normalizar(calle.replace(/\bavenida\b/gi, 'av')));
+      }
+      
+      if (calleLower.match(/\bc\.\s/)) {
+        agregar(calle.replace(/\bc\.\s/gi, 'calle '));
+        agregar(normalizar(calle.replace(/\bc\.\s/gi, 'calle ')));
+      } else if (calleLower.startsWith('calle ')) {
+        const sinPrefijo = calle.replace(/^calle\s/i, '');
+        agregar(sinPrefijo);
+        agregar(normalizar(sinPrefijo));
+      }
+      
+      if (calleLower.match(/\bblvd\b/)) {
+        agregar(calle.replace(/\bblvd\b/gi, 'boulevard'));
+        agregar(normalizar(calle.replace(/\bblvd\b/gi, 'boulevard')));
+      } else if (calleLower.includes('boulevard')) {
+        agregar(calle.replace(/\bboulevard\b/gi, 'blvd'));
+        agregar(normalizar(calle.replace(/\bboulevard\b/gi, 'blvd')));
+      }
+      
+      return variantes;
+    };
+    
+    // Función para hacer búsqueda
+    const buscarConParams = async (params: Record<string, string>, limit: number = 10): Promise<any[]> => {
       const queryParams = new URLSearchParams();
       queryParams.append('format', 'json');
       queryParams.append('limit', limit.toString());
       queryParams.append('countrycodes', 'mx');
       queryParams.append('addressdetails', '1');
-      queryParams.append('extratags', '1'); // Información adicional
-      queryParams.append('namedetails', '1'); // Nombres alternativos
       
-      // Agregar parámetros específicos
       Object.entries(params).forEach(([key, value]) => {
         if (value && value.trim()) queryParams.append(key, value.trim());
       });
       
       const url = `https://nominatim.openstreetmap.org/search?${queryParams.toString()}`;
       
+      await new Promise(resolve => setTimeout(resolve, 500)); // Rate limiting (500ms)
+      
       const response = await fetch(url, {
         headers: {
-          'User-Agent': 'Pitzbol-Tourism-App/1.0 (contact: admin@pitzbol.com)',
+          'User-Agent': 'Pitzbol-Tourism-App/1.0',
           'Accept-Language': 'es-MX,es,en'
         }
       });
 
-      if (!response.ok) {
-        return null;
-      }
-
-      return await response.json();
+      if (!response.ok) return [];
+      const data = await response.json();
+      return Array.isArray(data) ? data : [];
     };
 
-    // Función mejorada para calcular puntuación de relevancia de un resultado
-    const calcularPuntuacion = (resultado: any, direccionBusqueda: string, componentes: any): number => {
-      let puntuacion = (resultado.importance || 0) * 2; // Peso mayor a importance
-      const displayName = (resultado.display_name || '').toLowerCase();
-      const direccionLower = direccionBusqueda.toLowerCase();
+    // Función mejorada de puntuación - prioriza coincidencias de calle
+    const calcularPuntuacion = (resultado: any, callesBuscadas: string[]): number => {
+      let puntuacion = 0;
       const address = resultado.address || {};
+      const displayName = (resultado.display_name || '').toLowerCase();
+      const road = (address.road || '').toLowerCase();
       
-      // BONUS: Tipo de lugar muy específico
-      if (resultado.type === 'house' || resultado.type === 'building') {
-        puntuacion += 1.0;
-      } else if (resultado.class === 'highway' && resultado.type === 'residential') {
-        puntuacion += 0.5;
-      } else if (['amenity', 'shop', 'tourism', 'leisure'].includes(resultado.class)) {
-        puntuacion += 0.8;
-      }
-      
-      // BONUS: Está en Guadalajara
+      // Primero: Verificar si está en Guadalajara (criterio básico)
       const enGuadalajara = 
         address.city?.toLowerCase().includes('guadalajara') ||
         address.town?.toLowerCase().includes('guadalajara') ||
         address.municipality?.toLowerCase().includes('guadalajara') ||
         displayName.includes('guadalajara');
-      if (enGuadalajara) {
-        puntuacion += 0.6;
+      
+      console.log(`    🔍 Evaluando: "${displayName}" | road="${road}" | enGDL=${enGuadalajara}`);
+      
+      // Si NO está en Guadalajara, descartar completamente
+      if (!enGuadalajara) {
+        console.log(`    ❌ DESCARTAR: No está en Guadalajara`);
+        return -100;
       }
       
-      // BONUS: Coincidencias de palabras clave
-      const palabrasBusqueda = direccionLower
-        .split(/[\s,]+/)
-        .filter(p => p.length > 2 && !['la', 'del', 'de', 'los', 'las'].includes(p.toLowerCase()));
+      // PUNTUACIÓN BASE: Está en Guadalajara
+      puntuacion = 5.0;
       
-      let coincidencias = 0;
-      palabrasBusqueda.forEach(palabra => {
-        const palabraLimpia = palabra.replace(/[^\w]/g, '');
-        if (displayName.includes(palabraLimpia) || 
-            address.road?.toLowerCase().includes(palabraLimpia) ||
-            address.suburb?.toLowerCase().includes(palabraLimpia) ||
-            address.neighbourhood?.toLowerCase().includes(palabraLimpia)) {
-          coincidencias++;
-        }
-      });
+      // BÚSQUEDA 1: Coincidencia de calle (máxima prioridad)
+      let coincideCalle = false;
       
-      if (palabrasBusqueda.length > 0) {
-        puntuacion += (coincidencias / palabrasBusqueda.length) * 0.8;
-      }
-      
-      // BONUS: Coincidencia de número (si hay)
-      if (componentes.numero && address.house_number) {
-        if (address.house_number.includes(componentes.numero) || 
-            componentes.numero.includes(address.house_number)) {
-          puntuacion += 1.5; // Muy importante si coincide el número
-        }
-      }
-      
-      // BONUS: Coincidencia de calle (road)
-      if (componentes.calle && address.road) {
-        const calleLimpia = componentes.calle
-          .replace(/^(C\.|Calle|Av\.|Avenida|Blvd\.|Boulevard)\s+/i, '')
-          .toLowerCase()
-          .trim();
-        const roadLimpio = address.road.toLowerCase().trim();
+      for (const calleBuscada of callesBuscadas) {
+        const calleNormalizada = normalizar(calleBuscada);
+        const roadNormalizado = normalizar(road);
         
-        if (roadLimpio.includes(calleLimpia) || calleLimpia.includes(roadLimpio)) {
-          puntuacion += 1.2;
+        // Exacta con road
+        if (roadNormalizado && roadNormalizado === calleNormalizada) {
+          puntuacion += 15.0;
+          coincideCalle = true;
+          console.log(`    ✅ EXACTA en road: "${calleBuscada}" = "${road}"`);
+          break;
+        }
+        
+        // Parcial: road contiene calle
+        if (road && roadNormalizado.includes(calleNormalizada) && calleNormalizada.length > 2) {
+          const bonus = 12.0 * (calleNormalizada.length / Math.max(roadNormalizado.length, 1));
+          puntuacion += bonus;
+          coincideCalle = true;
+          console.log(`    ✅ PARCIAL 1 en road: "${calleBuscada}" ⊂ "${road}" (+${bonus.toFixed(2)})`);
+          break;
+        }
+        
+        // Parcial: calle contiene road
+        if (calleNormalizada.includes(roadNormalizado) && roadNormalizado.length > 3) {
+          const bonus = 11.0 * (roadNormalizado.length / calleNormalizada.length);
+          puntuacion += bonus;
+          coincideCalle = true;
+          console.log(`    ✅ PARCIAL 2: "${road}" ⊂ "${calleBuscada}" (+${bonus.toFixed(2)})`);
+          break;
+        }
+        
+        // Buscar en display_name
+        if (displayName.includes(calleNormalizada) && calleNormalizada.length > 2) {
+          const bonus = 10.0;
+          puntuacion += bonus;
+          coincideCalle = true;
+          console.log(`    ✅ Encontrado en displayName: "${displayName}" (+${bonus.toFixed(2)})`);
+          break;
         }
       }
       
+      // BÚSQUEDA 2: Si no coincide la calle exacta, usar Importance de Nominatim como factor
+      if (!coincideCalle) {
+        const importance = resultado.importance || 0;
+        if (importance > 0.1) {
+          puntuacion += importance * 5.0;
+          console.log(`    ℹ️ Sin coincidencia de calle, pero importance=${importance.toFixed(3)} (+${(importance * 5).toFixed(2)})`);
+        } else {
+          // Si no hay ninguna coincidencia y importance bajo, dar mínima puntuación
+          console.log(`    ⚠️ Sin coincidencia de calle, importance bajo=${importance}`);
+        }
+      }
+      
+      // BONUS: Tipo de lugar
+      if (resultado.type === 'residential' && resultado.class === 'highway') {
+        puntuacion += 5.0;
+      } else if (resultado.type === 'house' || resultado.type === 'building') {
+        puntuacion += 4.0;
+      } else if (['amenity', 'shop', 'tourism'].includes(resultado.class)) {
+        puntuacion += 2.0;
+      }
+      
+      // BONUS por importance
+      puntuacion += (resultado.importance || 0) * 0.5;
+      
+      console.log(`    📊 Puntuación final: ${puntuacion.toFixed(2)}`);
       return puntuacion;
     };
 
-    // Función mejorada para extraer componentes de dirección
-    const extraerComponentes = (dir: string) => {
-      const partes = dir.split(',').map(p => p.trim()).filter(p => p);
-      let calle = '';
-      let numero = '';
-      let colonia = '';
-      let ciudad = 'Guadalajara';
-      
-      // Patrón para extraer número
-      const patronNumero = /\b(\d+[A-Z]?)\b/;
-      
-      if (partes.length > 0) {
-        // Primera parte: calle (puede incluir número)
-        let primeraParte = partes[0] ?? '';
-        calle = primeraParte;
-
-        // Extraer número de la calle si está presente
-        const matchNumero = primeraParte.match(patronNumero);
-        if (matchNumero && matchNumero.index !== undefined && matchNumero.index < primeraParte.length / 2) {
-          numero = matchNumero[1] ?? '';
-          calle = primeraParte.replace(patronNumero, '').trim();
-        }
-
-        // Buscar colonia y ciudad en las siguientes partes
-        for (let i = 1; i < partes.length; i++) {
-          const parte = partes[i] ?? '';
-          if (parte.toLowerCase().includes('guadalajara') || parte.toLowerCase().includes('gdl')) {
-            ciudad = 'Guadalajara';
-          } else if (!colonia && i <= 2 && !parte.match(/^(Guadalajara|Jalisco|México|Méx)$/i)) {
-            colonia = parte;
-          }
-        }
-      }
-
-      return { calle, numero, colonia, ciudad };
+    // Extraer nombre de calle de la dirección
+    const extraerCalle = (dir: string): string => {
+      // Tomar la primera parte antes de la primera coma
+      const primeraParte = dir.split(',')[0]?.trim() || dir;
+      // Quitar números al inicio
+      return primeraParte.replace(/^\d+\s*/, '').trim();
     };
 
-    const componentes = extraerComponentes(direccionOriginal);
-    console.log('  📋 Componentes extraídos:', componentes);
-
-    // Lista de búsquedas a intentar (de más específica a menos específica)
-    const busquedas = [
-      // 1. Búsqueda estructurada con street específico
-      componentes.calle ? {
-        method: 'structured',
-        params: {
-          street: componentes.calle ?? '',
-          city: componentes.ciudad ?? '',
-          state: 'Jalisco',
-          country: 'México'
-        }
-      } : null,
-      
-      // 2. Búsqueda por query con toda la dirección + contexto
-      {
-        method: 'query',
-        params: { q: `${direccionOriginal}, Guadalajara, Jalisco, México` }
-      },
-      
-      // 3. Búsqueda por query con dirección completa
-      {
-        method: 'query',
-        params: { q: direccionOriginal }
-      },
-      
-      // 4. Búsqueda por query solo con calle y ciudad
-      componentes.calle ? {
-        method: 'query',
-        params: { q: `${componentes.calle ?? ''}, ${componentes.ciudad ?? ''}, Jalisco` }
-      } : null,
-      
-      // 5. Búsqueda estructurada solo con ciudad y estado
-      {
-        method: 'structured',
-        params: {
-          city: componentes.ciudad,
-          state: 'Jalisco',
-          country: 'México'
-        }
-      },
-      
-      // 6. Búsqueda simplificada (solo primera parte de la dirección)
-      {
-        method: 'query',
-        params: { q: `${direccionOriginal.split(',')[0]}, Guadalajara` }
-      }
-    ].filter(b => b !== null);
+    const calleOriginal = extraerCalle(direccionOriginal);
+    const variantesCalle = generarVariantesCalle(calleOriginal);
+    
+    // Limitar variantes para evitar demasiadas búsquedas (máximo 6)
+    const variantesLimitadas = variantesCalle.slice(0, 6);
+    
+    console.log('  📋 Variantes de calle a buscar:', variantesLimitadas);
 
     let todosLosResultados: any[] = [];
 
-    // Ejecutar todas las búsquedas
-    for (let i = 0; i < busquedas.length; i++) {
-      const busqueda = busquedas[i];
-      console.log(`  Intento ${i + 1}/${busquedas.length}: ${busqueda?.method} - ${JSON.stringify(busqueda?.params)}`);
+    // Estrategia 1: Búsquedas con variantes de calle + Guadalajara
+    for (const variante of variantesLimitadas) {
+      const query = `${variante}, Guadalajara, Jalisco, Mexico`;
+      console.log(`  🔎 Buscando: "${query}"`);
       
-      try {
-        let data;
-        if (busqueda?.method === 'structured') {
-          data = await buscarConParams(busqueda.params, 25);
-        } else {
-          data = await buscarConParams({ q: busqueda?.params?.q || direccionOriginal }, 25);
-        }
-        
-        if (data && Array.isArray(data) && data.length > 0) {
-          console.log(`    📊 ${data.length} resultado(s) encontrado(s)`);
-          todosLosResultados.push(...data);
-        }
-        
-        // Pausa más larga para respetar rate limits
-        await new Promise(resolve => setTimeout(resolve, 300));
-      } catch (error: any) {
-        console.log(`    ❌ Error:`, error.message);
-        continue;
+      const resultados = await buscarConParams({ q: query }, 10);
+      if (resultados && resultados.length > 0) {
+        console.log(`    📊 ${resultados.length} resultado(s)`);
+        todosLosResultados.push(...resultados);
+      }
+    }
+
+    // Estrategia 2: Búsqueda estructurada con street (solo con original)
+    if (calleOriginal) {
+      console.log(`  🔎 Búsqueda estructurada con street: "${calleOriginal}"`);
+      const resultados = await buscarConParams({
+        street: calleOriginal,
+        city: 'Guadalajara',
+        state: 'Jalisco',
+        country: 'Mexico'
+      }, 10);
+      
+      if (resultados && resultados.length > 0) {
+        console.log(`    📊 ${resultados.length} resultado(s)`);
+        todosLosResultados.push(...resultados);
       }
     }
 
     if (todosLosResultados.length === 0) {
-      console.log('  ❌ No se encontraron coordenadas en ninguna búsqueda');
+      console.log('  ❌ No se encontraron resultados');
       return res.status(200).json({ 
-        message: 'No se encontraron coordenadas para esta dirección. Intenta ser más específico o ajusta la ubicación manualmente en el mapa.',
+        message: 'No se encontró esta calle. Ajusta la ubicación manualmente en el mapa.',
         success: false
       });
     }
 
-    // Eliminar duplicados (mismo lugar_id)
+    // Eliminar duplicados por place_id
     const unicos = todosLosResultados.filter((r, index, self) => 
       index === self.findIndex(t => t.place_id === r.place_id)
     );
 
     console.log(`  📊 Total de resultados únicos: ${unicos.length}`);
 
-    // Calcular puntuación mejorada para cada resultado y ordenar
-    const resultadosConPuntuacion = unicos.map(r => ({
-      ...r,
-      puntuacion: calcularPuntuacion(r, direccionOriginal, componentes)
-    })).sort((a, b) => b.puntuacion - a.puntuacion);
+    // Calcular puntuación y ordenar
+    const resultadosConPuntuacion = unicos
+      .map(r => ({
+        ...r,
+        puntuacion: calcularPuntuacion(r, variantesCalle)
+      }))
+      .filter(r => r.puntuacion > 0) // Descartar negativos
+      .sort((a, b) => b.puntuacion - a.puntuacion);
 
-    // Mostrar top 3 resultados para debugging
-    console.log(`  🏆 Top 3 resultados:`);
+    if (resultadosConPuntuacion.length === 0) {
+      console.log('  ❌ Ningún resultado válido después del filtrado');
+      return res.status(200).json({ 
+        message: 'No se encontró una coincidencia precisa para esta calle.',
+        success: false
+      });
+    }
+
+    // Mostrar top 3
+    console.log(`  🏆 Top resultados:`);
     resultadosConPuntuacion.slice(0, 3).forEach((r, i) => {
       console.log(`    ${i + 1}. Puntuación: ${r.puntuacion.toFixed(2)} - ${r.display_name}`);
     });
 
-    // Seleccionar el mejor resultado
     const mejorResultado = resultadosConPuntuacion[0];
-    console.log(`  ✅ Mejor resultado seleccionado (puntuación: ${mejorResultado.puntuacion.toFixed(3)}):`, mejorResultado.display_name);
+    console.log(`  ✅ Mejor resultado seleccionado:`, mejorResultado.display_name);
 
     const lat = parseFloat(mejorResultado.lat);
     const lon = parseFloat(mejorResultado.lon);
@@ -372,7 +396,7 @@ export const geocodeAddress = async (req: Request, res: Response) => {
     }
 
     return res.status(200).json({ 
-      message: 'No se encontraron coordenadas válidas. Por favor ajusta la ubicación manualmente en el mapa.',
+      message: 'No se encontraron coordenadas válidas.',
       success: false
     });
   } catch (error: any) {
