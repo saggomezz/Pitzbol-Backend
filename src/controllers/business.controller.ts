@@ -10,7 +10,7 @@ interface RequestWithUser extends ExpressRequest {
 }
 import { auth, db } from "../config/firebase";
 import admin from "firebase-admin";
-import { sendNotificationToAdmins } from "../services/notification.service";
+import { sendNotificationToAdmins, sendNotificationToUser } from "../services/notification.service";
 import { v2 as cloudinary } from 'cloudinary';
 // Configuración de Cloudinary (puedes mover esto a un archivo de config si lo prefieres)
 cloudinary.config({
@@ -305,8 +305,21 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
       mensaje: `Se ha recibido una nueva solicitud de negocio: ${businessName}`,
       fecha: new Date().toISOString(),
       leido: false,
-      enlace: `/admin/historial-solicitudes`
+      enlace: `/admin/negocios-pendientes`
     });
+
+    // Notificar al usuario si viene un ownerUid (opcional)
+    const ownerUid = req.body?.ownerUid as string | undefined;
+    if (ownerUid) {
+      await sendNotificationToUser(ownerUid, {
+        tipo: 'solicitud_negocio_enviada',
+        titulo: 'Solicitud enviada',
+        mensaje: `Tu negocio "${businessName}" fue enviado a revision.`,
+        fecha: new Date().toISOString(),
+        leido: false,
+        enlace: `/negocio/estatus`
+      });
+    }
 
     return res.status(201).json({
       message: "Negocio registrado correctamente. Por favor, inicia sesión con tus credenciales.",
@@ -383,7 +396,17 @@ export const registerBusiness = async (req: RequestWithUser, res: Response) => {
         mensaje: `Se ha recibido una nueva solicitud de negocio: ${businessName}`,
         fecha: new Date().toISOString(),
         leido: false,
-        enlace: `/admin/historial-solicitudes`
+        enlace: `/admin/negocios-pendientes`
+      });
+
+      // Notificar al usuario dueño de la solicitud
+      await sendNotificationToUser(uid, {
+        tipo: 'solicitud_negocio_enviada',
+        titulo: 'Solicitud enviada',
+        mensaje: `Tu negocio "${businessName}" fue enviado a revision.`,
+        fecha: new Date().toISOString(),
+        leido: false,
+        enlace: `/negocio/estatus`
       });
 
       return res.status(201).json({
