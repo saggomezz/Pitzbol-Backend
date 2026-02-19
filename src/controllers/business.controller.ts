@@ -321,7 +321,7 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
         mensaje: `Tu negocio "${businessName}" fue enviado a revision.`,
         fecha: new Date().toISOString(),
         leido: false,
-        enlace: `/negocio/preview`
+        enlace: `/negocio/preview?id=${uid}`
       };
       console.log(`[registerBusinessWithImages] Contenido de notificación:`, JSON.stringify(notificacion, null, 2));
       await sendNotificationToUser(ownerUid, notificacion);
@@ -415,7 +415,7 @@ export const registerBusiness = async (req: RequestWithUser, res: Response) => {
         mensaje: `Tu negocio "${businessName}" fue enviado a revision.`,
         fecha: new Date().toISOString(),
         leido: false,
-        enlace: `/negocio/preview`
+        enlace: `/negocio/preview?id=${uid}`
       });
 
       return res.status(201).json({
@@ -650,6 +650,107 @@ export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
 
   } catch (error: any) {
     console.error("Error getMyBusiness:", error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+const mapBusinessDoc = (docSnap: admin.firestore.QueryDocumentSnapshot | admin.firestore.DocumentSnapshot) => {
+  const data = docSnap.data();
+  const createdAt = data?.business?.createdAt
+    ? new Date((data.business.createdAt?.seconds || 0) * 1000).toISOString()
+    : new Date().toISOString();
+
+  return {
+    id: docSnap.id,
+    ...data,
+    business: {
+      ...data?.business,
+      createdAt,
+    },
+  };
+};
+
+export const getBusinessById = async (req: RequestWithUser, res: Response) => {
+  try {
+    const businessId = req.params.id as string;
+    const userEmail = req.user?.email as string | undefined;
+    const userUid = req.user?.uid as string | undefined;
+    const userRole = req.user?.role as string | undefined;
+
+    if (!businessId || typeof businessId !== 'string') {
+      return res.status(400).json({ success: false, message: "ID de negocio requerido" });
+    }
+
+    if (!userEmail && !userUid) {
+      return res.status(400).json({ success: false, message: "No se encontró información del usuario" });
+    }
+
+    const isAdmin = (userRole || "").toLowerCase() === "admin";
+
+    const pendientesDoc = await db
+      .collection("negocios")
+      .doc("Pendientes")
+      .collection("items")
+      .doc(businessId)
+      .get();
+
+    if (pendientesDoc.exists) {
+      const data = pendientesDoc.data();
+      const isOwner =
+        data?.ownerUid === userUid ||
+        data?.uid === userUid ||
+        (userEmail && data?.email === userEmail);
+
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ success: false, message: "No autorizado" });
+      }
+
+      return res.json({ success: true, business: mapBusinessDoc(pendientesDoc) });
+    }
+
+    const approvedDoc = await db
+      .collection("negocios")
+      .doc("Business")
+      .collection("items")
+      .doc(businessId)
+      .get();
+
+    if (approvedDoc.exists) {
+      const data = approvedDoc.data();
+      const isOwner =
+        data?.ownerUid === userUid ||
+        data?.uid === userUid ||
+        (userEmail && data?.email === userEmail);
+
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ success: false, message: "No autorizado" });
+      }
+
+      return res.json({ success: true, business: mapBusinessDoc(approvedDoc) });
+    }
+
+    const archivedDoc = await db
+      .collection("negocios_archivados")
+      .doc(businessId)
+      .get();
+
+    if (archivedDoc.exists) {
+      const data = archivedDoc.data();
+      const isOwner =
+        data?.ownerUid === userUid ||
+        data?.uid === userUid ||
+        (userEmail && data?.email === userEmail);
+
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ success: false, message: "No autorizado" });
+      }
+
+      return res.json({ success: true, business: mapBusinessDoc(archivedDoc) });
+    }
+
+    return res.status(404).json({ success: false, message: "Negocio no encontrado" });
+  } catch (error: any) {
+    console.error("Error getBusinessById:", error);
     return res.status(500).json({ success: false, error: error.message });
   }
 };

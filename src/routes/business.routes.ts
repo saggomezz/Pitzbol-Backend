@@ -5,6 +5,7 @@ import {
   registerBusinessWithImages,
   validateBusinessUniqueness,
   getMyBusiness,
+  getBusinessById,
 } from "../controllers/business.controller";
 import { upload } from '../middleware/uploadMiddleware';
 import { recoverPassword } from "../controllers/auth.controller";
@@ -35,6 +36,12 @@ router.get(
   "/my-business",
   authMiddleware,
   getMyBusiness
+);
+
+router.get(
+  "/by-id/:id",
+  authMiddleware,
+  getBusinessById
 );
 
 router.get(
