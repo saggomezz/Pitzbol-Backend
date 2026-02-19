@@ -18,6 +18,9 @@ import supportRoutes from './routes/support.routes';
 import favoritesRoutes from './routes/favorites.routes';
 import chatRoutes from './routes/chat.routes';
 import bookingRoutes from './routes/booking.routes';
+import ratingRoutes from './routes/rating.routes';
+import availabilityRoutes from './routes/availability.routes';
+import walletRoutes from './routes/wallet.routes';
 import { ChatService } from './services/chat.service';
 
 
@@ -82,6 +85,9 @@ app.use('/api/support', supportRoutes);
 app.use('/api/favorites', favoritesRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/bookings', bookingRoutes);
+app.use('/api/ratings', ratingRoutes);
+app.use('/api/availability', availabilityRoutes);
+app.use('/api/wallet', walletRoutes);
 // Manejo de rutas no encontradas
 app.use('/api', (req, res) => {
   console.warn(`⚠️ Ruta no encontrada: [${req.method}] ${req.url}`);

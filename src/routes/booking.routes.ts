@@ -6,6 +6,7 @@ import {
   getGuideBookings,
   updateBookingStatus,
   cancelBooking,
+  completeTour,
 } from '../controllers/booking.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
@@ -25,6 +26,9 @@ router.get('/guide/:guideId', authMiddleware, getGuideBookings);
 
 // Actualizar estado de reserva
 router.put('/:bookingId/status', authMiddleware, updateBookingStatus);
+
+// Completar tour (finalizar)
+router.put('/:bookingId/complete', authMiddleware, completeTour);
 
 // Cancelar reserva
 router.delete('/:bookingId', authMiddleware, cancelBooking);
