@@ -666,10 +666,15 @@ export const obtenerNotificacionesUsuario = async (req: Request, res: Response) 
             .limit(50)
             .get();
 
-        const notificaciones = notificacionesSnapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        }));
+        const notificaciones = notificacionesSnapshot.docs.map(doc => {
+            const data = doc.data();
+            const notif = {
+                id: doc.id,
+                ...data
+            };
+            console.log(`📧 Notificación ${doc.id}:`, JSON.stringify(notif, null, 2));
+            return notif;
+        });
 
         console.log(`✅ Se obtuvieron ${notificaciones.length} notificaciones`);
         return res.json({ success: true, notificaciones });
