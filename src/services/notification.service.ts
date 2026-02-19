@@ -2,17 +2,24 @@ import admin from 'firebase-admin';
 
 export async function sendNotificationToUser(userId: string, notification: any) {
   const db = admin.firestore();
+  console.log(`[NotificationService] Enviando notificaci\u00f3n a usuario ${userId}`);
+  console.log(`[NotificationService] Contenido:`, JSON.stringify(notification, null, 2));
+  
   const normalized = {
     ...notification,
     fecha: notification?.fecha || new Date().toISOString(),
     leido: notification?.leido ?? false
   };
 
-  await db
+  console.log(`[NotificationService] Datos normalizados:`, JSON.stringify(normalized, null, 2));
+
+  const docRef = await db
     .collection('usuarios')
     .doc('notificaciones')
     .collection(userId)
     .add(normalized);
+
+  console.log(`[NotificationService] \u2705 Notificaci\u00f3n guardada con ID: ${docRef.id}`);
 }
 
 export async function getUserNotifications(userId: string) {
