@@ -251,6 +251,139 @@ export const getSolicitudesPendientes = async (req: any, res: any) => {
     }
 };
 
+export const obtenerUsuariosGestionables = async (req: Request, res: Response) => {
+    try {
+        const [guiasSnapshot, negociantesSnapshot, negociosBusinessSnapshot] = await Promise.all([
+            db.collection('usuarios').doc('guias').collection('lista').get(),
+            db.collection('usuarios').doc('negocios').collection('lista').get(),
+            db.collection('negocios').doc('Business').collection('items').get(),
+        ]);
+
+        const guias = guiasSnapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                uid: data.uid || doc.id,
+                nombre: data["01_nombre"] || data.nombre || '',
+                apellido: data["02_apellido"] || data.apellido || '',
+                correo: data["04_correo"] || data.email || '',
+                telefono: data["06_telefono"] || data.telefono || '',
+                role: 'guia',
+            };
+        });
+
+        const negociantesMap = new Map<string, any>();
+
+        negociantesSnapshot.docs.forEach(doc => {
+            const data = doc.data();
+            const uid = data.uid || doc.id;
+            if (!uid) return;
+
+            negociantesMap.set(uid, {
+                uid,
+                nombre: data["01_nombre"] || data.nombre || data.businessName || '',
+                apellido: data["02_apellido"] || data.apellido || '',
+                correo: data["04_correo"] || data.email || '',
+                telefono: data["06_telefono"] || data.telefono || '',
+                role: 'negociante',
+            });
+        });
+
+        negociosBusinessSnapshot.docs.forEach(doc => {
+            const data = doc.data();
+            const uid = data.uid || data.business?.owner || doc.id;
+            if (!uid || negociantesMap.has(uid)) return;
+
+            negociantesMap.set(uid, {
+                uid,
+                nombre: data.business?.name || data.name || 'Negocio',
+                apellido: '',
+                correo: data.email || data.business?.email || '',
+                telefono: data.business?.phone || '',
+                role: 'negociante',
+            });
+        });
+
+        const negociantes = Array.from(negociantesMap.values());
+
+        return res.json({
+            success: true,
+            guias,
+            negociantes,
+        });
+    } catch (error: any) {
+        console.error('❌ Error al obtener usuarios gestionables:', error);
+        return res.status(500).json({ success: false, message: 'Error interno', error: error.message });
+    }
+};
+
+export const eliminarUsuarioGestionable = async (req: Request, res: Response) => {
+    const { uid } = req.params;
+    const role = (req.body?.role || req.query?.role || '').toString().toLowerCase();
+
+    if (!uid) {
+        return res.status(400).json({ success: false, message: 'UID requerido' });
+    }
+
+    if (!['guia', 'negociante'].includes(role)) {
+        return res.status(400).json({ success: false, message: "Rol inválido. Usa 'guia' o 'negociante'" });
+    }
+
+    try {
+        let eliminados = 0;
+
+        const eliminarDocs = async (snapshot: any) => {
+            for (const doc of snapshot.docs) {
+                await doc.ref.delete();
+                eliminados += 1;
+            }
+        };
+
+        const [guiaLista, guiaPendiente, turistas, negociosUsuarios] = await Promise.all([
+            db.collection('usuarios').doc('guias').collection('lista').where('uid', '==', uid).get(),
+            db.collection('usuarios').doc('guias').collection('pendientes').where('uid', '==', uid).get(),
+            db.collection('usuarios').doc('turistas').collection('lista').where('uid', '==', uid).get(),
+            db.collection('usuarios').doc('negocios').collection('lista').where('uid', '==', uid).get(),
+        ]);
+
+        await eliminarDocs(guiaLista);
+        await eliminarDocs(guiaPendiente);
+        await eliminarDocs(turistas);
+        await eliminarDocs(negociosUsuarios);
+
+        const [negociosPendientesUid, negociosPendientesOwner, negociosBusinessUid, negociosBusinessOwner] = await Promise.all([
+            db.collection('negocios').doc('Pendientes').collection('items').where('uid', '==', uid).get(),
+            db.collection('negocios').doc('Pendientes').collection('items').where('business.owner', '==', uid).get(),
+            db.collection('negocios').doc('Business').collection('items').where('uid', '==', uid).get(),
+            db.collection('negocios').doc('Business').collection('items').where('business.owner', '==', uid).get(),
+        ]);
+
+        await eliminarDocs(negociosPendientesUid);
+        await eliminarDocs(negociosPendientesOwner);
+        await eliminarDocs(negociosBusinessUid);
+        await eliminarDocs(negociosBusinessOwner);
+
+        const notificacionesSnapshot = await db.collection('usuarios').doc('notificaciones').collection(uid).get();
+        await eliminarDocs(notificacionesSnapshot);
+
+        try {
+            await auth.deleteUser(uid);
+        } catch (authError: any) {
+            if (authError?.code !== 'auth/user-not-found') {
+                throw authError;
+            }
+        }
+
+        return res.json({
+            success: true,
+            message: `Usuario ${role} eliminado correctamente`,
+            eliminados,
+        });
+    } catch (error: any) {
+        console.error('❌ Error al eliminar usuario gestionable:', error);
+        return res.status(500).json({ success: false, message: 'Error al eliminar usuario', error: error.message });
+    }
+};
+
 export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
     const { uid, accion } = req.body;
 

@@ -77,6 +77,22 @@ router.post(
   adminController.gestionarSolicitudGuia
 );
 
+// PROTEGIDO - Obtener guías y negociantes para gestión
+router.get(
+  '/usuarios-gestionables',
+  authMiddleware,
+  requireAdmin,
+  adminController.obtenerUsuariosGestionables
+);
+
+// PROTEGIDO - Eliminar usuario guía o negociante
+router.delete(
+  '/usuarios/:uid',
+  authMiddleware,
+  requireAdmin,
+  adminController.eliminarUsuarioGestionable
+);
+
 // PROTEGIDO - Verificar estado de un usuario (puede ser el mismo usuario)
 router.get(
   '/verificar-estado/:uid',
