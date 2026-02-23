@@ -1,13 +1,14 @@
+import axios from "axios";
+import { Request, Response, Router } from "express";
+
+const router = Router();
+
 router.get("/ai", (req: Request, res: Response) => {
   res.status(200).json({
     success: true,
     msg: "Endpoint GET /api/ai activo. Usa POST para IA.",
   });
 });
-import axios from "axios";
-import { Request, Response, Router } from "express";
-
-const router = Router();
 
 router.post("/ai", async (req: Request, res: Response) => {
   const { prompt } = req.body;

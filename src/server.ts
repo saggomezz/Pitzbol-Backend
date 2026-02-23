@@ -1,24 +1,24 @@
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from "dotenv";
-dotenv.config();
 import express from 'express';
-import cookieParser from 'cookie-parser';
-import authRoutes from './routes/auth.routes';
-import guideRoutes from './routes/guide.routes';
-import businessRoutes from "./routes/business.routes";
-import ocrRoutes from './routes/ocr.routes';
 import adminRoutes from './routes/admin.routes';
+import aiRoutes from "./routes/ai.routes";
+import authRoutes from './routes/auth.routes';
+import businessRoutes from "./routes/business.routes";
+import guideRoutes from './routes/guide.routes';
+import historialRoutes from './routes/historial.routes';
+import ocrRoutes from './routes/ocr.routes';
 import paymentRoutes from "./routes/payment.routes";
 import perfilRoutes from './routes/perfil.routes';
-import historialRoutes from './routes/historial.routes';
 import placesRoutes from './routes/places.routes';
 import supportRoutes from './routes/support.routes';
-import aiRoutes from "./routes/ai.routes";
+dotenv.config();
 
 
 dotenv.config();
 const app = express();
-const PORT = process.env.PORT || 3001;
+const PORT = Number(process.env.PORT) || 3001;
 
 app.use(cors({
   origin: "http://localhost:3000",
