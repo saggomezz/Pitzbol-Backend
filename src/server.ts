@@ -13,6 +13,7 @@ import perfilRoutes from './routes/perfil.routes';
 import historialRoutes from './routes/historial.routes';
 import placesRoutes from './routes/places.routes';
 import supportRoutes from './routes/support.routes';
+import aiRoutes from "./routes/ai.routes";
 
 
 dotenv.config();
@@ -46,6 +47,8 @@ app.use('/api/perfil', perfilRoutes);
 app.use('/api', historialRoutes);
 app.use('/api/lugares', placesRoutes);
 app.use('/api/support', supportRoutes);
+app.use("/api", aiRoutes);
+
 // Manejo de rutas no encontradas
 app.use('/api', (req, res) => {
   console.warn(`⚠️ Ruta no encontrada: [${req.method}] ${req.url}`);
@@ -76,6 +79,7 @@ app.get('/', (req, res) => {
     `);
 });
 
-app.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`);
+app.listen(PORT, "0.0.0.0", () => {
+  console.log(`Servidor corriendo en puerto ${PORT}`);
 });
+
