@@ -1,9 +1,37 @@
 import { Router, Request, Response } from "express";
 import stripe from "../config/stripe";
 import { db } from '../config/firebase';
+import {
+  createPaymentIntent,
+  confirmPaymentWithSavedCard,
+  getPaymentStatus,
+  cancelPayment,
+  getUserPayments,
+  handleStripeWebhook,
+} from '../controllers/payment.controller';
+import { authMiddleware } from '../middlewares/auth.middleware';
 
 const router = Router();
 
+// Crear Payment Intent
+router.post('/create-payment-intent', authMiddleware, createPaymentIntent);
+
+// Confirmar pago con tarjeta guardada
+router.post('/confirm-with-saved-card', authMiddleware, confirmPaymentWithSavedCard);
+
+// Obtener estado del pago
+router.get('/status/:paymentIntentId', authMiddleware, getPaymentStatus);
+
+// Cancelar pago
+router.post('/cancel/:paymentIntentId', authMiddleware, cancelPayment);
+
+// Obtener historial de pagos del usuario
+router.get('/history/:userId', authMiddleware, getUserPayments);
+
+// Webhook de Stripe (no requiere autenticación)
+router.post('/webhook', handleStripeWebhook);
+
+// ENDPOINTS LEGACY (mantener por compatibilidad)
 router.post(
   "/create-payment-intent",
   async (req: Request, res: Response): Promise<void> => {

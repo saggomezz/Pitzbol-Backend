@@ -206,3 +206,71 @@ export const cancelBooking = async (req: Request, res: Response) => {
     });
   }
 };
+
+// Finalizar/Completar un tour (solo el guía puede hacerlo)
+export const completeTour = async (req: Request, res: Response) => {
+  try {
+    const { bookingId } = req.params;
+    const { guideId } = req.body;
+
+    if (!bookingId || Array.isArray(bookingId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'bookingId es requerido',
+      });
+    }
+
+    if (!guideId) {
+      return res.status(400).json({
+        success: false,
+        message: 'guideId es requerido',
+      });
+    }
+
+    // Verificar que la reserva existe y pertenece al guía
+    const booking = await BookingService.getBookingById(bookingId);
+    
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Reserva no encontrada',
+      });
+    }
+
+    if (booking.guideId !== guideId) {
+      return res.status(403).json({
+        success: false,
+        message: 'No tienes permiso para finalizar este tour',
+      });
+    }
+
+    if (booking.status === 'completado') {
+      return res.status(400).json({
+        success: false,
+        message: 'Este tour ya fue completado',
+      });
+    }
+
+    if (booking.status === 'cancelado') {
+      return res.status(400).json({
+        success: false,
+        message: 'No puedes completar un tour cancelado',
+      });
+    }
+
+    // Marcar como completado
+    await BookingService.updateBookingStatus(bookingId, 'completado');
+
+    res.status(200).json({
+      success: true,
+      message: 'Tour completado exitosamente. El turista ahora puede calificarte.',
+    });
+  } catch (error: any) {
+    console.error('Error al completar tour:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al completar tour',
+      error: error.message,
+    });
+  }
+};

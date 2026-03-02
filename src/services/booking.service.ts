@@ -1,18 +1,38 @@
 import { db } from '../config/firebase';
 import { Booking } from '../models/booking.model';
+import { AvailabilityService } from './availability.service';
 
 export class BookingService {
   // Crear una reserva
   static async createBooking(bookingData: Omit<Booking, 'id'>): Promise<Booking> {
     const bookingsRef = db.collection('bookings');
     
+    // Verificar disponibilidad usando el nuevo sistema
+    const isAvailable = await AvailabilityService.isTimeSlotAvailable(
+      bookingData.guideId,
+      bookingData.fecha,
+      bookingData.horaInicio
+    );
+
+    if (!isAvailable) {
+      throw new Error('El guía no está disponible en ese horario');
+    }
+
     const newBooking = {
       ...bookingData,
+      calificado: false,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
 
     const bookingDoc = await bookingsRef.add(newBooking);
+    
+    // Incrementar el contador de reservas para ese horario
+    await AvailabilityService.incrementBookingCount(
+      bookingData.guideId,
+      bookingData.fecha,
+      bookingData.horaInicio
+    );
     
     return { id: bookingDoc.id, ...newBooking };
   }
@@ -74,10 +94,30 @@ export class BookingService {
 
   // Cancelar reserva
   static async cancelBooking(bookingId: string): Promise<void> {
+    // Obtener la reserva antes de cancelarla
+    const booking = await this.getBookingById(bookingId);
+    
+    if (!booking) {
+      throw new Error('Reserva no encontrada');
+    }
+
     await db.collection('bookings').doc(bookingId).update({
       status: 'cancelado',
       updatedAt: new Date(),
     });
+
+    // Decrementar el contador de disponibilidad si la reserva no estaba cancelada
+    if (booking.status !== 'cancelado') {
+      try {
+        await AvailabilityService.decrementBookingCount(
+          booking.guideId,
+          booking.fecha,
+          booking.horaInicio
+        );
+      } catch (error) {
+        console.warn('No se pudo actualizar disponibilidad al cancelar:', error);
+      }
+    }
   }
 
   // Verificar disponibilidad del guía

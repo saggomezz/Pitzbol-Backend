@@ -7,11 +7,13 @@ export interface Booking {
   fecha: string;
   duracion: 'medio' | 'completo';
   horaInicio: string;
+  horaFin?: string;
   numPersonas: number;
   notas?: string;
   total: number;
   status: 'pendiente' | 'confirmado' | 'pagado' | 'completado' | 'cancelado';
   paymentId?: string;
+  calificado?: boolean; // Si el turista ya calificó este tour
   createdAt: Date;
   updatedAt: Date;
 }
