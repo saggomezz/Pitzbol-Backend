@@ -10,7 +10,7 @@ interface RequestWithUser extends ExpressRequest {
 }
 import { auth, db } from "../config/firebase";
 import admin from "firebase-admin";
-import { sendNotificationToAdmins } from "../services/notification.service";
+import { sendNotificationToAdmins, sendNotificationToUser } from "../services/notification.service";
 import { v2 as cloudinary } from 'cloudinary';
 // Configuración de Cloudinary (puedes mover esto a un archivo de config si lo prefieres)
 cloudinary.config({
@@ -193,10 +193,13 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
       rfc,
       cp,
       description,
-      email
+      email,
+      latitud,
+      longitud
     } = req.body;
 
     console.log("[registerBusinessWithImages] Body recibido:", req.body);
+    console.log("[registerBusinessWithImages] 📍 Coordenadas recibidas:", { latitud, longitud });
     console.log("[registerBusinessWithImages] Files recibidos:", req.files);
 
     // Validar que los campos obligatorios estén presentes
@@ -277,11 +280,15 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
     }
 
     // Guardar negocio en Firestore
-    await db.collection("negocios").doc("Pendientes").collection("items").doc(uid).set({
+    const ownerUid = req.body?.ownerUid as string | undefined;
+    console.log(`[registerBusinessWithImages] ownerUid recibido: ${ownerUid}`);
+    
+    const businessData = {
       uid,
       email: email || '',
       role: "BUSINESS",
       status: "PENDING",
+      ownerUid: ownerUid || null, // Guardar el UID del dueño
       business: {
         name: businessName,
         category,
@@ -293,10 +300,19 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
         description: description || "",
         images: imageUrls,
         logo: logoUrl,
-        owner: uid,
+        owner: ownerUid || uid, // Usar ownerUid si existe, sino el uid del negocio
+        latitud: latitud || null,
+        longitud: longitud || null,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       },
+    };
+    
+    console.log(`[registerBusinessWithImages] 💾 Guardando en Firestore con coordenadas:`, {
+      latitud: businessData.business.latitud,
+      longitud: businessData.business.longitud
     });
+    
+    await db.collection("negocios").doc("Pendientes").collection("items").doc(uid).set(businessData);
 
     // Notificar a los administradores de nueva solicitud de negocio
     await sendNotificationToAdmins({
@@ -305,8 +321,26 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
       mensaje: `Se ha recibido una nueva solicitud de negocio: ${businessName}`,
       fecha: new Date().toISOString(),
       leido: false,
-      enlace: `/admin/historial-solicitudes`
+      enlace: `/admin/negocios-pendientes`
     });
+
+    // Notificar al usuario si tiene ownerUid
+    if (ownerUid) {
+      console.log(`[registerBusinessWithImages] Enviando notificación a usuario ${ownerUid}`);
+      const notificacion = {
+        tipo: 'solicitud_negocio_enviada',
+        titulo: 'Solicitud enviada',
+        mensaje: `Tu negocio "${businessName}" fue enviado a revision.`,
+        fecha: new Date().toISOString(),
+        leido: false,
+        enlace: `/negocio/preview?id=${uid}`
+      };
+      console.log(`[registerBusinessWithImages] Contenido de notificación:`, JSON.stringify(notificacion, null, 2));
+      await sendNotificationToUser(ownerUid, notificacion);
+      console.log(`[registerBusinessWithImages] ✅ Notificación enviada exitosamente`);
+    } else {
+      console.log(`[registerBusinessWithImages] ⚠️ No se envió notificación porque no se proporcionó ownerUid`);
+    }
 
     return res.status(201).json({
       message: "Negocio registrado correctamente. Por favor, inicia sesión con tus credenciales.",
@@ -383,7 +417,17 @@ export const registerBusiness = async (req: RequestWithUser, res: Response) => {
         mensaje: `Se ha recibido una nueva solicitud de negocio: ${businessName}`,
         fecha: new Date().toISOString(),
         leido: false,
-        enlace: `/admin/historial-solicitudes`
+        enlace: `/admin/negocios-pendientes`
+      });
+
+      // Notificar al usuario dueño de la solicitud
+      await sendNotificationToUser(uid, {
+        tipo: 'solicitud_negocio_enviada',
+        titulo: 'Solicitud enviada',
+        mensaje: `Tu negocio "${businessName}" fue enviado a revision.`,
+        fecha: new Date().toISOString(),
+        leido: false,
+        enlace: `/negocio/preview?id=${uid}`
       });
 
       return res.status(201).json({
@@ -403,5 +447,327 @@ export const registerBusiness = async (req: RequestWithUser, res: Response) => {
   } catch (error: any) {
     console.error("Error registerBusiness:", error);
     return res.status(500).json({ message: "Error al registrar el negocio. Intenta de nuevo más tarde." });
+  }
+};
+
+// Obtener datos del negocio del usuario autenticado
+export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
+  try {
+    const userEmail = req.user?.email as string | undefined;
+    const userUid = req.user?.uid as string | undefined;
+    
+    if (!userEmail && !userUid) {
+      return res.status(400).json({ success: false, message: "No se encontró información del usuario" });
+    }
+
+    console.log(`[getMyBusiness] Buscando negocio para uid: ${userUid}, email: ${userEmail}`);
+
+    // PRIORIDAD 1: Buscar por ownerUid en Pendientes
+    if (userUid) {
+      const pendientesSnapByUid = await db
+        .collection("negocios")
+        .doc("Pendientes")
+        .collection("items")
+        .where("ownerUid", "==", userUid)
+        .limit(1)
+        .get();
+
+      if (!pendientesSnapByUid.empty) {
+        const docSnap = pendientesSnapByUid.docs[0];
+        if (docSnap) {
+          const data = docSnap.data();
+          const createdAt = data.business?.createdAt
+            ? new Date((data.business.createdAt?.seconds || 0) * 1000).toISOString()
+            : new Date().toISOString();
+
+          console.log(`[getMyBusiness] ✅ Negocio encontrado en Pendientes por ownerUid`);
+          console.log(`[getMyBusiness] 📍 Coordenadas en documento:`, {
+            latitud: data.business?.latitud,
+            longitud: data.business?.longitud
+          });
+          
+          return res.json({
+            success: true,
+            business: {
+              id: docSnap.id,
+              ...data,
+              business: {
+                ...data.business,
+                createdAt
+              }
+            }
+          });
+        }
+      }
+    }
+
+    // PRIORIDAD 2: Buscar por email en Pendientes (fallback)
+    const pendientesSnap = await db
+      .collection("negocios")
+      .doc("Pendientes")
+      .collection("items")
+      .where("email", "==", userEmail)
+      .limit(1)
+      .get();
+
+    if (!pendientesSnap.empty) {
+      const docSnap = pendientesSnap.docs[0];
+      if (!docSnap) {
+        return res.status(500).json({ success: false, message: "Documento de negocio pendiente no encontrado" });
+      }
+      const data = docSnap.data();
+      const createdAt = data.business?.createdAt
+        ? new Date((data.business.createdAt?.seconds || 0) * 1000).toISOString()
+        : new Date().toISOString();
+
+      console.log(`[getMyBusiness] ✅ Negocio encontrado en Pendientes por email`);
+      return res.json({
+        success: true,
+        business: {
+          id: docSnap.id,
+          ...data,
+          business: {
+            ...data.business,
+            createdAt
+          }
+        }
+      });
+    }
+
+    // PRIORIDAD 3: Buscar por ownerUid en Business (aprobados)
+    if (userUid) {
+      const businessSnapByUid = await db
+        .collection("negocios")
+        .doc("Business")
+        .collection("items")
+        .where("ownerUid", "==", userUid)
+        .limit(1)
+        .get();
+
+      if (!businessSnapByUid.empty) {
+        const docSnap = businessSnapByUid.docs[0];
+        if (docSnap) {
+          const data = docSnap.data();
+          const createdAt = data.business?.createdAt
+            ? new Date((data.business.createdAt?.seconds || 0) * 1000).toISOString()
+            : new Date().toISOString();
+
+          console.log(`[getMyBusiness] ✅ Negocio encontrado en Business por ownerUid`);
+          return res.json({
+            success: true,
+            business: {
+              id: docSnap.id,
+              ...data,
+              business: {
+                ...data.business,
+                createdAt
+              }
+            }
+          });
+        }
+      }
+    }
+
+    // PRIORIDAD 4: Buscar por email en Business (aprobados)
+    const businessSnap = await db
+      .collection("negocios")
+      .doc("Business")
+      .collection("items")
+      .where("email", "==", userEmail)
+      .limit(1)
+      .get();
+
+    if (!businessSnap.empty) {
+      const docSnap = businessSnap.docs[0];
+      if (!docSnap) {
+        return res.status(500).json({ success: false, message: "Documento de negocio aprobado no encontrado" });
+      }
+      const data = docSnap.data();
+      const createdAt = data.business?.createdAt
+        ? new Date((data.business.createdAt?.seconds || 0) * 1000).toISOString()
+        : new Date().toISOString();
+
+      return res.json({
+        success: true,
+        business: {
+          id: docSnap.id,
+          ...data,
+          business: {
+            ...data.business,
+            createdAt
+          }
+        }
+      });
+    }
+
+    // PRIORIDAD 5: Buscar por ownerUid en archivados
+    if (userUid) {
+      const archivedSnapByUid = await db
+        .collection("negocios_archivados")
+        .where("ownerUid", "==", userUid)
+        .limit(1)
+        .get();
+
+      if (!archivedSnapByUid.empty) {
+        const docSnap = archivedSnapByUid.docs[0];
+        if (docSnap) {
+          const data = docSnap.data();
+          const createdAt = data.business?.createdAt
+            ? new Date((data.business.createdAt?.seconds || 0) * 1000).toISOString()
+            : new Date().toISOString();
+
+          console.log(`[getMyBusiness] ✅ Negocio encontrado en archivados por ownerUid`);
+          return res.json({
+            success: true,
+            business: {
+              id: docSnap.id,
+              ...data,
+              business: {
+                ...data.business,
+                createdAt
+              }
+            }
+          });
+        }
+      }
+    }
+
+    // PRIORIDAD 6: Buscar por email en archivados (fallback)
+    const archivedSnap = await db
+      .collection("negocios_archivados")
+      .where("email", "==", userEmail)
+      .limit(1)
+      .get();
+
+    if (!archivedSnap.empty) {
+      const docSnap = archivedSnap.docs[0];
+      if (!docSnap) {
+        return res.status(500).json({ success: false, message: "Documento de negocio archivado no encontrado" });
+      }
+      const data = docSnap.data();
+      const createdAt = data.business?.createdAt
+        ? new Date((data.business.createdAt?.seconds || 0) * 1000).toISOString()
+        : new Date().toISOString();
+
+      return res.json({
+        success: true,
+        business: {
+          id: docSnap.id,
+          ...data,
+          business: {
+            ...data.business,
+            createdAt
+          }
+        }
+      });
+    }
+
+    console.log(`[getMyBusiness] ❌ No se encontró ningún negocio para uid: ${userUid}, email: ${userEmail}`);
+    return res.status(404).json({ success: false, message: "No tienes un negocio registrado" });
+
+  } catch (error: any) {
+    console.error("Error getMyBusiness:", error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+const mapBusinessDoc = (docSnap: admin.firestore.QueryDocumentSnapshot | admin.firestore.DocumentSnapshot) => {
+  const data = docSnap.data();
+  const createdAt = data?.business?.createdAt
+    ? new Date((data.business.createdAt?.seconds || 0) * 1000).toISOString()
+    : new Date().toISOString();
+
+  return {
+    id: docSnap.id,
+    ...data,
+    business: {
+      ...data?.business,
+      createdAt,
+    },
+  };
+};
+
+export const getBusinessById = async (req: RequestWithUser, res: Response) => {
+  try {
+    const businessId = req.params.id as string;
+    const userEmail = req.user?.email as string | undefined;
+    const userUid = req.user?.uid as string | undefined;
+    const userRole = req.user?.role as string | undefined;
+
+    if (!businessId || typeof businessId !== 'string') {
+      return res.status(400).json({ success: false, message: "ID de negocio requerido" });
+    }
+
+    if (!userEmail && !userUid) {
+      return res.status(400).json({ success: false, message: "No se encontró información del usuario" });
+    }
+
+    const isAdmin = (userRole || "").toLowerCase() === "admin";
+
+    const pendientesDoc = await db
+      .collection("negocios")
+      .doc("Pendientes")
+      .collection("items")
+      .doc(businessId)
+      .get();
+
+    if (pendientesDoc.exists) {
+      const data = pendientesDoc.data();
+      const isOwner =
+        data?.ownerUid === userUid ||
+        data?.uid === userUid ||
+        (userEmail && data?.email === userEmail);
+
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ success: false, message: "No autorizado" });
+      }
+
+      return res.json({ success: true, business: mapBusinessDoc(pendientesDoc) });
+    }
+
+    const approvedDoc = await db
+      .collection("negocios")
+      .doc("Business")
+      .collection("items")
+      .doc(businessId)
+      .get();
+
+    if (approvedDoc.exists) {
+      const data = approvedDoc.data();
+      const isOwner =
+        data?.ownerUid === userUid ||
+        data?.uid === userUid ||
+        (userEmail && data?.email === userEmail);
+
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ success: false, message: "No autorizado" });
+      }
+
+      return res.json({ success: true, business: mapBusinessDoc(approvedDoc) });
+    }
+
+    const archivedDoc = await db
+      .collection("negocios_archivados")
+      .doc(businessId)
+      .get();
+
+    if (archivedDoc.exists) {
+      const data = archivedDoc.data();
+      const isOwner =
+        data?.ownerUid === userUid ||
+        data?.uid === userUid ||
+        (userEmail && data?.email === userEmail);
+
+      if (!isOwner && !isAdmin) {
+        return res.status(403).json({ success: false, message: "No autorizado" });
+      }
+
+      return res.json({ success: true, business: mapBusinessDoc(archivedDoc) });
+    }
+
+    return res.status(404).json({ success: false, message: "Negocio no encontrado" });
+  } catch (error: any) {
+    console.error("Error getBusinessById:", error);
+    return res.status(500).json({ success: false, error: error.message });
   }
 };
