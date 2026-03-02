@@ -23,7 +23,7 @@
     // Recommended Options
     "strict": true,
     "skipLibCheck": true,
-    "ignoreDeprecations": "6.0",
+    "ignoreDeprecations": "5.0",
 
     // Backend–specific
     "esModuleInterop": true,
