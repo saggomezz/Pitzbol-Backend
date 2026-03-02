@@ -181,6 +181,22 @@ export const registerGuide = async (req: Request, res: Response) => {
             console.warn('⚠️ Error al notificar a administradores:', notifError);
         }
 
+        // Notificar al usuario que envió la solicitud
+        try {
+            const userNotificacion = {
+                tipo: 'info',
+                titulo: 'Solicitud Enviada ✓',
+                mensaje: 'Tu solicitud para ser Guía Pitzbol ha sido enviada correctamente. Estamos revisando tu información y te notificaremos pronto.',
+                fecha: new Date().toISOString(),
+                leido: false,
+                enlace: '/guide/estatus'
+            };
+            await db.collection('usuarios').doc('notificaciones').collection(uid).add(userNotificacion);
+            console.log('✅ Notificación enviada al usuario');
+        } catch (notifError) {
+            console.warn('⚠️ Error al notificar al usuario:', notifError);
+        }
+
         res.status(201).json({ 
             message: 'Solicitud enviada a revisión con éxito', 
             status: "pendiente"

@@ -4,6 +4,8 @@ import {
   registerBusiness,
   registerBusinessWithImages,
   validateBusinessUniqueness,
+  getMyBusiness,
+  getBusinessById,
 } from "../controllers/business.controller";
 import { upload } from '../middleware/uploadMiddleware';
 import { recoverPassword } from "../controllers/auth.controller";
@@ -28,6 +30,20 @@ router.post(
 
 router.post("/register", registerBusiness);
 router.post("/recover-password", recoverPassword);
+
+// PROTEGIDO - Obtener mi negocio
+router.get(
+  "/my-business",
+  authMiddleware,
+  getMyBusiness
+);
+
+router.get(
+  "/by-id/:id",
+  authMiddleware,
+  getBusinessById
+);
+
 router.get(
   "/profile",
   authMiddleware,
