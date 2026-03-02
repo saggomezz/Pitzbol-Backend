@@ -193,10 +193,13 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
       rfc,
       cp,
       description,
-      email
+      email,
+      latitud,
+      longitud
     } = req.body;
 
     console.log("[registerBusinessWithImages] Body recibido:", req.body);
+    console.log("[registerBusinessWithImages] 📍 Coordenadas recibidas:", { latitud, longitud });
     console.log("[registerBusinessWithImages] Files recibidos:", req.files);
 
     // Validar que los campos obligatorios estén presentes
@@ -280,7 +283,7 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
     const ownerUid = req.body?.ownerUid as string | undefined;
     console.log(`[registerBusinessWithImages] ownerUid recibido: ${ownerUid}`);
     
-    await db.collection("negocios").doc("Pendientes").collection("items").doc(uid).set({
+    const businessData = {
       uid,
       email: email || '',
       role: "BUSINESS",
@@ -298,9 +301,18 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
         images: imageUrls,
         logo: logoUrl,
         owner: ownerUid || uid, // Usar ownerUid si existe, sino el uid del negocio
+        latitud: latitud || null,
+        longitud: longitud || null,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       },
+    };
+    
+    console.log(`[registerBusinessWithImages] 💾 Guardando en Firestore con coordenadas:`, {
+      latitud: businessData.business.latitud,
+      longitud: businessData.business.longitud
     });
+    
+    await db.collection("negocios").doc("Pendientes").collection("items").doc(uid).set(businessData);
 
     // Notificar a los administradores de nueva solicitud de negocio
     await sendNotificationToAdmins({
@@ -469,6 +481,11 @@ export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
             : new Date().toISOString();
 
           console.log(`[getMyBusiness] ✅ Negocio encontrado en Pendientes por ownerUid`);
+          console.log(`[getMyBusiness] 📍 Coordenadas en documento:`, {
+            latitud: data.business?.latitud,
+            longitud: data.business?.longitud
+          });
+          
           return res.json({
             success: true,
             business: {
