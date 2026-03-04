@@ -85,6 +85,14 @@ router.get(
   adminController.obtenerUsuariosGestionables
 );
 
+// PROTEGIDO - Obtener detalle completo de un usuario
+router.get(
+  '/usuarios/:uid/detalle',
+  authMiddleware,
+  requireAdmin,
+  adminController.obtenerDetalleUsuarioAdmin
+);
+
 // PROTEGIDO - Eliminar usuario guía o negociante
 router.delete(
   '/usuarios/:uid',
