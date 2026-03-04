@@ -6,6 +6,8 @@ import {
   validateBusinessUniqueness,
   getMyBusiness,
   getBusinessById,
+  updateBusiness,
+  updateBusinessImages,
 } from "../controllers/business.controller";
 import { upload } from '../middleware/uploadMiddleware';
 import { recoverPassword } from "../controllers/auth.controller";
@@ -51,6 +53,23 @@ router.get(
   (req, res) => {
     res.json({ msg: "Perfil de negocio" });
   }
+);
+
+// RUTAS DE ACTUALIZACIÓN (admin only)
+router.put(
+  "/:businessId",
+  authMiddleware,
+  updateBusiness
+);
+
+router.put(
+  "/:businessId/images",
+  authMiddleware,
+  upload.fields([
+    { name: 'logo', maxCount: 1 },
+    { name: 'images', maxCount: 3 }
+  ]),
+  updateBusinessImages
 );
 
 export default router;
