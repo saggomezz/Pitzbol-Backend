@@ -22,14 +22,17 @@ cloudinary.config({
 // Endpoint para validar unicidad de datos del negocio
 export const validateBusinessUniqueness = async (req: RequestWithUser, res: Response) => {
   try {
-    const { businessName, email, phone, website, location, rfc, cp } = req.body;
+    const { businessName, email, phone, website, location, rfc, cp, excludeBusinessId } = req.body;
+    const excludedId = typeof excludeBusinessId === "string" ? excludeBusinessId.trim() : "";
+    const isExcludedDoc = (docId: string) => excludedId !== "" && docId === excludedId;
     
     const errors: { [key: string]: string } = {};
 
     // Verificar nombre del negocio en negocios aprobados
     if (businessName) {
       const negociosSnapshot = await db.collection("negocios").doc("Business").collection("items").get();
-      const nombreExiste = negociosSnapshot.docs.some(doc => 
+      const nombreExiste = negociosSnapshot.docs.some(doc =>
+        !isExcludedDoc(doc.id) &&
         doc.data().business?.name?.toLowerCase() === businessName.toLowerCase()
       );
       
@@ -39,7 +42,8 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
 
       // Verificar en negocios pendientes
       const pendientesSnapshot = await db.collection("negocios").doc("Pendientes").collection("items").get();
-      const nombrePendiente = pendientesSnapshot.docs.some(doc => 
+      const nombrePendiente = pendientesSnapshot.docs.some(doc =>
+        !isExcludedDoc(doc.id) &&
         doc.data().business?.name?.toLowerCase() === businessName.toLowerCase()
       );
       
@@ -52,7 +56,8 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
     if (email) {
       // Verificar en negocios pendientes
       const pendientesSnapshot = await db.collection("negocios").doc("Pendientes").collection("items").get();
-      const emailPendiente = pendientesSnapshot.docs.some(doc => 
+      const emailPendiente = pendientesSnapshot.docs.some(doc =>
+        !isExcludedDoc(doc.id) &&
         doc.data().email?.toLowerCase() === email.toLowerCase()
       );
       
@@ -64,7 +69,8 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
     // Verificar teléfono
     if (phone) {
       const negociosSnapshot = await db.collection("negocios").doc("Business").collection("items").get();
-      const telefonoExiste = negociosSnapshot.docs.some(doc => 
+      const telefonoExiste = negociosSnapshot.docs.some(doc =>
+        !isExcludedDoc(doc.id) &&
         doc.data().business?.phone === phone
       );
       
@@ -74,7 +80,8 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
 
       // Verificar en negocios pendientes
       const pendientesSnapshot = await db.collection("negocios").doc("Pendientes").collection("items").get();
-      const telefonoPendiente = pendientesSnapshot.docs.some(doc => 
+      const telefonoPendiente = pendientesSnapshot.docs.some(doc =>
+        !isExcludedDoc(doc.id) &&
         doc.data().business?.phone === phone
       );
       
@@ -86,7 +93,8 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
     // Verificar sitio web
     if (website) {
       const negociosSnapshot = await db.collection("negocios").doc("Business").collection("items").get();
-      const sitioWebExiste = negociosSnapshot.docs.some(doc => 
+      const sitioWebExiste = negociosSnapshot.docs.some(doc =>
+        !isExcludedDoc(doc.id) &&
         doc.data().business?.website?.toLowerCase() === website.toLowerCase()
       );
       
@@ -96,7 +104,8 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
 
       // Verificar en negocios pendientes
       const pendientesSnapshot = await db.collection("negocios").doc("Pendientes").collection("items").get();
-      const sitioWebPendiente = pendientesSnapshot.docs.some(doc => 
+      const sitioWebPendiente = pendientesSnapshot.docs.some(doc =>
+        !isExcludedDoc(doc.id) &&
         doc.data().business?.website?.toLowerCase() === website.toLowerCase()
       );
       
@@ -108,7 +117,8 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
     // Verificar ubicación
     if (location) {
       const negociosSnapshot = await db.collection("negocios").doc("Business").collection("items").get();
-      const ubicacionExiste = negociosSnapshot.docs.some(doc => 
+      const ubicacionExiste = negociosSnapshot.docs.some(doc =>
+        !isExcludedDoc(doc.id) &&
         doc.data().business?.location?.toLowerCase() === location.toLowerCase()
       );
       
@@ -118,7 +128,8 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
 
       // Verificar en negocios pendientes
       const pendientesSnapshot = await db.collection("negocios").doc("Pendientes").collection("items").get();
-      const ubicacionPendiente = pendientesSnapshot.docs.some(doc => 
+      const ubicacionPendiente = pendientesSnapshot.docs.some(doc =>
+        !isExcludedDoc(doc.id) &&
         doc.data().business?.location?.toLowerCase() === location.toLowerCase()
       );
       
@@ -130,7 +141,8 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
     // Verificar RFC
     if (rfc) {
       const negociosSnapshot = await db.collection("negocios").doc("Business").collection("items").get();
-      const rfcExiste = negociosSnapshot.docs.some(doc => 
+      const rfcExiste = negociosSnapshot.docs.some(doc =>
+        !isExcludedDoc(doc.id) &&
         doc.data().business?.rfc?.toUpperCase() === rfc.toUpperCase()
       );
       
@@ -140,7 +152,8 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
 
       // Verificar en negocios pendientes
       const pendientesSnapshot = await db.collection("negocios").doc("Pendientes").collection("items").get();
-      const rfcPendiente = pendientesSnapshot.docs.some(doc => 
+      const rfcPendiente = pendientesSnapshot.docs.some(doc =>
+        !isExcludedDoc(doc.id) &&
         doc.data().business?.rfc?.toUpperCase() === rfc.toUpperCase()
       );
       
@@ -152,7 +165,8 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
     // Verificar Código Postal
     if (cp) {
       const negociosSnapshot = await db.collection("negocios").doc("Business").collection("items").get();
-      const cpExiste = negociosSnapshot.docs.some(doc => 
+      const cpExiste = negociosSnapshot.docs.some(doc =>
+        !isExcludedDoc(doc.id) &&
         doc.data().business?.cp === cp
       );
       
@@ -162,7 +176,8 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
 
       // Verificar en negocios pendientes
       const pendientesSnapshot = await db.collection("negocios").doc("Pendientes").collection("items").get();
-      const cpPendiente = pendientesSnapshot.docs.some(doc => 
+      const cpPendiente = pendientesSnapshot.docs.some(doc =>
+        !isExcludedDoc(doc.id) &&
         doc.data().business?.cp === cp
       );
       
@@ -321,7 +336,7 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
       mensaje: `Se ha recibido una nueva solicitud de negocio: ${businessName}`,
       fecha: new Date().toISOString(),
       leido: false,
-      enlace: `/admin/negocios-pendientes`
+      enlace: `/admin/negocios/${uid}`
     });
 
     // Notificar al usuario si tiene ownerUid
@@ -417,7 +432,7 @@ export const registerBusiness = async (req: RequestWithUser, res: Response) => {
         mensaje: `Se ha recibido una nueva solicitud de negocio: ${businessName}`,
         fecha: new Date().toISOString(),
         leido: false,
-        enlace: `/admin/negocios-pendientes`
+        enlace: `/admin/negocios/${uid}`
       });
 
       // Notificar al usuario dueño de la solicitud
@@ -687,6 +702,58 @@ const mapBusinessDoc = (docSnap: admin.firestore.QueryDocumentSnapshot | admin.f
   };
 };
 
+// Helper function para obtener datos del propietario
+const getOwnerData = async (ownerUid: string | undefined) => {
+  if (!ownerUid) return null;
+
+  try {
+    // Buscar en turistas
+    const turistasQuery = await db.collection("usuarios")
+      .doc("turistas")
+      .collection("lista")
+      .where("uid", "==", ownerUid)
+      .limit(1)
+      .get();
+
+    if (!turistasQuery.empty) {
+      const userData = turistasQuery.docs[0]?.data();
+      return {
+        uid: ownerUid,
+        nombre: userData?.["01_nombre"] || userData?.nombre || "",
+        apellido: userData?.["02_apellido"] || userData?.apellido || "",
+        email: userData?.["04_correo"] || userData?.email || "",
+        fotoPerfil: userData?.["14_foto_perfil"]?.url || userData?.fotoPerfil || null,
+        telefono: userData?.["06_telefono"] || userData?.telefono || ""
+      };
+    }
+
+    // Buscar en guías
+    const guiasQuery = await db.collection("usuarios")
+      .doc("guias")
+      .collection("lista")
+      .where("uid", "==", ownerUid)
+      .limit(1)
+      .get();
+
+    if (!guiasQuery.empty) {
+      const userData = guiasQuery.docs[0]?.data();
+      return {
+        uid: ownerUid,
+        nombre: userData?.["01_nombre"] || userData?.nombre || "",
+        apellido: userData?.["02_apellido"] || userData?.apellido || "",
+        email: userData?.["04_correo"] || userData?.email || "",
+        fotoPerfil: userData?.["14_foto_perfil"]?.url || userData?.fotoPerfil || null,
+        telefono: userData?.["06_telefono"] || userData?.telefono || ""
+      };
+    }
+
+    return null;
+  } catch (error) {
+    console.error("Error obteniendo datos del propietario:", error);
+    return null;
+  }
+};
+
 export const getBusinessById = async (req: RequestWithUser, res: Response) => {
   try {
     const businessId = req.params.id as string;
@@ -722,7 +789,14 @@ export const getBusinessById = async (req: RequestWithUser, res: Response) => {
         return res.status(403).json({ success: false, message: "No autorizado" });
       }
 
-      return res.json({ success: true, business: mapBusinessDoc(pendientesDoc) });
+      const businessData = mapBusinessDoc(pendientesDoc);
+      const ownerData = await getOwnerData(data?.ownerUid);
+      
+      return res.json({ 
+        success: true, 
+        business: businessData,
+        owner: ownerData
+      });
     }
 
     const approvedDoc = await db
@@ -743,7 +817,14 @@ export const getBusinessById = async (req: RequestWithUser, res: Response) => {
         return res.status(403).json({ success: false, message: "No autorizado" });
       }
 
-      return res.json({ success: true, business: mapBusinessDoc(approvedDoc) });
+      const businessData = mapBusinessDoc(approvedDoc);
+      const ownerData = await getOwnerData(data?.ownerUid);
+
+      return res.json({ 
+        success: true, 
+        business: businessData,
+        owner: ownerData
+      });
     }
 
     const archivedDoc = await db
@@ -762,12 +843,262 @@ export const getBusinessById = async (req: RequestWithUser, res: Response) => {
         return res.status(403).json({ success: false, message: "No autorizado" });
       }
 
-      return res.json({ success: true, business: mapBusinessDoc(archivedDoc) });
+      const businessData = mapBusinessDoc(archivedDoc);
+      const ownerData = await getOwnerData(data?.ownerUid);
+
+      return res.json({ 
+        success: true, 
+        business: businessData,
+        owner: ownerData
+      });
     }
 
     return res.status(404).json({ success: false, message: "Negocio no encontrado" });
   } catch (error: any) {
     console.error("Error getBusinessById:", error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Función auxiliar para obtener la colección de un negocio
+const getBusinessCollectionPath = async (businessId: string): Promise<{ collection: string; docPath: string } | null> => {
+  const businessIdStr = Array.isArray(businessId) ? businessId[0] : businessId;
+  
+  const pendientesDoc = await db
+    .collection("negocios")
+    .doc("Pendientes")
+    .collection("items")
+    .doc(businessIdStr)
+    .get();
+
+  if (pendientesDoc.exists) {
+    return {
+      collection: "negocios/Pendientes/items",
+      docPath: businessIdStr
+    };
+  }
+
+  const approvedDoc = await db
+    .collection("negocios")
+    .doc("Business")
+    .collection("items")
+    .doc(businessIdStr)
+    .get();
+
+  if (approvedDoc.exists) {
+    return {
+      collection: "negocios/Business/items",
+      docPath: businessIdStr
+    };
+  }
+
+  const archivedDoc = await db
+    .collection("negocios_archivados")
+    .doc(businessIdStr)
+    .get();
+
+  if (archivedDoc.exists) {
+    return {
+      collection: "negocios_archivados",
+      docPath: businessIdStr
+    };
+  }
+
+  return null;
+};
+
+// Función para eliminar imágenes de Cloudinary
+const deleteCloudinaryImage = async (imageUrl: string): Promise<void> => {
+  try {
+    // Extraer el public_id de la URL
+    const urlParts = imageUrl.split('/');
+    const fileName = urlParts[urlParts.length - 1]?.split('.')[0] || '';
+    const folderPath = urlParts.slice(-3, -1).join('/');
+    const publicId = `${folderPath}/${fileName}`;
+    
+    await cloudinary.uploader.destroy(publicId);
+  } catch (error) {
+    console.warn("Error eliminando imagen de Cloudinary:", error);
+    // No fallar si hay error al eliminar
+  }
+};
+
+// Endpoint para actualizar información del negocio
+export const updateBusiness = async (req: RequestWithUser, res: Response) => {
+  try {
+    const businessId = Array.isArray(req.params.businessId) ? req.params.businessId[0] : req.params.businessId;
+    const userRole = req.user?.role as string | undefined;
+    const { phone, location, website, latitud, longitud, calle, numero, colonia, codigoPostal, ciudad, estado, local, referencias, description, category, rfc, email, businessName } = req.body;
+
+    if (!businessId || typeof businessId !== 'string') {
+      return res.status(400).json({ success: false, message: "ID de negocio requerido" });
+    }
+
+    // Solo permite admin
+    const isAdmin = (userRole || "").toLowerCase() === "admin";
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: "Solo administradores pueden actualizar negocios" });
+    }
+
+    // Buscar la colección del negocio
+    const collectionPath = await getBusinessCollectionPath(businessId);
+    if (!collectionPath) {
+      return res.status(404).json({ success: false, message: "Negocio no encontrado" });
+    }
+
+    // Construir los datos a actualizar
+    const updateData: any = {};
+    if (businessName !== undefined) updateData["business.name"] = businessName;
+    if (phone !== undefined) updateData["business.phone"] = phone;
+    if (location !== undefined) updateData["business.location"] = location;
+    if (website !== undefined) updateData["business.website"] = website;
+    if (latitud !== undefined) updateData["business.latitud"] = latitud;
+    if (longitud !== undefined) updateData["business.longitud"] = longitud;
+    if (calle !== undefined) updateData["business.calle"] = calle;
+    if (numero !== undefined) updateData["business.numero"] = numero;
+    if (colonia !== undefined) updateData["business.colonia"] = colonia;
+    if (codigoPostal !== undefined) updateData["business.codigoPostal"] = codigoPostal;
+    if (ciudad !== undefined) updateData["business.ciudad"] = ciudad;
+    if (estado !== undefined) updateData["business.estado"] = estado;
+    if (local !== undefined) updateData["business.local"] = local;
+    if (referencias !== undefined) updateData["business.referencias"] = referencias;
+    if (description !== undefined) updateData["business.description"] = description;
+    if (category !== undefined) updateData["business.category"] = category;
+    if (rfc !== undefined) updateData["business.rfc"] = rfc;
+    if (email !== undefined) updateData["email"] = email; // Email se guarda a nivel raíz del documento
+
+    // Obtener referencia del documento
+    let docRef;
+    if (collectionPath.collection === "negocios_archivados") {
+      docRef = db.collection("negocios_archivados").doc(collectionPath.docPath);
+    } else {
+      const parts = collectionPath.collection.split('/');
+      if (parts.length < 3 || !parts[0] || !parts[1] || !parts[2]) {
+        return res.status(500).json({ success: false, message: "Error en la ruta de colección" });
+      }
+      docRef = db.collection(parts[0]!).doc(parts[1]!).collection(parts[2]!).doc(collectionPath.docPath);
+    }
+
+    // Actualizar el documento
+    await docRef.update(updateData);
+
+    return res.json({ 
+      success: true, 
+      message: "Negocio actualizado exitosamente"
+    });
+  } catch (error: any) {
+    console.error("Error updateBusiness:", error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Endpoint para actualizar imágenes del negocio
+export const updateBusinessImages = async (req: RequestWithUser, res: Response) => {
+  try {
+    const businessId = Array.isArray(req.params.businessId) ? req.params.businessId[0] : req.params.businessId;
+    const userRole = req.user?.role as string | undefined;
+    const { deleteLogoUrl, deleteImageUrls } = req.body;
+
+    if (!businessId || typeof businessId !== 'string') {
+      return res.status(400).json({ success: false, message: "ID de negocio requerido" });
+    }
+
+    // Solo permite admin
+    const isAdmin = (userRole || "").toLowerCase() === "admin";
+    if (!isAdmin) {
+      return res.status(403).json({ success: false, message: "Solo administradores pueden actualizar imágenes" });
+    }
+
+    // Buscar la colección del negocio
+    const collectionPath = await getBusinessCollectionPath(businessId);
+    if (!collectionPath) {
+      return res.status(404).json({ success: false, message: "Negocio no encontrado" });
+    }
+
+    // Procesar archivos
+    const filesObj = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+    const updateData: any = {};
+    let newLogoUrl: string | undefined;
+    let newImageUrls: string[] = [];
+
+    // Subir nuevo logo si se proporcionó
+    if (filesObj && Array.isArray(filesObj['logo']) && filesObj['logo'][0]) {
+      // Eliminar logo anterior
+      if (deleteLogoUrl) {
+        await deleteCloudinaryImage(deleteLogoUrl);
+      }
+
+      const logoFile = filesObj['logo'][0];
+      newLogoUrl = await new Promise((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream({
+          folder: `pitzbol/negocios/pendientes/${businessId}/logo`,
+          resource_type: 'image',
+        }, (error, result) => {
+          if (error) return reject(error);
+          if (result && result.secure_url) return resolve(result.secure_url);
+          return reject(new Error('No se pudo obtener la URL del logo desde Cloudinary.'));
+        });
+        stream.end(logoFile.buffer);
+      });
+      updateData["business.logo"] = newLogoUrl;
+    }
+
+    // Subir nuevas imágenes de galería si se proporcionaron
+    if (filesObj && Array.isArray(filesObj['images']) && filesObj['images'].length > 0) {
+      for (const file of filesObj['images']) {
+        const url = await new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream({
+            folder: `pitzbol/negocios/pendientes/${businessId}/galeria`,
+            resource_type: 'image',
+          }, (error, result) => {
+            if (error) return reject(error);
+            if (result && result.secure_url) return resolve(result.secure_url);
+            return reject(new Error('No se pudo obtener la URL de la imagen desde Cloudinary.'));
+          });
+          stream.end(file.buffer);
+        });
+        newImageUrls.push(url as string);
+      }
+      updateData["business.images"] = newImageUrls;
+
+      // Eliminar imágenes anteriores
+      if (deleteImageUrls && Array.isArray(deleteImageUrls)) {
+        for (const imageUrl of deleteImageUrls) {
+          await deleteCloudinaryImage(imageUrl);
+        }
+      }
+    }
+
+    // Si no hay nada que actualizar
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ success: false, message: "No se proporcionaron imágenes para actualizar" });
+    }
+
+    // Obtener referencia del documento
+    let docRef;
+    if (collectionPath.collection === "negocios_archivados") {
+      docRef = db.collection("negocios_archivados").doc(collectionPath.docPath);
+    } else {
+      const parts = collectionPath.collection.split('/');
+      if (parts.length < 3 || !parts[0] || !parts[1] || !parts[2]) {
+        return res.status(500).json({ success: false, message: "Error en la ruta de colección" });
+      }
+      docRef = db.collection(parts[0]!).doc(parts[1]!).collection(parts[2]!).doc(collectionPath.docPath);
+    }
+
+    // Actualizar el documento
+    await docRef.update(updateData);
+
+    return res.json({ 
+      success: true, 
+      message: "Imágenes actualizadas exitosamente",
+      data: {
+        logo: newLogoUrl,
+        images: newImageUrls
+      }
+    });
+  } catch (error: any) {
+    console.error("Error updateBusinessImages:", error);
     return res.status(500).json({ success: false, error: error.message });
   }
 };
