@@ -317,7 +317,7 @@ export const obtenerUsuariosGestionables = async (req: Request, res: Response) =
 };
 
 export const eliminarUsuarioGestionable = async (req: Request, res: Response) => {
-    const { uid } = req.params;
+    const uid = req.params.uid as string;
     const role = (req.body?.role || req.query?.role || '').toString().toLowerCase();
 
     if (!uid) {
@@ -362,11 +362,11 @@ export const eliminarUsuarioGestionable = async (req: Request, res: Response) =>
         await eliminarDocs(negociosBusinessUid);
         await eliminarDocs(negociosBusinessOwner);
 
-        const notificacionesSnapshot = await db.collection('usuarios').doc('notificaciones').collection(uid).get();
+        const notificacionesSnapshot = await db.collection('usuarios').doc('notificaciones').collection(uid as string).get();
         await eliminarDocs(notificacionesSnapshot);
 
         try {
-            await auth.deleteUser(uid);
+            await auth.deleteUser(uid as string);
         } catch (authError: any) {
             if (authError?.code !== 'auth/user-not-found') {
                 throw authError;
@@ -599,7 +599,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
 };
 
 export const verificarEstadoUsuario = async (req: Request, res: Response) => {
-    const { uid } = req.params;
+    const uid = req.params.uid as string;
 
     try {
         console.log(`🔍 Verificando estado del usuario: ${uid}`);
@@ -679,6 +679,64 @@ export const verificarEstadoUsuario = async (req: Request, res: Response) => {
             success: false,
             error: error.message 
         });
+    }
+};
+
+export const obtenerDetalleUsuarioAdmin = async (req: Request, res: Response) => {
+    const uid = req.params.uid as string;
+
+    if (!uid) {
+        return res.status(400).json({ success: false, message: 'UID requerido' });
+    }
+
+    try {
+        const collections = [
+            { role: 'turista', path: 'usuarios/turistas/lista', ref: db.collection('usuarios').doc('turistas').collection('lista') },
+            { role: 'guia', path: 'usuarios/guias/lista', ref: db.collection('usuarios').doc('guias').collection('lista') },
+            { role: 'guia-pendiente', path: 'usuarios/guias/pendientes', ref: db.collection('usuarios').doc('guias').collection('pendientes') },
+            { role: 'admin', path: 'usuarios/admins/lista', ref: db.collection('usuarios').doc('admins').collection('lista') },
+            { role: 'negociante', path: 'usuarios/negocios/lista', ref: db.collection('usuarios').doc('negocios').collection('lista') },
+        ];
+
+        for (const collection of collections) {
+            const byUid = await collection.ref.where('uid', '==', uid).limit(1).get();
+            if (!byUid.empty) {
+                const doc = byUid.docs[0];
+                const data = doc?.data() || {};
+                const resolvedUid = typeof data.uid === 'string' && data.uid.trim() ? data.uid : uid;
+                return res.status(200).json({
+                    success: true,
+                    user: {
+                        uid: resolvedUid,
+                        role: collection.role,
+                        path: collection.path,
+                        docId: doc?.id || null,
+                        data,
+                    }
+                });
+            }
+
+            const byDocId = await collection.ref.doc(uid as string).get();
+            if (byDocId.exists) {
+                const data = byDocId.data() || {};
+                const resolvedUid = typeof data.uid === 'string' && data.uid.trim() ? data.uid : uid;
+                return res.status(200).json({
+                    success: true,
+                    user: {
+                        uid: resolvedUid,
+                        role: collection.role,
+                        path: collection.path,
+                        docId: byDocId.id,
+                        data,
+                    }
+                });
+            }
+        }
+
+        return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+    } catch (error: any) {
+        console.error('❌ Error al obtener detalle admin de usuario:', error);
+        return res.status(500).json({ success: false, error: error.message });
     }
 };
 
