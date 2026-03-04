@@ -4,6 +4,7 @@ import { upload, uploadLimiter } from '../middleware/uploadMiddleware';
 import { 
   subirFotoPerfil, 
   obtenerFotoPerfil,
+  obtenerPerfilPublico,
   obtenerTarjetas,
   crearSetupIntent,
   guardarTarjeta,
@@ -49,7 +50,14 @@ router.post(
 );
 
 /**
- * Obtener foto de perfil del usuario autenticado
+ * Rutas públicas para obtener información del perfil
+ */
+router.get('/public/:uid', obtenerPerfilPublico);
+router.get('/tours/:uid', require('../controllers/perfil.controller').obtenerToursGuia);
+router.get('/negocios/:uid', require('../controllers/perfil.controller').obtenerNegociosUsuario);
+
+/**
+ * Rutas protegidas
  */
 router.get('/foto-perfil', authMiddleware, obtenerFotoPerfil);
 router.patch('/update-profile', authMiddleware, actualizarPerfil);
