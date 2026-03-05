@@ -44,12 +44,45 @@ router.post(
   requireAdmin,
   adminController.gestionarNegocioPendiente
 );
+
+// PROTEGIDO - Forzar movimiento de imágenes del negocio en Cloudinary
+router.post(
+  '/negocios/:negocioId/mover-imagenes',
+  authMiddleware,
+  requireAdmin,
+  adminController.forzarMoverImagenesNegocio
+);
+
 // PROTEGIDO - Archivar (eliminar) un negocio
 router.post(
   '/negocios/:negocioId/archivar',
   authMiddleware,
   requireAdmin,
   adminController.archivarNegocio
+);
+
+// PROTEGIDO - Regresar negocio activo a pendientes
+router.post(
+  '/negocios/:negocioId/regresar-pendientes',
+  authMiddleware,
+  requireAdmin,
+  adminController.regresarAPendientes
+);
+
+// PROTEGIDO - Desarchivar negocio
+router.post(
+  '/negocios/:negocioId/desarchivar',
+  authMiddleware,
+  requireAdmin,
+  adminController.desarchivarNegocio
+);
+
+// PROTEGIDO - Eliminar permanentemente negocio archivado
+router.delete(
+  '/negocios/:negocioId/eliminar-permanente',
+  authMiddleware,
+  requireAdmin,
+  adminController.eliminarNegocioPermanente
 );
 
 // Recibir notificación desde frontend y guardarla para el usuario
