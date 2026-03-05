@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { db, auth } from '../config/firebase';
 import { sendNotificationToUser } from '../services/notification.service';
+import { reorganizeBusinessImages, deleteBusinessFromCloudinary } from '../utils/cloudinaryHelper';
 
 const firstNonEmpty = (...values: any[]): string => {
     for (const value of values) {
@@ -180,8 +181,8 @@ const resolveOwnerInfo = async (data: any, business: any = {}) => {
 // Obtener negocios archivados (solo admin)
 export const obtenerNegociosArchivados = async (req: Request, res: Response) => {
     try {
-        // Buscar todos los negocios en la colección 'negocios_archivados'
-        const negociosSnap = await db.collection("negocios_archivados").get();
+        // Buscar todos los negocios en la colección 'negocios/Archivados/items'
+        const negociosSnap = await db.collection("negocios").doc("Archivados").collection("items").get();
         const negocios = await Promise.all(negociosSnap.docs.map(async (doc) => {
             const data = doc.data();
             const { ownerName, ownerPhoto } = await resolveOwnerInfo(data);
@@ -236,26 +237,65 @@ export const obtenerNegociosPendientes = async (req: Request, res: Response) => 
         return res.status(500).json({ success: false, error: error.message });
     }
 };
-// Obtener todos los negocios (solo admin)
+// Obtener todos los negocios activos (solo admin)
 export const obtenerNegocios = async (req: Request, res: Response) => {
     try {
-        const negociosSnap = await db.collection("negocios").get();
+        const negociosSnap = await db.collection("negocios").doc("Activos").collection("items").get();
         const negocios = await Promise.all(negociosSnap.docs.map(async (doc) => {
             const data = doc.data();
-            const { ownerName, ownerPhoto } = await resolveOwnerInfo(data);
+            // Flatten business data for easier frontend access
+            const business = data.business || {};
+            const { ownerName, ownerPhoto } = await resolveOwnerInfo(data, business);
+            
+            // Format createdAt if it exists
+            let createdAt = business.createdAt;
+            if (createdAt && createdAt._seconds) {
+                createdAt = new Date(createdAt._seconds * 1000).toISOString();
+            } else if (createdAt && createdAt.seconds) {
+                createdAt = new Date(createdAt.seconds * 1000).toISOString();
+            }
             
             return {
                 id: doc.id,
+                email: data.email || business.email || '',
+                name: business.name || '',
+                logo: business.logo || '',
+                createdAt: createdAt || '',
+                status: data.status || 'aprobado',
                 ...data,
+                business: {
+                    ...business,
+                    createdAt: createdAt || '',
+                },
                 ownerName: ownerName,
                 ownerPhoto: ownerPhoto
             };
         }));
         return res.json({ success: true, negocios });
     } catch (error: any) {
+        console.error("[obtenerNegocios] Error:", error);
         return res.status(500).json({ success: false, error: error.message });
     }
 };
+// Helper function to find a business in either Activos or Pendientes collection
+const findBusiness = async (negocioId: string): Promise<{ ref: FirebaseFirestore.DocumentReference, data: any, location: 'Activos' | 'Pendientes' } | null> => {
+    // First try Activos
+    const activosRef = db.collection("negocios").doc("Activos").collection("items").doc(negocioId);
+    const activosSnap = await activosRef.get();
+    if (activosSnap.exists) {
+        return { ref: activosRef as any, data: activosSnap.data(), location: 'Activos' };
+    }
+    
+    // Then try Pendientes
+    const pendientesRef = db.collection("negocios").doc("Pendientes").collection("items").doc(negocioId);
+    const pendientesSnap = await pendientesRef.get();
+    if (pendientesSnap.exists) {
+        return { ref: pendientesRef as any, data: pendientesSnap.data(), location: 'Pendientes' };
+    }
+    
+    return null;
+};
+
 // Editar un negocio manualmente por el admin
 export const editarNegocio = async (req: Request, res: Response) => {
     let { negocioId } = req.params;
@@ -266,12 +306,13 @@ export const editarNegocio = async (req: Request, res: Response) => {
         return res.status(400).json({ success: false, message: "adminUid requerido" });
     }
     try {
-        const negocioRef = db.collection("negocios").doc(negocioId);
-        const negocioSnap = await negocioRef.get();
-        if (!negocioSnap.exists) {
+        const businessResult = await findBusiness(negocioId);
+        if (!businessResult) {
             return res.status(404).json({ success: false, message: "Negocio no encontrado" });
         }
-        const negocioData = negocioSnap.data();
+        
+        const { ref: negocioRef, data: negocioData } = businessResult;
+        
         // Actualizar campos permitidos
         const camposEditables = ["name", "description", "category", "phone", "location", "website", "rfc", "cp", "images"];
         const updateData: any = { updatedAt: new Date().toISOString() };
@@ -283,6 +324,7 @@ export const editarNegocio = async (req: Request, res: Response) => {
             { action: "editado_admin", date: new Date().toISOString(), by: adminUid, changes: updateData }
         ];
         await negocioRef.update(updateData);
+        
         // Notificar al dueño
         if (negocioData?.owner) {
             await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
@@ -296,9 +338,42 @@ export const editarNegocio = async (req: Request, res: Response) => {
         }
         return res.json({ success: true, message: "Negocio editado y notificado" });
     } catch (error: any) {
+        console.error("[editarNegocio] Error:", error);
         return res.status(500).json({ success: false, error: error.message });
     }
 };
+
+// Helper function to update Cloudinary URLs from pendientes to activos
+const updateCloudinaryUrls = (data: any): any => {
+    const updateData = { ...data };
+    
+    // Update logo URL if it exists
+    if (updateData?.logo && typeof updateData.logo === 'string') {
+        updateData.logo = updateData.logo.replace('/pendientes/', '/activos/');
+    }
+    
+    // Update business logo if it exists
+    if (updateData?.business?.logo && typeof updateData.business.logo === 'string') {
+        updateData.business.logo = updateData.business.logo.replace('/pendientes/', '/activos/');
+    }
+    
+    // Update images array if it exists
+    if (Array.isArray(updateData?.images)) {
+        updateData.images = updateData.images.map((img: string) => 
+            typeof img === 'string' ? img.replace('/pendientes/', '/activos/') : img
+        );
+    }
+    
+    // Update business images if it exists
+    if (Array.isArray(updateData?.business?.images)) {
+        updateData.business.images = updateData.business.images.map((img: string) => 
+            typeof img === 'string' ? img.replace('/pendientes/', '/activos/') : img
+        );
+    }
+    
+    return updateData;
+};
+
 // Aprobar o rechazar un negocio pendiente
 export const gestionarNegocioPendiente = async (req: Request, res: Response) => {
     const { negocioId, accion, adminUid } = req.body;
@@ -306,58 +381,109 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
         return res.status(400).json({ success: false, message: "Faltan datos obligatorios" });
     }
     try {
-        const negocioRef = db.collection("negocios").doc(negocioId);
+        // Get negocio from Pendientes collection
+        const negocioRef = db.collection("negocios").doc("Pendientes").collection("items").doc(negocioId);
         const negocioSnap = await negocioRef.get();
         if (!negocioSnap.exists) {
-            return res.status(404).json({ success: false, message: "Negocio no encontrado" });
+            return res.status(404).json({ success: false, message: "Negocio no encontrado en pendientes" });
         }
         const negocioData = negocioSnap.data();
+        
         if (accion === "aprobar") {
-            await negocioRef.update({
-                status: "aprobado",
-                updatedAt: new Date().toISOString(),
-                history: [
-                    ...(negocioData?.history || []),
-                    { action: "aprobado", date: new Date().toISOString(), by: adminUid }
-                ]
-            });
-            // Notificar al dueño
+            // Reorganizar imágenes en Cloudinary (de pendientes a activos) y validar resultado
+            const moveResult = await reorganizeBusinessImages(negocioId);
+            const hadMoveErrors = moveResult.failed > 0;
+            const movedSomething = moveResult.moved > 0;
+
+            // Si hubo intentos y ninguno pudo moverse, detener el proceso para evitar inconsistencias.
+            if (moveResult.attempted > 0 && !movedSomething && hadMoveErrors) {
+                return res.status(500).json({
+                    success: false,
+                    message: "No se pudieron mover las imágenes del negocio en Cloudinary",
+                    cloudinary: moveResult,
+                });
+            }
+            
+            // Update Cloudinary URLs from pendientes to activos
+            const updatedData = updateCloudinaryUrls(negocioData);
+            updatedData.status = "aprobado";
+            updatedData.updatedAt = new Date().toISOString();
+            updatedData.history = [
+                ...(negocioData?.history || []),
+                { action: "aprobado", date: new Date().toISOString(), by: adminUid, approvedAt: new Date().toISOString() }
+            ];
+            
+            // Move from Pendientes to Activos
+            await db.collection("negocios").doc("Activos").collection("items").doc(negocioId).set(updatedData);
+            
+            // Delete from Pendientes
+            await negocioRef.delete();
+            
+            console.log(`[gestionarNegocioPendiente] ✅ Negocio ${negocioId} movido de Pendientes a Activos`);
+            
+            // Notify owner
             if (negocioData?.owner) {
                 await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
                     tipo: 'negocio_aprobado',
                     titulo: 'Negocio aprobado',
-                    mensaje: `Tu negocio "${negocioData.name}" ha sido aprobado y ya es visible para los usuarios.`,
+                    mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido aprobado y ya es visible para los usuarios.`,
                     fecha: new Date().toISOString(),
                     leido: false,
                     enlace: '/negocio/estatus'
                 });
             }
-            return res.json({ success: true, message: "Negocio aprobado y notificado" });
+            return res.json({
+                success: true,
+                message: "Negocio aprobado y movido a Activos",
+                cloudinary: moveResult,
+            });
         } else if (accion === "rechazar") {
-            await negocioRef.update({
-                status: "rechazado",
-                updatedAt: new Date().toISOString(),
+            console.log(`[gestionarNegocioPendiente] 🔄 Iniciando rechazo de negocio ${negocioId}`);
+            
+            const rejectedAt = new Date().toISOString();
+            const archivedData = {
+                ...negocioData,
+                status: "archivado",
+                archivedReason: "Solicitud rechazada por administrador",
+                archivedAt: rejectedAt,
+                archivedBy: adminUid,
+                updatedAt: rejectedAt,
                 history: [
                     ...(negocioData?.history || []),
-                    { action: "rechazado", date: new Date().toISOString(), by: adminUid }
+                    { action: "rechazado", date: rejectedAt, by: adminUid },
+                    { action: "archivado", date: rejectedAt, by: adminUid, reason: "Solicitud rechazada por administrador" }
                 ]
-            });
-            // Notificar al dueño
+            };
+
+            console.log(`[gestionarNegocioPendiente] 📁 Guardando en negocios/Archivados/items...`);
+            // Move from Pendientes to Archivados
+            await db.collection("negocios").doc("Archivados").collection("items").doc(negocioId).set(archivedData);
+            console.log(`[gestionarNegocioPendiente] ✅ Guardado en negocios/Archivados/items`);
+
+            console.log(`[gestionarNegocioPendiente] 🗑️ Eliminando de Pendientes...`);
+            // Delete from Pendientes
+            await negocioRef.delete();
+            console.log(`[gestionarNegocioPendiente] ✅ Eliminado de Pendientes`);
+
+            console.log(`[gestionarNegocioPendiente] ✅ Negocio ${negocioId} rechazado y movido a Archivados`);
+            
+            // Notify owner
             if (negocioData?.owner) {
                 await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
                     tipo: 'negocio_rechazado',
                     titulo: 'Negocio rechazado',
-                    mensaje: `Tu negocio "${negocioData.name}" ha sido rechazado. Puedes editarlo y volver a enviarlo para revisión.`,
-                    fecha: new Date().toISOString(),
+                    mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" fue rechazado y archivado por el administrador.`,
+                    fecha: rejectedAt,
                     leido: false,
                     enlace: '/negocio/estatus'
                 });
             }
-            return res.json({ success: true, message: "Negocio rechazado y notificado" });
+            return res.json({ success: true, message: "Negocio rechazado y movido a Archivados" });
         } else {
             return res.status(400).json({ success: false, message: "Acción no válida" });
         }
     } catch (error: any) {
+        console.error("[gestionarNegocioPendiente] Error:", error);
         return res.status(500).json({ success: false, error: error.message });
     }
 };
@@ -371,16 +497,30 @@ export const archivarNegocio = async (req: Request, res: Response) => {
         return res.status(400).json({ success: false, message: "Motivo y adminUid requeridos" });
     }
     try {
-        // Buscar el negocio
-        const negocioRef = db.collection("negocios").doc(negocioId);
-        const negocioSnap = await negocioRef.get();
-        if (!negocioSnap.exists) {
+        // Find the business in either Activos or Pendientes
+        const businessResult = await findBusiness(negocioId);
+        if (!businessResult) {
             return res.status(404).json({ success: false, message: "Negocio no encontrado" });
         }
-        const negocioData = negocioSnap.data();
-        // Mover a colección archivados
-        await db.collection("negocios_archivados").doc(negocioId).set({
-            ...negocioData,
+        
+        const { ref: negocioRef, data: negocioData, location } = businessResult;
+        
+        // Reorganizar imágenes en Cloudinary si viene de Pendientes
+        if (location === 'Pendientes') {
+            reorganizeBusinessImages(negocioId).catch((err) => {
+                console.error(`[archivarNegocio] Error reorganizando imágenes para ${negocioId}:`, err);
+            });
+        }
+        
+        // Update Cloudinary URLs if moving from Pendientes
+        let archiveData = { ...negocioData };
+        if (location === 'Pendientes') {
+            archiveData = updateCloudinaryUrls(archiveData);
+        }
+        
+        // Move to archived collection
+        await db.collection("negocios").doc("Archivados").collection("items").doc(negocioId).set({
+            ...archiveData,
             status: "archivado",
             archivedReason: motivo,
             archivedAt: new Date().toISOString(),
@@ -390,14 +530,18 @@ export const archivarNegocio = async (req: Request, res: Response) => {
                 { action: "archivado", date: new Date().toISOString(), by: adminUid, reason: motivo }
             ]
         });
-        // Eliminar de negocios activos
+        
+        // Delete from current location
         await negocioRef.delete();
-        // Notificar al dueño
+        
+        console.log(`[archivarNegocio] ✅ Negocio ${negocioId} archivado (estaba en ${location})`);
+        
+        // Notify owner
         if (negocioData?.owner) {
             await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
                 tipo: 'negocio_archivado',
                 titulo: 'Negocio eliminado',
-                mensaje: `Tu negocio "${negocioData.name}" ha sido eliminado por el administrador. Motivo: ${motivo}`,
+                mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido eliminado por el administrador. Motivo: ${motivo}`,
                 fecha: new Date().toISOString(),
                 leido: false,
                 enlace: '/negocio/estatus'
@@ -405,9 +549,198 @@ export const archivarNegocio = async (req: Request, res: Response) => {
         }
         return res.json({ success: true, message: "Negocio archivado y notificado" });
     } catch (error: any) {
+        console.error("[archivarNegocio] Error:", error);
         return res.status(500).json({ success: false, error: error.message });
     }
 };
+
+// Regresar negocio activo a pendientes
+export const regresarAPendientes = async (req: Request, res: Response) => {
+    let { negocioId } = req.params;
+    if (Array.isArray(negocioId)) negocioId = negocioId[0];
+    const { adminUid } = req.body;
+    
+    if (!negocioId || !adminUid) {
+        return res.status(400).json({ success: false, message: "negocioId y adminUid requeridos" });
+    }
+    
+    try {
+        // Get business from Activos
+        const activosRef = db.collection("negocios").doc("Activos").collection("items").doc(negocioId);
+        const activosSnap = await activosRef.get();
+        
+        if (!activosSnap.exists) {
+            return res.status(404).json({ success: false, message: "Negocio no encontrado en Activos" });
+        }
+        
+        const negocioData = activosSnap.data();
+        
+        // Update URLs from activos to pendientes
+        const revertCloudinaryUrls = (data: any) => {
+            const updatedData = { ...data };
+            if (updatedData.business?.logo && typeof updatedData.business.logo === 'string') {
+                updatedData.business.logo = updatedData.business.logo.replace('/activos/', '/pendientes/');
+            }
+            if (Array.isArray(updatedData.business?.images)) {
+                updatedData.business.images = updatedData.business.images.map((img: any) =>
+                    typeof img === 'string' ? img.replace('/activos/', '/pendientes/') : img
+                );
+            }
+            return updatedData;
+        };
+        
+        const updatedData = revertCloudinaryUrls(negocioData);
+        updatedData.status = "PENDING";
+        updatedData.updatedAt = new Date().toISOString();
+        updatedData.history = [
+            ...(negocioData?.history || []),
+            { action: "regresado_a_pendientes", date: new Date().toISOString(), by: adminUid }
+        ];
+        
+        // Move to Pendientes
+        await db.collection("negocios").doc("Pendientes").collection("items").doc(negocioId).set(updatedData);
+        
+        // Delete from Activos
+        await activosRef.delete();
+        
+        console.log(`[regresarAPendientes] ✅ Negocio ${negocioId} movido de Activos a Pendientes`);
+        
+        // Notify owner
+        if (negocioData?.owner) {
+            await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
+                tipo: 'negocio_pendiente',
+                titulo: 'Negocio en revisión',
+                mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido regresado a revisión por el administrador.`,
+                fecha: new Date().toISOString(),
+                leido: false,
+                enlace: '/negocio/estatus'
+            });
+        }
+        
+        return res.json({ success: true, message: "Negocio regresado a pendientes" });
+    } catch (error: any) {
+        console.error("[regresarAPendientes] Error:", error);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+// Desarchivar negocio (mover de archivados a pendientes)
+export const desarchivarNegocio = async (req: Request, res: Response) => {
+    let { negocioId } = req.params;
+    if (Array.isArray(negocioId)) negocioId = negocioId[0];
+    const { adminUid } = req.body;
+    
+    if (!negocioId || !adminUid) {
+        return res.status(400).json({ success: false, message: "negocioId y adminUid requeridos" });
+    }
+    
+    try {
+        // Get business from archived
+        const archivedRef = db.collection("negocios").doc("Archivados").collection("items").doc(negocioId);
+        const archivedSnap = await archivedRef.get();
+        
+        if (!archivedSnap.exists) {
+            return res.status(404).json({ success: false, message: "Negocio no encontrado en archivados" });
+        }
+        
+        const negocioData = archivedSnap.data();
+        
+        // Prepare data for pendientes
+        const pendientesData: any = {
+            ...negocioData,
+            status: "PENDING",
+            updatedAt: new Date().toISOString(),
+            history: [
+                ...(negocioData?.history || []),
+                { action: "desarchivado", date: new Date().toISOString(), by: adminUid }
+            ]
+        };
+        
+        // Remove archived-specific fields
+        delete pendientesData.archivedReason;
+        delete pendientesData.archivedAt;
+        delete pendientesData.archivedBy;
+        
+        // Move to Pendientes
+        await db.collection("negocios").doc("Pendientes").collection("items").doc(negocioId).set(pendientesData);
+        
+        // Delete from archived
+        await archivedRef.delete();
+        
+        console.log(`[desarchivarNegocio] ✅ Negocio ${negocioId} desarchivado y movido a Pendientes`);
+        
+        // Notify owner
+        if (negocioData?.owner) {
+            await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
+                tipo: 'negocio_desarchivado',
+                titulo: 'Negocio desarchivado',
+                mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido desarchivado y está en revisión nuevamente.`,
+                fecha: new Date().toISOString(),
+                leido: false,
+                enlace: '/negocio/estatus'
+            });
+        }
+        
+        return res.json({ success: true, message: "Negocio desarchivado exitosamente" });
+    } catch (error: any) {
+        console.error("[desarchivarNegocio] Error:", error);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+// Eliminar permanentemente negocio archivado (Firestore + Cloudinary)
+export const eliminarNegocioPermanente = async (req: Request, res: Response) => {
+    let { negocioId } = req.params;
+    if (Array.isArray(negocioId)) negocioId = negocioId[0];
+    const { adminUid } = req.body;
+    
+    if (!negocioId || !adminUid) {
+        return res.status(400).json({ success: false, message: "negocioId y adminUid requeridos" });
+    }
+    
+    try {
+        // Get business from archived
+        const archivedRef = db.collection("negocios").doc("Archivados").collection("items").doc(negocioId);
+        const archivedSnap = await archivedRef.get();
+        
+        if (!archivedSnap.exists) {
+            return res.status(404).json({ success: false, message: "Negocio no encontrado en archivados" });
+        }
+        
+        const negocioData = archivedSnap.data();
+        
+        console.log(`[eliminarNegocioPermanente] 🗑️ Iniciando eliminación permanente de negocio ${negocioId}`);
+        
+        // Eliminar todas las imágenes de Cloudinary
+        let cloudinaryResult;
+        try {
+            cloudinaryResult = await deleteBusinessFromCloudinary(negocioId);
+            console.log(`[eliminarNegocioPermanente] ✅ Cloudinary: ${cloudinaryResult.deleted} eliminados, ${cloudinaryResult.failed} fallidos`);
+            
+            if (cloudinaryResult.failed > 0) {
+                console.warn(`[eliminarNegocioPermanente] ⚠️ Algunos archivos de Cloudinary no se pudieron eliminar:`, cloudinaryResult.errors);
+            }
+        } catch (cloudinaryError) {
+            console.error(`[eliminarNegocioPermanente] Error eliminando de Cloudinary:`, cloudinaryError);
+            // Continue with Firestore deletion even if Cloudinary fails partially
+        }
+        
+        // Delete from Firestore
+        await archivedRef.delete();
+        
+        console.log(`[eliminarNegocioPermanente] ✅ Negocio ${negocioId} eliminado permanentemente de Firestore`);
+        
+        return res.json({ 
+            success: true, 
+            message: "Negocio eliminado permanentemente",
+            cloudinary: cloudinaryResult || { deleted: 0, failed: 0, errors: [] }
+        });
+    } catch (error: any) {
+        console.error("[eliminarNegocioPermanente] Error:", error);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
 // Recibir notificación desde frontend y guardarla para el usuario
 export const recibirNotificacion = async (req: any, res: any) => {
     let { userId } = req.params;
@@ -454,7 +787,7 @@ export const obtenerUsuariosGestionables = async (req: Request, res: Response) =
         const [guiasSnapshot, negociantesSnapshot, negociosBusinessSnapshot] = await Promise.all([
             db.collection('usuarios').doc('guias').collection('lista').get(),
             db.collection('usuarios').doc('negocios').collection('lista').get(),
-            db.collection('negocios').doc('Business').collection('items').get(),
+            db.collection('negocios').doc('Activos').collection('items').get(),
         ]);
 
         const guias = guiasSnapshot.docs.map(doc => {
@@ -551,8 +884,8 @@ export const eliminarUsuarioGestionable = async (req: Request, res: Response) =>
         const [negociosPendientesUid, negociosPendientesOwner, negociosBusinessUid, negociosBusinessOwner] = await Promise.all([
             db.collection('negocios').doc('Pendientes').collection('items').where('uid', '==', uid).get(),
             db.collection('negocios').doc('Pendientes').collection('items').where('business.owner', '==', uid).get(),
-            db.collection('negocios').doc('Business').collection('items').where('uid', '==', uid).get(),
-            db.collection('negocios').doc('Business').collection('items').where('business.owner', '==', uid).get(),
+            db.collection('negocios').doc('Activos').collection('items').where('uid', '==', uid).get(),
+            db.collection('negocios').doc('Activos').collection('items').where('business.owner', '==', uid).get(),
         ]);
 
         await eliminarDocs(negociosPendientesUid);
@@ -1074,5 +1407,44 @@ export const obtenerNotificacionesUsuario = async (req: Request, res: Response) 
             success: false,
             error: error.message 
         });
+    }
+};
+
+// Forzar movimiento de imágenes en Cloudinary para un negocio ya aprobado
+export const forzarMoverImagenesNegocio = async (req: Request, res: Response) => {
+    let { negocioId } = req.params;
+    if (Array.isArray(negocioId)) negocioId = negocioId[0];
+    if (!negocioId) negocioId = "";
+
+    if (!negocioId) {
+        return res.status(400).json({ success: false, message: "negocioId requerido" });
+    }
+
+    try {
+        const activoRef = db.collection("negocios").doc("Activos").collection("items").doc(negocioId);
+        const activoSnap = await activoRef.get();
+
+        if (!activoSnap.exists) {
+            return res.status(404).json({ success: false, message: "Negocio activo no encontrado" });
+        }
+
+        const moveResult = await reorganizeBusinessImages(negocioId);
+
+        // Asegurar que las URLs guardadas apunten a /activos/
+        const activeData = activoSnap.data() || {};
+        const normalizedData = updateCloudinaryUrls(activeData);
+        await activoRef.update({
+            ...normalizedData,
+            updatedAt: new Date().toISOString(),
+        });
+
+        return res.json({
+            success: true,
+            message: "Movimiento de imágenes ejecutado",
+            cloudinary: moveResult,
+        });
+    } catch (error: any) {
+        console.error("[forzarMoverImagenesNegocio] Error:", error);
+        return res.status(500).json({ success: false, error: error.message });
     }
 };
