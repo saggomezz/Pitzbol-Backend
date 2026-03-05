@@ -30,7 +30,7 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
 
     // Verificar nombre del negocio en negocios aprobados
     if (businessName) {
-      const negociosSnapshot = await db.collection("negocios").doc("Business").collection("items").get();
+      const negociosSnapshot = await db.collection("negocios").doc("Activos").collection("items").get();
       const nombreExiste = negociosSnapshot.docs.some(doc =>
         !isExcludedDoc(doc.id) &&
         doc.data().business?.name?.toLowerCase() === businessName.toLowerCase()
@@ -68,7 +68,7 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
 
     // Verificar teléfono
     if (phone) {
-      const negociosSnapshot = await db.collection("negocios").doc("Business").collection("items").get();
+      const negociosSnapshot = await db.collection("negocios").doc("Activos").collection("items").get();
       const telefonoExiste = negociosSnapshot.docs.some(doc =>
         !isExcludedDoc(doc.id) &&
         doc.data().business?.phone === phone
@@ -92,7 +92,7 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
 
     // Verificar sitio web
     if (website) {
-      const negociosSnapshot = await db.collection("negocios").doc("Business").collection("items").get();
+      const negociosSnapshot = await db.collection("negocios").doc("Activos").collection("items").get();
       const sitioWebExiste = negociosSnapshot.docs.some(doc =>
         !isExcludedDoc(doc.id) &&
         doc.data().business?.website?.toLowerCase() === website.toLowerCase()
@@ -116,7 +116,7 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
 
     // Verificar ubicación
     if (location) {
-      const negociosSnapshot = await db.collection("negocios").doc("Business").collection("items").get();
+      const negociosSnapshot = await db.collection("negocios").doc("Activos").collection("items").get();
       const ubicacionExiste = negociosSnapshot.docs.some(doc =>
         !isExcludedDoc(doc.id) &&
         doc.data().business?.location?.toLowerCase() === location.toLowerCase()
@@ -140,7 +140,7 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
 
     // Verificar RFC
     if (rfc) {
-      const negociosSnapshot = await db.collection("negocios").doc("Business").collection("items").get();
+      const negociosSnapshot = await db.collection("negocios").doc("Activos").collection("items").get();
       const rfcExiste = negociosSnapshot.docs.some(doc =>
         !isExcludedDoc(doc.id) &&
         doc.data().business?.rfc?.toUpperCase() === rfc.toUpperCase()
@@ -164,7 +164,7 @@ export const validateBusinessUniqueness = async (req: RequestWithUser, res: Resp
 
     // Verificar Código Postal
     if (cp) {
-      const negociosSnapshot = await db.collection("negocios").doc("Business").collection("items").get();
+      const negociosSnapshot = await db.collection("negocios").doc("Activos").collection("items").get();
       const cpExiste = negociosSnapshot.docs.some(doc =>
         !isExcludedDoc(doc.id) &&
         doc.data().business?.cp === cp
@@ -549,11 +549,11 @@ export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
       });
     }
 
-    // PRIORIDAD 3: Buscar por ownerUid en Business (aprobados)
+    // PRIORIDAD 3: Buscar por ownerUid en Activos (aprobados)
     if (userUid) {
       const businessSnapByUid = await db
         .collection("negocios")
-        .doc("Business")
+        .doc("Activos")
         .collection("items")
         .where("ownerUid", "==", userUid)
         .limit(1)
@@ -583,10 +583,10 @@ export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
       }
     }
 
-    // PRIORIDAD 4: Buscar por email en Business (aprobados)
+    // PRIORIDAD 4: Buscar por email en Activos (aprobados)
     const businessSnap = await db
       .collection("negocios")
-      .doc("Business")
+      .doc("Activos")
       .collection("items")
       .where("email", "==", userEmail)
       .limit(1)
@@ -618,7 +618,9 @@ export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
     // PRIORIDAD 5: Buscar por ownerUid en archivados
     if (userUid) {
       const archivedSnapByUid = await db
-        .collection("negocios_archivados")
+        .collection("negocios")
+        .doc("Archivados")
+        .collection("items")
         .where("ownerUid", "==", userUid)
         .limit(1)
         .get();
@@ -649,7 +651,9 @@ export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
 
     // PRIORIDAD 6: Buscar por email en archivados (fallback)
     const archivedSnap = await db
-      .collection("negocios_archivados")
+      .collection("negocios")
+      .doc("Archivados")
+      .collection("items")
       .where("email", "==", userEmail)
       .limit(1)
       .get();
@@ -801,7 +805,7 @@ export const getBusinessById = async (req: RequestWithUser, res: Response) => {
 
     const approvedDoc = await db
       .collection("negocios")
-      .doc("Business")
+      .doc("Activos")
       .collection("items")
       .doc(businessId)
       .get();
@@ -828,7 +832,9 @@ export const getBusinessById = async (req: RequestWithUser, res: Response) => {
     }
 
     const archivedDoc = await db
-      .collection("negocios_archivados")
+      .collection("negocios")
+      .doc("Archivados")
+      .collection("items")
       .doc(businessId)
       .get();
 
@@ -880,26 +886,28 @@ const getBusinessCollectionPath = async (businessId: string): Promise<{ collecti
 
   const approvedDoc = await db
     .collection("negocios")
-    .doc("Business")
+    .doc("Activos")
     .collection("items")
     .doc(businessIdStr)
     .get();
 
   if (approvedDoc.exists) {
     return {
-      collection: "negocios/Business/items",
+      collection: "negocios/Activos/items",
       docPath: businessIdStr
     };
   }
 
   const archivedDoc = await db
-    .collection("negocios_archivados")
+    .collection("negocios")
+    .doc("Archivados")
+    .collection("items")
     .doc(businessIdStr)
     .get();
 
   if (archivedDoc.exists) {
     return {
-      collection: "negocios_archivados",
+      collection: "negocios/Archivados/items",
       docPath: businessIdStr
     };
   }
@@ -968,16 +976,11 @@ export const updateBusiness = async (req: RequestWithUser, res: Response) => {
     if (email !== undefined) updateData["email"] = email; // Email se guarda a nivel raíz del documento
 
     // Obtener referencia del documento
-    let docRef;
-    if (collectionPath.collection === "negocios_archivados") {
-      docRef = db.collection("negocios_archivados").doc(collectionPath.docPath);
-    } else {
-      const parts = collectionPath.collection.split('/');
-      if (parts.length < 3 || !parts[0] || !parts[1] || !parts[2]) {
-        return res.status(500).json({ success: false, message: "Error en la ruta de colección" });
-      }
-      docRef = db.collection(parts[0]!).doc(parts[1]!).collection(parts[2]!).doc(collectionPath.docPath);
+    const parts = collectionPath.collection.split('/');
+    if (parts.length < 3 || !parts[0] || !parts[1] || !parts[2]) {
+      return res.status(500).json({ success: false, message: "Error en la ruta de colección" });
     }
+    const docRef = db.collection(parts[0]!).doc(parts[1]!).collection(parts[2]!).doc(collectionPath.docPath);
 
     // Actualizar el documento
     await docRef.update(updateData);
@@ -1075,16 +1078,11 @@ export const updateBusinessImages = async (req: RequestWithUser, res: Response) 
     }
 
     // Obtener referencia del documento
-    let docRef;
-    if (collectionPath.collection === "negocios_archivados") {
-      docRef = db.collection("negocios_archivados").doc(collectionPath.docPath);
-    } else {
-      const parts = collectionPath.collection.split('/');
-      if (parts.length < 3 || !parts[0] || !parts[1] || !parts[2]) {
-        return res.status(500).json({ success: false, message: "Error en la ruta de colección" });
-      }
-      docRef = db.collection(parts[0]!).doc(parts[1]!).collection(parts[2]!).doc(collectionPath.docPath);
+    const parts = collectionPath.collection.split('/');
+    if (parts.length < 3 || !parts[0] || !parts[1] || !parts[2]) {
+      return res.status(500).json({ success: false, message: "Error en la ruta de colección" });
     }
+    const docRef = db.collection(parts[0]!).doc(parts[1]!).collection(parts[2]!).doc(collectionPath.docPath);
 
     // Actualizar el documento
     await docRef.update(updateData);
