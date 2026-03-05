@@ -2,27 +2,213 @@ import { Request, Response } from 'express';
 import { db, auth } from '../config/firebase';
 import { sendNotificationToUser } from '../services/notification.service';
 
+const firstNonEmpty = (...values: any[]): string => {
+    for (const value of values) {
+        if (typeof value === 'string' && value.trim()) {
+            return value.trim();
+        }
+    }
+    return '';
+};
+
+const getUserFromRoleCollectionsByUid = async (uid: string) => {
+    const collectionRefs = [
+        db.collection('usuarios').doc('turistas').collection('lista'),
+        db.collection('usuarios').doc('guias').collection('lista'),
+        db.collection('usuarios').doc('guias').collection('pendientes'),
+        db.collection('usuarios').doc('admins').collection('lista'),
+        db.collection('usuarios').doc('negocios').collection('lista'),
+    ];
+
+    for (const ref of collectionRefs) {
+        const snap = await ref.where('uid', '==', uid).limit(1).get();
+        if (!snap.empty) {
+            return snap.docs[0]?.data() || null;
+        }
+    }
+
+    return null;
+};
+
+const getUserFromRoleCollectionsByEmail = async (email: string) => {
+    const collectionRefs = [
+        db.collection('usuarios').doc('turistas').collection('lista'),
+        db.collection('usuarios').doc('guias').collection('lista'),
+        db.collection('usuarios').doc('guias').collection('pendientes'),
+        db.collection('usuarios').doc('admins').collection('lista'),
+        db.collection('usuarios').doc('negocios').collection('lista'),
+    ];
+
+    const emailFields = ['email', 'correo', '04_correo'];
+
+    for (const ref of collectionRefs) {
+        for (const field of emailFields) {
+            const snap = await ref.where(field, '==', email).limit(1).get();
+            if (!snap.empty) {
+                return snap.docs[0]?.data() || null;
+            }
+        }
+    }
+
+    return null;
+};
+
+const resolveOwnerInfo = async (data: any, business: any = {}) => {
+    const ownerUid = firstNonEmpty(
+        data?.ownerUid,
+        data?.owner,
+        data?.ownerId,
+        data?.uid,
+        data?.userId,
+        data?.createdBy,
+        business?.ownerUid,
+        business?.owner,
+        business?.ownerId,
+        business?.uid,
+        business?.userId,
+        business?.createdBy
+    );
+
+    let userData: any = null;
+
+    if (ownerUid) {
+        try {
+            const userDoc = await db.collection('usuarios').doc(ownerUid).get();
+            if (userDoc.exists) {
+                userData = userDoc.data();
+            }
+        } catch (err) {
+            console.error('Error fetching user by uid from usuarios:', ownerUid, err);
+        }
+
+        if (!userData) {
+            try {
+                userData = await getUserFromRoleCollectionsByUid(ownerUid);
+            } catch (err) {
+                console.error('Error fetching user by uid from role collections:', ownerUid, err);
+            }
+        }
+    }
+
+    const possibleEmails = [
+        firstNonEmpty(data?.email),
+        firstNonEmpty(data?.ownerEmail),
+        firstNonEmpty(data?.userEmail),
+        firstNonEmpty(business?.email),
+        firstNonEmpty(business?.ownerEmail),
+        firstNonEmpty(business?.userEmail),
+    ].filter(Boolean);
+
+    if (!userData && possibleEmails.length > 0) {
+        for (const email of possibleEmails) {
+            try {
+                const byEmail = await db.collection('usuarios').where('email', '==', email).limit(1).get();
+                if (!byEmail.empty) {
+                    const firstDoc = byEmail.docs[0];
+                    if (firstDoc) {
+                        userData = firstDoc.data();
+                    }
+                    break;
+                }
+
+                const byCorreo = await db.collection('usuarios').where('correo', '==', email).limit(1).get();
+                if (!byCorreo.empty) {
+                    const firstDoc = byCorreo.docs[0];
+                    if (firstDoc) {
+                        userData = firstDoc.data();
+                    }
+                    break;
+                }
+
+                if (!userData) {
+                    userData = await getUserFromRoleCollectionsByEmail(email);
+                }
+
+                if (userData) {
+                    break;
+                }
+            } catch (err) {
+                console.error('Error fetching user by email from usuarios:', email, err);
+            }
+        }
+    }
+
+    let authUser: any = null;
+    if (!userData && ownerUid) {
+        try {
+            authUser = await auth.getUser(ownerUid);
+        } catch (err) {
+            // Ignorar si el uid no existe en Auth
+        }
+    }
+
+    const ownerName = firstNonEmpty(
+        userData?.['01_nombre'] && userData?.['02_apellido']
+            ? `${userData['01_nombre']} ${userData['02_apellido']}`
+            : '',
+        userData?.['01_nombre'],
+        userData?.nombre,
+        userData?.name,
+        userData?.fullName,
+        userData?.displayName,
+        userData?.nombreCompleto,
+        userData?.usuario,
+        userData?.username,
+        authUser?.displayName,
+        data?.ownerName,
+        business?.ownerName,
+        'Usuario'
+    );
+
+    const ownerPhoto = firstNonEmpty(
+        userData?.['14_foto_perfil']?.url,
+        userData?.fotoUrl,
+        userData?.photoUrl,
+        userData?.foto,
+        userData?.photo,
+        userData?.fotoPerfil,
+        userData?.profilePhoto,
+        userData?.avatar,
+        authUser?.photoURL,
+        data?.ownerPhoto,
+        business?.ownerPhoto
+    );
+
+    return { ownerName, ownerPhoto };
+};
+
 // Obtener negocios archivados (solo admin)
 export const obtenerNegociosArchivados = async (req: Request, res: Response) => {
     try {
         // Buscar todos los negocios en la colección 'negocios_archivados'
         const negociosSnap = await db.collection("negocios_archivados").get();
-        const negocios = negociosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const negocios = await Promise.all(negociosSnap.docs.map(async (doc) => {
+            const data = doc.data();
+            const { ownerName, ownerPhoto } = await resolveOwnerInfo(data);
+            
+            return {
+                id: doc.id,
+                ...data,
+                ownerName: ownerName,
+                ownerPhoto: ownerPhoto
+            };
+        }));
         return res.json({ success: true, negocios });
     } catch (error: any) {
         return res.status(500).json({ success: false, error: error.message });
     }
 };
 
-// Obtener negocios pendientes (solo admin)
 export const obtenerNegociosPendientes = async (req: Request, res: Response) => {
     try {
         // Buscar negocios pendientes en la subcolección 'negocios/Pendientes/items'
         const negociosSnap = await db.collection("negocios").doc("Pendientes").collection("items").get();
-        const negocios = negociosSnap.docs.map(doc => {
+        const negocios = await Promise.all(negociosSnap.docs.map(async (doc) => {
             const data = doc.data();
             // Aplanar los datos del negocio para facilitar el frontend
             const business = data.business || {};
+            const { ownerName, ownerPhoto } = await resolveOwnerInfo(data, business);
+            
             // Formatear fecha de entrada si existe
             let createdAt = business.createdAt;
             if (createdAt && createdAt._seconds) {
@@ -40,9 +226,11 @@ export const obtenerNegociosPendientes = async (req: Request, res: Response) => 
                 business: {
                     ...business,
                     createdAt: createdAt || '',
-                }
+                },
+                ownerName: ownerName,
+                ownerPhoto: ownerPhoto
             };
-        });
+        }));
         return res.json({ success: true, negocios });
     } catch (error: any) {
         return res.status(500).json({ success: false, error: error.message });
@@ -52,7 +240,17 @@ export const obtenerNegociosPendientes = async (req: Request, res: Response) => 
 export const obtenerNegocios = async (req: Request, res: Response) => {
     try {
         const negociosSnap = await db.collection("negocios").get();
-        const negocios = negociosSnap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+        const negocios = await Promise.all(negociosSnap.docs.map(async (doc) => {
+            const data = doc.data();
+            const { ownerName, ownerPhoto } = await resolveOwnerInfo(data);
+            
+            return {
+                id: doc.id,
+                ...data,
+                ownerName: ownerName,
+                ownerPhoto: ownerPhoto
+            };
+        }));
         return res.json({ success: true, negocios });
     } catch (error: any) {
         return res.status(500).json({ success: false, error: error.message });
