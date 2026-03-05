@@ -492,3 +492,29 @@ export const solicitarGuia = async (req: any, res: Response) => {
     res.status(500).json({ msg: "Error interno del servidor", error: error.message });
   }
 };
+
+// GET /api/auth/itinerarios?uid=xxx&role=turista
+export const getItinerariosUsuario = async (req: Request, res: Response) => {
+  try {
+    const { uid, role } = req.query;
+    if (!uid || typeof uid !== 'string') {
+      return res.status(400).json({ error: 'uid requerido' });
+    }
+    const roleMap: Record<string, string> = { turista: 'turistas', guia: 'guias', admin: 'admins' };
+    const roleCollection = roleMap[role as string] || 'turistas';
+
+    const snapshot = await db
+      .collection('usuarios').doc(roleCollection).collection('lista')
+      .where('uid', '==', uid).limit(1).get();
+
+    if (snapshot.empty) return res.json([]);
+
+    const itinSnap = await snapshot.docs[0].ref
+      .collection('itinerarios').orderBy('creadoEn', 'desc').get();
+
+    return res.json(itinSnap.docs.map(d => ({ id: d.id, ...d.data() })));
+  } catch (error: any) {
+    console.error('Error en getItinerariosUsuario:', error);
+    return res.status(500).json({ error: error.message });
+  }
+};
