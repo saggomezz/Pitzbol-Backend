@@ -1,8 +1,10 @@
 import { Request, Response } from 'express';
 import { db, auth } from '../config/firebase';
 import { sendNotificationToUser } from '../services/notification.service';
-<<<<<<< HEAD
-import { sendProfileApprovalEmail } from '../services/email.service';
+import { sendProfileApprovalEmail, sendBookingConfirmationEmail } from '../services/email.service';
+import { reorganizeBusinessImages, deleteBusinessFromCloudinary } from '../utils/cloudinaryHelper';
+import { BookingService } from '../services/booking.service';
+import { AuthRequest } from '../middlewares/auth.middleware';
 
 const notifyGuideApprovalByEmail = async (params: { uid: string; fullName: string; email?: string }) => {
     try {
@@ -25,13 +27,12 @@ const notifyGuideApprovalByEmail = async (params: { uid: string; fullName: strin
         await sendProfileApprovalEmail({
             to: destination,
             fullName: params.fullName,
-            dashboardUrl: process.env.GUIDE_DASHBOARD_URL,
+            ...(process.env.GUIDE_DASHBOARD_URL ? { dashboardUrl: process.env.GUIDE_DASHBOARD_URL } : {}),
         });
     } catch (emailError) {
         console.warn('No se pudo enviar correo de aprobación de perfil:', emailError);
     }
-=======
-import { reorganizeBusinessImages, deleteBusinessFromCloudinary } from '../utils/cloudinaryHelper';
+};
 
 const firstNonEmpty = (...values: any[]): string => {
     for (const value of values) {
@@ -206,7 +207,6 @@ const resolveOwnerInfo = async (data: any, business: any = {}) => {
     );
 
     return { ownerName, ownerPhoto };
->>>>>>> 7ff7930fe6407906a171e586efea060858bcfbc8
 };
 
 // Obtener negocios archivados (solo admin)
@@ -1448,7 +1448,6 @@ export const obtenerNotificacionesUsuario = async (req: Request, res: Response) 
     }
 };
 
-<<<<<<< HEAD
 // Reservar un tour como admin (en nombre de un turista)
 export const adminCreateBooking = async (req: AuthRequest, res: Response) => {
     try {
@@ -1567,7 +1566,9 @@ export const adminCreateBooking = async (req: AuthRequest, res: Response) => {
             message: 'Error al crear reserva como administrador',
             error: error.message,
         });
-=======
+    }
+};
+
 // Forzar movimiento de imágenes en Cloudinary para un negocio ya aprobado
 export const forzarMoverImagenesNegocio = async (req: Request, res: Response) => {
     let { negocioId } = req.params;
@@ -1604,6 +1605,150 @@ export const forzarMoverImagenesNegocio = async (req: Request, res: Response) =>
     } catch (error: any) {
         console.error("[forzarMoverImagenesNegocio] Error:", error);
         return res.status(500).json({ success: false, error: error.message });
->>>>>>> 7ff7930fe6407906a171e586efea060858bcfbc8
+    }
+};
+
+// ====== GESTIÓN DE GUÍAS ======
+
+// Obtener todos los guías aprobados con detalle completo
+export const obtenerGuiasAprobados = async (req: Request, res: Response) => {
+    try {
+        const snapshot = await db.collection('usuarios').doc('guias').collection('lista').get();
+        const guias = await Promise.all(snapshot.docs.map(async (doc) => {
+            const data = doc.data();
+            // Obtener tours publicados
+            let tours: any[] = [];
+            try {
+                const toursSnap = await db.collection('usuarios').doc('guias')
+                    .collection('lista').doc(doc.id).collection('tours_publicados').get();
+                tours = toursSnap.docs.map(t => ({ id: t.id, ...t.data() }));
+            } catch (_) { /* sin tours */ }
+
+            return {
+                id: doc.id,
+                uid: data.uid || doc.id,
+                nombre: data["01_nombre"] || data.nombre || '',
+                apellido: data["02_apellido"] || data.apellido || '',
+                correo: data["04_correo"] || data.email || '',
+                telefono: data["06_telefono"] || data.telefono || '',
+                nacionalidad: data["05_nacionalidad"] || '',
+                especialidades: data["07_especialidades"] || [],
+                rfc: data["08_rfc"] || '',
+                idiomas: data["09_idiomas"] || [],
+                codigoPostal: data["10_cp"] || '',
+                fotoFrente: data["11_foto_frente"] || '',
+                fotoReverso: data["12_foto_reverso"] || '',
+                fotoRostro: data["13_foto_rostro"] || '',
+                fotoPerfil: data["14_foto_perfil"]?.url || '',
+                descripcion: data["15_descripcion"] || '',
+                status: data["16_status"] || data.status || 'activo',
+                tarifaMxn: data["17_tarifa_mxn"] || 0,
+                tarifaDiaCompleto: data["18_tarifa_dia_completo"] || null,
+                validacionBiometrica: data["18_validacion_biometrica"] || null,
+                biografia: data["19_biografia"] || '',
+                calificacion: data.calificacion || 0,
+                resenas: data.numeroResenas || 0,
+                tours,
+                createdAt: data.createdAt || '',
+                approvedAt: data.approvedAt || '',
+            };
+        }));
+        return res.json({ success: true, guias });
+    } catch (error: any) {
+        console.error("[obtenerGuiasAprobados] Error:", error);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+// Obtener guías pendientes de aprobación con detalle completo
+export const obtenerGuiasPendientes = async (req: Request, res: Response) => {
+    try {
+        const snapshot = await db.collection('usuarios').doc('guias').collection('pendientes').get();
+        const guias = snapshot.docs.map(doc => {
+            const data = doc.data();
+            return {
+                id: doc.id,
+                uid: data.uid || doc.id,
+                nombre: data["01_nombre"] || data.nombre || '',
+                apellido: data["02_apellido"] || data.apellido || '',
+                correo: data["04_correo"] || data.email || '',
+                telefono: data["06_telefono"] || data.telefono || '',
+                nacionalidad: data["05_nacionalidad"] || '',
+                especialidades: data["07_especialidades"] || [],
+                rfc: data["08_rfc"] || '',
+                codigoPostal: data["10_cp"] || '',
+                fotoFrente: data["11_foto_frente"] || '',
+                fotoReverso: data["12_foto_reverso"] || '',
+                fotoRostro: data["13_foto_rostro"] || '',
+                fotoPerfil: data["14_foto_perfil"]?.url || '',
+                descripcion: data["15_descripcion"] || '',
+                status: data["16_status"] || 'en_revision',
+                tarifaMxn: data["17_tarifa_mxn"] || 0,
+                validacionBiometrica: data["18_validacion_biometrica"] || null,
+                createdAt: data.createdAt || '',
+            };
+        });
+        return res.json({ success: true, guias });
+    } catch (error: any) {
+        console.error("[obtenerGuiasPendientes] Error:", error);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+// Editar campos de un guía aprobado
+export const editarGuia = async (req: Request, res: Response) => {
+    const uid = req.params.uid as string;
+    if (!uid) {
+        return res.status(400).json({ success: false, message: 'UID del guía requerido' });
+    }
+
+    try {
+        // Buscar el documento del guía por uid
+        const snapshot = await db.collection('usuarios').doc('guias')
+            .collection('lista').where('uid', '==', uid).limit(1).get();
+
+        if (snapshot.empty) {
+            return res.status(404).json({ success: false, message: 'Guía no encontrado' });
+        }
+
+        const docRef = snapshot.docs[0]!.ref;
+        const { adminUid, ...campos } = req.body;
+
+        // Mapear campos editables a los campos de Firestore
+        const fieldMap: Record<string, string> = {
+            nombre: '01_nombre',
+            apellido: '02_apellido',
+            correo: '04_correo',
+            telefono: '06_telefono',
+            nacionalidad: '05_nacionalidad',
+            especialidades: '07_especialidades',
+            rfc: '08_rfc',
+            idiomas: '09_idiomas',
+            codigoPostal: '10_cp',
+            descripcion: '15_descripcion',
+            tarifaMxn: '17_tarifa_mxn',
+            tarifaDiaCompleto: '18_tarifa_dia_completo',
+            biografia: '19_biografia',
+        };
+
+        const updateData: Record<string, any> = { updatedAt: new Date().toISOString() };
+
+        for (const [key, value] of Object.entries(campos)) {
+            const firestoreKey = fieldMap[key];
+            if (firestoreKey && value !== undefined) {
+                updateData[firestoreKey] = value;
+            }
+        }
+
+        if (Object.keys(updateData).length <= 1) {
+            return res.status(400).json({ success: false, message: 'No se proporcionaron campos válidos para editar' });
+        }
+
+        await docRef.update(updateData);
+
+        return res.json({ success: true, message: 'Guía actualizado correctamente' });
+    } catch (error: any) {
+        console.error("[editarGuia] Error:", error);
+        return res.status(500).json({ success: false, error: error.message });
     }
 };
