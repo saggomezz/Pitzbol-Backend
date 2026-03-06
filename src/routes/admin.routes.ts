@@ -121,4 +121,12 @@ router.delete(
   adminController.eliminarNotificacion
 );
 
+// PROTEGIDO - Crear reserva de tour como admin
+router.post(
+  '/bookings/create',
+  authMiddleware,
+  requireAdmin,
+  adminController.adminCreateBooking
+);
+
 export default router;

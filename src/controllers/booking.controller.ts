@@ -1,5 +1,71 @@
 import { Request, Response } from 'express';
+import { db, auth } from '../config/firebase';
+import { Booking } from '../models/booking.model';
 import { BookingService } from '../services/booking.service';
+import { sendBookingConfirmationEmail } from '../services/email.service';
+
+const getTouristContact = async (uid: string) => {
+  const snapshot = await db
+    .collection('usuarios')
+    .doc('turistas')
+    .collection('lista')
+    .where('uid', '==', uid)
+    .limit(1)
+    .get();
+
+  if (snapshot.empty) {
+    return null;
+  }
+
+  const data = snapshot.docs[0]?.data();
+  if (!data) {
+    return null;
+  }
+
+  const nombre = data['01_nombre'] || data.nombre || '';
+  const apellido = data['02_apellido'] || data.apellido || '';
+  const email = data['04_correo'] || data.email || '';
+
+  return {
+    nombre: `${nombre} ${apellido}`.trim() || nombre || 'Turista',
+    email,
+  };
+};
+
+const notifyBookingByEmail = async (booking: Booking) => {
+  try {
+    const contact = await getTouristContact(booking.touristId);
+    let email = contact?.email;
+    const nombre = contact?.nombre || booking.touristName || 'Turista';
+
+    if (!email) {
+      try {
+        const userRecord = await auth.getUser(booking.touristId);
+        email = userRecord.email || undefined;
+      } catch (authError) {
+        console.warn('No se pudo recuperar el correo desde Firebase Auth:', authError);
+      }
+    }
+
+    if (!email) {
+      console.warn(`No se envió correo: turista ${booking.touristId} sin email`);
+      return;
+    }
+
+    await sendBookingConfirmationEmail({
+      to: email,
+      touristName: nombre,
+      guideName: booking.guideName,
+      fecha: booking.fecha,
+      horaInicio: booking.horaInicio,
+      duracion: booking.duracion,
+      numPersonas: booking.numPersonas,
+      total: booking.total,
+    });
+  } catch (notifyError) {
+    console.warn('No se pudo enviar la notificación por correo de la reserva:', notifyError);
+  }
+};
 
 // Crear una reserva
 export const createBooking = async (req: Request, res: Response) => {
@@ -33,6 +99,8 @@ export const createBooking = async (req: Request, res: Response) => {
       ...bookingData,
       status: 'pendiente',
     });
+
+    notifyBookingByEmail(booking);
 
     res.status(201).json({
       success: true,
