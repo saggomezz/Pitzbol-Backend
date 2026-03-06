@@ -1474,9 +1474,9 @@ export const adminCreateBooking = async (req: AuthRequest, res: Response) => {
 
         // Verificar que el guía exista en la colección de guías aprobados
         const guideSnapshot = await db
-            .collection('guias')
-            .doc('lista')
             .collection('usuarios')
+            .doc('guias')
+            .collection('lista')
             .where('uid', '==', guideId)
             .limit(1)
             .get();
