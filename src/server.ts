@@ -19,6 +19,7 @@ import favoritesRoutes from './routes/favorites.routes';
 import chatRoutes from './routes/chat.routes';
 import bookingRoutes from './routes/booking.routes';
 import ratingRoutes from './routes/rating.routes';
+import placeRatingRoutes from './routes/place-rating.routes';
 import availabilityRoutes from './routes/availability.routes';
 import walletRoutes from './routes/wallet.routes';
 import { ChatService } from './services/chat.service';
@@ -86,6 +87,7 @@ app.use('/api/favorites', favoritesRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/bookings', bookingRoutes);
 app.use('/api/ratings', ratingRoutes);
+app.use('/api/place-ratings', placeRatingRoutes);
 app.use('/api/availability', availabilityRoutes);
 app.use('/api/wallet', walletRoutes);
 // Manejo de rutas no encontradas
