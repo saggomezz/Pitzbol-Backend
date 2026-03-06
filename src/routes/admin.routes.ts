@@ -118,6 +118,32 @@ router.get(
   adminController.obtenerUsuariosGestionables
 );
 
+// ====== GESTIÓN DE GUÍAS ======
+
+// PROTEGIDO - Obtener guías aprobados con detalle completo
+router.get(
+  '/guias/aprobados',
+  authMiddleware,
+  requireAdmin,
+  adminController.obtenerGuiasAprobados
+);
+
+// PROTEGIDO - Obtener guías pendientes con detalle completo
+router.get(
+  '/guias/pendientes',
+  authMiddleware,
+  requireAdmin,
+  adminController.obtenerGuiasPendientes
+);
+
+// PROTEGIDO - Editar guía aprobado
+router.patch(
+  '/guias/:uid/editar',
+  authMiddleware,
+  requireAdmin,
+  adminController.editarGuia
+);
+
 // PROTEGIDO - Obtener detalle completo de un usuario
 router.get(
   '/usuarios/:uid/detalle',
