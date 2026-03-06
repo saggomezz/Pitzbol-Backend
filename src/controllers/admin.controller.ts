@@ -1,6 +1,35 @@
 import { Request, Response } from 'express';
 import { db, auth } from '../config/firebase';
 import { sendNotificationToUser } from '../services/notification.service';
+import { sendProfileApprovalEmail } from '../services/email.service';
+
+const notifyGuideApprovalByEmail = async (params: { uid: string; fullName: string; email?: string }) => {
+    try {
+        let destination = params.email;
+
+        if (!destination) {
+            try {
+                const userRecord = await auth.getUser(params.uid);
+                destination = userRecord.email || undefined;
+            } catch (authError) {
+                console.warn('No se pudo obtener el correo del guía desde Firebase Auth:', authError);
+            }
+        }
+
+        if (!destination) {
+            console.warn(`No se envió correo: guía ${params.uid} sin email registrado`);
+            return;
+        }
+
+        await sendProfileApprovalEmail({
+            to: destination,
+            fullName: params.fullName,
+            dashboardUrl: process.env.GUIDE_DASHBOARD_URL,
+        });
+    } catch (emailError) {
+        console.warn('No se pudo enviar correo de aprobación de perfil:', emailError);
+    }
+};
 
 // Obtener negocios archivados (solo admin)
 export const obtenerNegociosArchivados = async (req: Request, res: Response) => {
@@ -507,6 +536,13 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
                 leido: false,
                 enlace: '/negocio/estatus'
             });
+
+            const fullName = `${nombre} ${apellido}`.trim() || nombre || 'Guía Pitzbol';
+            void notifyGuideApprovalByEmail({
+                uid,
+                fullName,
+                email: data?.['04_correo'] || data?.email,
+            });
             
             return res.json({ 
                 success: true, 
@@ -817,6 +853,127 @@ export const obtenerNotificacionesUsuario = async (req: Request, res: Response) 
         res.status(500).json({ 
             success: false,
             error: error.message 
+        });
+    }
+};
+
+// Reservar un tour como admin (en nombre de un turista)
+export const adminCreateBooking = async (req: AuthRequest, res: Response) => {
+    try {
+        const {
+            guideId,
+            guideName,
+            touristId,
+            touristName,
+            fecha,
+            horaInicio,
+            duracion,
+            numPersonas,
+            notas,
+            total,
+        } = req.body;
+
+        // Validaciones de campos requeridos
+        if (!guideId || !touristId || !fecha || !horaInicio || !duracion || !numPersonas || total == null) {
+            return res.status(400).json({
+                success: false,
+                message: 'Faltan datos requeridos: guideId, touristId, fecha, horaInicio, duracion, numPersonas y total son obligatorios',
+            });
+        }
+
+        // Verificar que el guía exista en la colección de guías aprobados
+        const guideSnapshot = await db
+            .collection('guias')
+            .doc('lista')
+            .collection('usuarios')
+            .where('uid', '==', guideId)
+            .limit(1)
+            .get();
+
+        if (guideSnapshot.empty) {
+            return res.status(404).json({
+                success: false,
+                message: 'El guía especificado no existe o no está aprobado',
+            });
+        }
+
+        // Verificar que el turista exista
+        const touristSnapshot = await db
+            .collection('usuarios')
+            .doc('turistas')
+            .collection('lista')
+            .where('uid', '==', touristId)
+            .limit(1)
+            .get();
+
+        if (touristSnapshot.empty) {
+            return res.status(404).json({
+                success: false,
+                message: 'El turista especificado no existe',
+            });
+        }
+
+        // Verificar disponibilidad del guía
+        const isAvailable = await BookingService.checkGuideAvailability(guideId, fecha, horaInicio);
+
+        if (!isAvailable) {
+            return res.status(409).json({
+                success: false,
+                message: 'El guía no está disponible en esa fecha y hora',
+            });
+        }
+
+        // Crear la reserva con estado confirmado (el admin la respalda)
+        const booking = await BookingService.createBooking({
+            guideId,
+            guideName: guideName || '',
+            touristId,
+            touristName: touristName || '',
+            fecha,
+            horaInicio,
+            duracion,
+            numPersonas,
+            notas: notas || '',
+            total,
+            status: 'confirmado',
+            createdAt: new Date(),
+            updatedAt: new Date(),
+        });
+
+        // Intentar enviar correo de confirmación al turista
+        const touristData = touristSnapshot.docs[0]?.data();
+        const touristEmail = touristData?.['04_correo'] || touristData?.email;
+        const touristFullName = touristName
+            || `${touristData?.['01_nombre'] || ''} ${touristData?.['02_apellido'] || ''}`.trim()
+            || 'Turista';
+
+        if (touristEmail) {
+            sendBookingConfirmationEmail({
+                to: touristEmail,
+                touristName: touristFullName,
+                guideName: guideName || 'Guía',
+                fecha,
+                horaInicio,
+                duracion,
+                numPersonas,
+                total,
+            }).catch((err: any) => console.warn('No se pudo enviar correo de confirmación (admin booking):', err));
+        }
+
+        console.log(`✅ [Admin] Reserva creada por admin ${req.user?.uid} → booking ${booking.id}`);
+
+        return res.status(201).json({
+            success: true,
+            message: 'Reserva creada exitosamente por el administrador',
+            bookingId: booking.id,
+            booking,
+        });
+    } catch (error: any) {
+        console.error('❌ Error al crear reserva como admin:', error);
+        return res.status(500).json({
+            success: false,
+            message: 'Error al crear reserva como administrador',
+            error: error.message,
         });
     }
 };
