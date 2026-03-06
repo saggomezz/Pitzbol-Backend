@@ -456,6 +456,213 @@ export const actualizarPerfil = async (req: Request, res: Response) => {
   }
 };
 
+const publicProfileCollections = [
+  { role: 'guia', ref: db.collection('usuarios').doc('guias').collection('lista'), path: 'usuarios/guias/lista' },
+  { role: 'turista', ref: db.collection('usuarios').doc('turistas').collection('lista'), path: 'usuarios/turistas/lista' },
+  { role: 'admin', ref: db.collection('usuarios').doc('admins').collection('lista'), path: 'usuarios/admins/lista' },
+  { role: 'guia-pendiente', ref: db.collection('usuarios').doc('guias').collection('pendientes'), path: 'usuarios/guias/pendientes' },
+  { role: 'negociante', ref: db.collection('usuarios').doc('negocios').collection('lista'), path: 'usuarios/negocios/lista' },
+];
+
+const buildPublicProfile = (userData: any, role: string, fallbackUid: string) => {
+  const nombre = userData?.["01_nombre"] || userData?.nombre || '';
+  const apellido = userData?.["02_apellido"] || userData?.apellido || '';
+
+  return {
+    uid: userData?.uid || fallbackUid,
+    role,
+    nombre,
+    apellido,
+    nombreCompleto: `${nombre} ${apellido}`.trim(),
+    fotoPerfil: userData?.["14_foto_perfil"]?.url || userData?.fotoPerfil || '',
+    descripcion: userData?.["15_descripcion"] || userData?.descripcion || '',
+    biografia: userData?.["19_biografia"] || userData?.biografia || userData?.["15_descripcion"] || userData?.descripcion || '',
+    email: userData?.["04_correo"] || userData?.email || '',
+    telefono: userData?.["06_telefono"] || userData?.telefono || '',
+    nacionalidad: userData?.["05_nacionalidad"] || userData?.nacionalidad || '',
+    idiomas: userData?.["09_idiomas"] || userData?.idiomas || [],
+    especialidades: userData?.["07_especialidades"] || userData?.especialidades || [],
+    ubicacion: userData?.ubicacion || '',
+    experiencia: userData?.experiencia || '',
+    certificaciones: userData?.certificaciones || [],
+    disponibilidad: userData?.disponibilidad || null,
+    toursPorDia: userData?.toursPorDia || null,
+    tarifa: userData?.["17_tarifa_mxn"] || userData?.tarifa || null,
+    tarifaCompleta: userData?.["18_tarifa_dia_completo"] || userData?.tarifaCompleta || null,
+    calificacion: userData?.calificacion || null,
+    resenas: userData?.numeroResenas || userData?.resenas || null,
+  };
+};
+
+const findPublicProfileByIdentifier = async (identifier: string) => {
+  for (const collection of publicProfileCollections) {
+    console.log(`🔍 [obtenerPerfilPublico] Buscando en ${collection.path} por uid...`);
+    const byUid = await collection.ref.where('uid', '==', identifier).limit(1).get();
+    if (!byUid.empty) {
+      const userData = byUid.docs[0]?.data() || {};
+      return buildPublicProfile(userData, collection.role, identifier);
+    }
+
+    console.log(`🔍 [obtenerPerfilPublico] Buscando en ${collection.path} por docId...`);
+    const byDocId = await collection.ref.doc(identifier).get();
+    if (byDocId.exists) {
+      const userData = byDocId.data() || {};
+      return buildPublicProfile(userData, collection.role, identifier);
+    }
+  }
+
+  return null;
+};
+
+const extractOwnerIdentifierFromBusiness = (data: any): string | null => {
+  if (typeof data?.ownerUid === 'string' && data.ownerUid.trim()) return data.ownerUid.trim();
+  if (typeof data?.business?.owner === 'string' && data.business.owner.trim()) return data.business.owner.trim();
+  if (typeof data?.owner?.uid === 'string' && data.owner.uid.trim()) return data.owner.uid.trim();
+  if (typeof data?.owner === 'string' && data.owner.trim()) return data.owner.trim();
+  return null;
+};
+
+const extractOwnerEmailFromBusiness = (data: any): string | null => {
+  const emailFromRoot = typeof data?.email === 'string' ? data.email.trim() : '';
+  if (emailFromRoot) return emailFromRoot;
+
+  const emailFromBusiness = typeof data?.business?.email === 'string' ? data.business.email.trim() : '';
+  if (emailFromBusiness) return emailFromBusiness;
+
+  return null;
+};
+
+const findPublicProfileByEmail = async (email: string) => {
+  for (const collection of publicProfileCollections) {
+    console.log(`🔍 [obtenerPerfilPublico] Buscando en ${collection.path} por correo...`);
+
+    const byLegacyEmail = await collection.ref.where('04_correo', '==', email).limit(1).get();
+    if (!byLegacyEmail.empty) {
+      const userData = byLegacyEmail.docs[0]?.data() || {};
+      return buildPublicProfile(userData, collection.role, byLegacyEmail.docs[0]?.id || email);
+    }
+
+    const byEmail = await collection.ref.where('email', '==', email).limit(1).get();
+    if (!byEmail.empty) {
+      const userData = byEmail.docs[0]?.data() || {};
+      return buildPublicProfile(userData, collection.role, byEmail.docs[0]?.id || email);
+    }
+  }
+
+  return null;
+};
+
+const resolveOwnerEmailFromBusiness = async (identifier: string): Promise<string | null> => {
+  const pendingById = await db.collection('negocios').doc('Pendientes').collection('items').doc(identifier).get();
+  if (pendingById.exists) {
+    const email = extractOwnerEmailFromBusiness(pendingById.data());
+    if (email) return email;
+  }
+
+  const approvedById = await db.collection('negocios').doc('Business').collection('items').doc(identifier).get();
+  if (approvedById.exists) {
+    const email = extractOwnerEmailFromBusiness(approvedById.data());
+    if (email) return email;
+  }
+
+  const archivedById = await db.collection('negocios_archivados').doc(identifier).get();
+  if (archivedById.exists) {
+    const email = extractOwnerEmailFromBusiness(archivedById.data());
+    if (email) return email;
+  }
+
+  const pendingByUid = await db.collection('negocios').doc('Pendientes').collection('items').where('uid', '==', identifier).limit(1).get();
+  if (!pendingByUid.empty) {
+    const email = extractOwnerEmailFromBusiness(pendingByUid.docs[0]?.data());
+    if (email) return email;
+  }
+
+  const approvedByUid = await db.collection('negocios').doc('Business').collection('items').where('uid', '==', identifier).limit(1).get();
+  if (!approvedByUid.empty) {
+    const email = extractOwnerEmailFromBusiness(approvedByUid.docs[0]?.data());
+    if (email) return email;
+  }
+
+  const archivedByUid = await db.collection('negocios_archivados').where('uid', '==', identifier).limit(1).get();
+  if (!archivedByUid.empty) {
+    const email = extractOwnerEmailFromBusiness(archivedByUid.docs[0]?.data());
+    if (email) return email;
+  }
+
+  return null;
+};
+
+const resolveOwnerIdentifierFromBusiness = async (identifier: string): Promise<string | null> => {
+  const pendingById = await db.collection('negocios').doc('Pendientes').collection('items').doc(identifier).get();
+  if (pendingById.exists) return extractOwnerIdentifierFromBusiness(pendingById.data());
+
+  const approvedById = await db.collection('negocios').doc('Business').collection('items').doc(identifier).get();
+  if (approvedById.exists) return extractOwnerIdentifierFromBusiness(approvedById.data());
+
+  const archivedById = await db.collection('negocios_archivados').doc(identifier).get();
+  if (archivedById.exists) return extractOwnerIdentifierFromBusiness(archivedById.data());
+
+  const pendingByUid = await db.collection('negocios').doc('Pendientes').collection('items').where('uid', '==', identifier).limit(1).get();
+  if (!pendingByUid.empty) return extractOwnerIdentifierFromBusiness(pendingByUid.docs[0]?.data());
+
+  const approvedByUid = await db.collection('negocios').doc('Business').collection('items').where('uid', '==', identifier).limit(1).get();
+  if (!approvedByUid.empty) return extractOwnerIdentifierFromBusiness(approvedByUid.docs[0]?.data());
+
+  const archivedByUid = await db.collection('negocios_archivados').where('uid', '==', identifier).limit(1).get();
+  if (!archivedByUid.empty) return extractOwnerIdentifierFromBusiness(archivedByUid.docs[0]?.data());
+
+  return null;
+};
+
+export const obtenerPerfilPublico = async (req: Request, res: Response) => {
+  try {
+    const { uid } = req.params;
+
+    console.log(`📋 [obtenerPerfilPublico] Buscando perfil para identificador: ${uid}`);
+
+    if (!uid) {
+      console.error('❌ [obtenerPerfilPublico] Identificador no proporcionado');
+      return res.status(400).json({ success: false, message: 'UID es requerido' });
+    }
+
+    const profile = await findPublicProfileByIdentifier(uid);
+    if (profile) {
+      console.log(`✅ [obtenerPerfilPublico] Perfil encontrado directo`, { uid: profile.uid, role: profile.role });
+      return res.status(200).json({ success: true, profile });
+    }
+
+    const ownerIdentifier = await resolveOwnerIdentifierFromBusiness(uid);
+    if (ownerIdentifier) {
+      console.log(`ℹ️ [obtenerPerfilPublico] Fallback por negocio, ownerIdentifier: ${ownerIdentifier}`);
+      const ownerProfile = await findPublicProfileByIdentifier(ownerIdentifier);
+      if (ownerProfile) {
+        console.log(`✅ [obtenerPerfilPublico] Perfil encontrado por fallback de negocio`, { uid: ownerProfile.uid, role: ownerProfile.role });
+        return res.status(200).json({ success: true, profile: ownerProfile });
+      }
+    }
+
+    const ownerEmail = await resolveOwnerEmailFromBusiness(uid);
+    if (ownerEmail) {
+      console.log(`ℹ️ [obtenerPerfilPublico] Fallback por email de negocio: ${ownerEmail}`);
+      const ownerProfileByEmail = await findPublicProfileByEmail(ownerEmail);
+      if (ownerProfileByEmail) {
+        console.log(`✅ [obtenerPerfilPublico] Perfil encontrado por fallback de email`, { uid: ownerProfileByEmail.uid, role: ownerProfileByEmail.role });
+        return res.status(200).json({ success: true, profile: ownerProfileByEmail });
+      }
+    }
+
+    console.error(`❌ [obtenerPerfilPublico] Usuario con identificador ${uid} no encontrado`);
+    return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+  } catch (error: any) {
+    console.error('❌ Error al obtener perfil público:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al obtener perfil público',
+      error: error.message,
+    });
+  }
+};
+
 
     /**
  * WALLET CONTROLLERS
@@ -631,5 +838,114 @@ export const establecerPredeterminada = async (req: any, res: Response) => {
   } catch (error: any) {
     console.error('❌ Error estableciendo predeterminada:', error);
     res.status(500).json({ error: error.message || 'Error estableciendo predeterminada' });
+  }
+};
+
+export const obtenerToursGuia = async (req: Request, res: Response) => {
+  try {
+    const { uid } = req.params;
+    
+    if (!uid) {
+      console.error('❌ [obtenerToursGuia] UID no proporcionado');
+      return res.status(400).json({ success: false, message: 'UID es requerido' });
+    }
+
+    console.log(`📋 [obtenerToursGuia] Buscando tours para guía UID: ${uid}`);
+
+    const bookingsSnapshot = await db.collection('bookings').where('guideId', '==', uid).get();
+    
+    if (bookingsSnapshot.empty) {
+      console.log(`ℹ️ [obtenerToursGuia] No hay tours para el guía ${uid}`);
+      return res.status(200).json({
+        success: true,
+        tours: []
+      });
+    }
+
+    const tours = bookingsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    console.log(`✅ [obtenerToursGuia] Se encontraron ${tours.length} tours`);
+    return res.status(200).json({
+      success: true,
+      tours
+    });
+  } catch (error: any) {
+    console.error('❌ Error al obtener tours del guía:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al obtener tours',
+      error: error.message
+    });
+  }
+};
+
+export const obtenerNegociosUsuario = async (req: Request, res: Response) => {
+  try {
+    const { uid } = req.params;
+    
+    if (!uid) {
+      console.error('❌ [obtenerNegociosUsuario] UID no proporcionado');
+      return res.status(400).json({ success: false, message: 'UID es requerido' });
+    }
+
+    console.log(`📋 [obtenerNegociosUsuario] Buscando negocios para UID: ${uid}`);
+
+    const negocios: any[] = [];
+
+    const pendientesSnapshot = await db.collection('negocios')
+      .doc('Pendientes')
+      .collection('items')
+      .where('ownerUid', '==', uid)
+      .get();
+
+    pendientesSnapshot.docs.forEach(doc => {
+      negocios.push({
+        id: doc.id,
+        status: 'PENDING',
+        ...doc.data()
+      });
+    });
+
+    const businessSnapshot = await db.collection('negocios')
+      .doc('Business')
+      .collection('items')
+      .where('ownerUid', '==', uid)
+      .get();
+
+    businessSnapshot.docs.forEach(doc => {
+      negocios.push({
+        id: doc.id,
+        status: 'APPROVED',
+        ...doc.data()
+      });
+    });
+
+    const archivedSnapshot = await db.collection('negocios_archivados')
+      .where('ownerUid', '==', uid)
+      .get();
+
+    archivedSnapshot.docs.forEach(doc => {
+      negocios.push({
+        id: doc.id,
+        status: 'ARCHIVED',
+        ...doc.data()
+      });
+    });
+
+    console.log(`✅ [obtenerNegociosUsuario] Se encontraron ${negocios.length} negocios`);
+    return res.status(200).json({
+      success: true,
+      negocios
+    });
+  } catch (error: any) {
+    console.error('❌ Error al obtener negocios del usuario:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al obtener negocios',
+      error: error.message
+    });
   }
 };
