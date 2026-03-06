@@ -37,7 +37,7 @@
     "express-rate-limit": "^8.2.1",
     "face-api.js": "^0.20.0",
     "firebase": "^12.7.0",
-    "firebase-admin": "^12.7.0",
+    "firebase-admin": "^10.3.0",
     "jsonwebtoken": "^9.0.3",
     "multer": "^2.0.2",
     "nodemailer": "^7.0.12",
