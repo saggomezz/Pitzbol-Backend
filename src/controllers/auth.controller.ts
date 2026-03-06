@@ -500,7 +500,7 @@ export const getItinerariosUsuario = async (req: Request, res: Response) => {
     if (!uid || typeof uid !== 'string') {
       return res.status(400).json({ error: 'uid requerido' });
     }
-    const roleMap: Record<string, string> = { turista: 'turistas', guia: 'guias', admin: 'admins' };
+    const roleMap: Record<string, string> = { turista: 'turistas', guia: 'guias', admin: 'admins', negociante: 'negocios' };
     const roleCollection = roleMap[role as string] || 'turistas';
 
     const snapshot = await db
