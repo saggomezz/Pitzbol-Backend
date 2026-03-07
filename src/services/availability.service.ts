@@ -94,13 +94,15 @@ export class AvailabilityService {
   ): Promise<boolean> {
     const availability = await this.getGuideAvailability(guideId, fecha);
     
-    if (!availability) return false;
+    // Si el guía no ha configurado disponibilidad, se asume disponible
+    if (!availability) return true;
 
     const timeSlot = availability.horasDisponibles.find(
       slot => slot.horaInicio === horaInicio
     );
 
-    if (!timeSlot) return false;
+    // Si el horario no está en la lista configurada, se asume disponible
+    if (!timeSlot) return true;
 
     return timeSlot.disponible && timeSlot.reservasActuales < availability.maxReservasPorHora;
   }
@@ -113,9 +115,8 @@ export class AvailabilityService {
   ): Promise<void> {
     const availability = await this.getGuideAvailability(guideId, fecha);
     
-    if (!availability) {
-      throw new Error('No se encontró disponibilidad para esa fecha');
-    }
+    // Si no hay disponibilidad configurada, no hay nada que incrementar
+    if (!availability) return;
 
     const timeSlotIndex = availability.horasDisponibles.findIndex(
       slot => slot.horaInicio === horaInicio
