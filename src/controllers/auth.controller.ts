@@ -362,7 +362,7 @@ export const updateProfile = async (req: any, res: Response) => {
   try {
     // 1. Mantenemos la extracción original y añadimos 'descripcion'
     const uid = req.user?.uid;
-    const { telefono, nacionalidad, especialidades, descripcion } = req.body;
+    const { telefono, nacionalidad, especialidades, descripcion, tarifa, tarifaDiaCompleto, rutaTour } = req.body;
 
     if (!uid) {
       return res.status(401).json({ msg: "Usuario no autenticado" });
@@ -425,11 +425,13 @@ export const updateProfile = async (req: any, res: Response) => {
       },
       "15_descripcion": descripcion !== undefined ? descripcion : (userData["15_descripcion"] || userData.descripcion || ""),
       "16_status": userData.status || userData["16_status"] || "en_revision",
-      "17_tarifa_mxn": userData.tarifa_mxn || userData["17_tarifa_mxn"] || 0,
+      "17_tarifa_mxn": tarifa !== undefined ? Number(tarifa) : (userData["17_tarifa_mxn"] || 0),
       "18_validacion_biometrica": {
         porcentaje: userData.validacion_biometrica?.porcentaje || userData["18_validacion_biometrica"]?.porcentaje || "0",
         mensaje: userData.validacion_biometrica?.mensaje || userData["18_validacion_biometrica"]?.mensaje || ""
       },
+      "19_tarifa_dia_completo": tarifaDiaCompleto !== undefined ? Number(tarifaDiaCompleto) : (userData["19_tarifa_dia_completo"] || 0),
+      "20_ruta_tour": rutaTour !== undefined ? rutaTour : (userData["20_ruta_tour"] || ""),
     };
 
     await docRef.update(updateData);

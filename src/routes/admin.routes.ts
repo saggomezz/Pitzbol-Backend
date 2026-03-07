@@ -181,6 +181,13 @@ router.put(
   adminController.marcarNotificacionComoLeida
 );
 
+// PROTEGIDO - Eliminar todas las notificaciones de un usuario
+router.delete(
+  '/notifications/user/:uid',
+  authMiddleware,
+  adminController.limpiarNotificacionesUsuario
+);
+
 // PROTEGIDO - Eliminar notificación
 router.delete(
   '/notifications/:id',
