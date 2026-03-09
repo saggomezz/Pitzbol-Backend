@@ -1,16 +1,18 @@
-import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from "dotenv";
+dotenv.config();
 import express from 'express';
-import adminRoutes from './routes/admin.routes';
-import aiRoutes from "./routes/ai.routes";
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import cookieParser from 'cookie-parser';
 import authRoutes from './routes/auth.routes';
-import businessRoutes from "./routes/business.routes";
 import guideRoutes from './routes/guide.routes';
-import historialRoutes from './routes/historial.routes';
+import businessRoutes from "./routes/business.routes";
 import ocrRoutes from './routes/ocr.routes';
+import adminRoutes from './routes/admin.routes';
 import paymentRoutes from "./routes/payment.routes";
 import perfilRoutes from './routes/perfil.routes';
+import historialRoutes from './routes/historial.routes';
 import placesRoutes from './routes/places.routes';
 import supportRoutes from './routes/support.routes';
 import favoritesRoutes from './routes/favorites.routes';
@@ -20,23 +22,39 @@ import ratingRoutes from './routes/rating.routes';
 import placeRatingRoutes from './routes/place-rating.routes';
 import availabilityRoutes from './routes/availability.routes';
 import walletRoutes from './routes/wallet.routes';
+import aiRoutes from "./routes/ai.routes";
 import { ChatService } from './services/chat.service';
-=======
-dotenv.config();
 
-
-dotenv.config();
 const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001', 'http://69.30.204.56:3000'],
+    methods: ["GET", "POST"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"]
+  }
+});
+const PORT = Number(process.env.PORT) || 3001;
 
-// Configuración CORS más permisiva para desarrollo
 const allowedOrigins = [
   'http://localhost:3000',
   'http://localhost:3001',
   'http://127.0.0.1:3000',
-  'http://127.0.0.1:3001'
+  'http://127.0.0.1:3001',
+  'http://69.30.204.56:3000',
+  'http://69.30.204.56:3003',
 ];
 
 app.use(cors({
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "Cache-Control", "Pragma"],
   credentials: true,
@@ -63,6 +81,15 @@ app.use('/api/perfil', perfilRoutes);
 app.use('/api', historialRoutes);
 app.use('/api/lugares', placesRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/favorites', favoritesRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/bookings', bookingRoutes);
+app.use('/api/ratings', ratingRoutes);
+app.use('/api/place-ratings', placeRatingRoutes);
+app.use('/api/availability', availabilityRoutes);
+app.use('/api/wallet', walletRoutes);
+app.use("/api", aiRoutes);
+
 // Manejo de rutas no encontradas
 app.use('/api', (req, res) => {
   console.warn(`Ruta no encontrada: [${req.method}] ${req.url}`);
@@ -83,34 +110,28 @@ app.use((err: any, req: any, res: any, next: any) => {
   });
 });
 
-
-
 // Socket.IO para chat en tiempo real
 io.on('connection', (socket) => {
   console.log('Usuario conectado:', socket.id);
-  
+
   const userId = socket.handshake.auth.userId;
   const userType = socket.handshake.auth.userType;
-  
+
   if (userId) {
-    // Unir al usuario a su sala personal para notificaciones
     socket.join(`user:${userId}`);
     console.log(`Usuario ${userId} (${userType}) unido a su sala personal`);
   }
 
-  // Unirse a una sala de chat
   socket.on('join-chat', (chatId: string) => {
     socket.join(chatId);
     console.log(`Usuario ${socket.id} se unió al chat ${chatId}`);
   });
 
-  // Salir de una sala de chat
   socket.on('leave-chat', (chatId: string) => {
     socket.leave(chatId);
     console.log(`Usuario ${socket.id} salió del chat ${chatId}`);
   });
 
-  // Enviar mensaje
   socket.on('send-message', async (data: {
     chatId: string;
     senderId: string;
@@ -128,8 +149,6 @@ io.on('connection', (socket) => {
         timestamp: new Date(),
         read: false,
       });
-
-      // Emitir mensaje a todos en la sala
       io.to(data.chatId).emit('new-message', message);
     } catch (error) {
       console.error('Error al guardar mensaje:', error);
@@ -137,19 +156,15 @@ io.on('connection', (socket) => {
     }
   });
 
-  // Usuario está escribiendo
   socket.on('typing', (data: { chatId: string; userName: string }) => {
     socket.to(data.chatId).emit('user-typing', data);
   });
 
-  // Usuario dejó de escribir
   socket.on('stop-typing', (data: { chatId: string }) => {
     socket.to(data.chatId).emit('user-stop-typing', data);
   });
 
-  // Marcar mensajes como leídos
   socket.on('mark-as-read', (data: { chatId: string; userId: string }) => {
-    // Notificar a todos en el chat que los mensajes fueron leídos
     io.to(data.chatId).emit('messages-read', data);
     console.log(`Mensajes del chat ${data.chatId} marcados como leídos por ${data.userId}`);
   });
@@ -160,12 +175,14 @@ io.on('connection', (socket) => {
 });
 
 app.get('/', (req, res) => {
-    res.send(`
-        <h1>El Backend sí funcionaa</h1>
-        <p>El servidor está corriendo correctamente</p>
-        <p>Usa los endpoints en <code>/api/auth/login</code> o <code>/api/auth/register</code></p>
-    `);
+  res.send(`
+    <h1>El Backend sí funcionaa</h1>
+    <p>El servidor está corriendo correctamente</p>
+    <p>Usa los endpoints en <code>/api/auth/login</code> o <code>/api/auth/register</code></p>
+  `);
 });
 
+httpServer.listen(PORT, "0.0.0.0", () => {
+  console.log(`Servidor corriendo en puerto ${PORT}`);
+  console.log(`Socket.IO corriendo en puerto ${PORT}`);
 });
-

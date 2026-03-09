@@ -118,8 +118,8 @@ router.get(
       const { userId } = req.params;
 
       // Obtener tarjetas guardadas de Firebase
-      const walletDoc = await db.collection('wallets').doc(userId).get();
-      
+      const walletDoc = await db.collection('wallets').doc(userId as string).get();
+
       if (!walletDoc.exists) {
         res.json({
           success: true,
@@ -180,7 +180,7 @@ router.post(
       };
 
       // Guardar en Firebase
-      const walletRef = db.collection('wallets').doc(userId);
+      const walletRef = db.collection('wallets').doc(userId as string);
       const walletDoc = await walletRef.get();
 
       if (walletDoc.exists) {

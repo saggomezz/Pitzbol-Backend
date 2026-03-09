@@ -565,7 +565,7 @@ export const getItinerariosUsuario = async (req: Request, res: Response) => {
 
     if (snapshot.empty) return res.json([]);
 
-    const itinSnap = await snapshot.docs[0].ref
+    const itinSnap = await snapshot.docs[0]!.ref
       .collection('itinerarios').orderBy('creadoEn', 'desc').get();
 
     return res.json(itinSnap.docs.map(d => ({ id: d.id, ...d.data() })));

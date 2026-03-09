@@ -661,7 +661,6 @@ export const obtenerPerfilPublico = async (req: Request, res: Response) => {
       error: error.message,
     });
   }
-=======
 };
 
 
