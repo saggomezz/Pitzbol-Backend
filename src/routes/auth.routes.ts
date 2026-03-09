@@ -5,6 +5,7 @@ import {
   recoverPassword,
   updateProfile,
   solicitarGuia,
+  getItinerariosUsuario,
 } from "../controllers/auth.controller";
 import { authMiddleware } from "../middlewares/auth.middleware";
 import { validateRegisterInput, validateLoginInput, validatePasswordRecoveryInput, validateProfileUpdate } from "../middlewares/validation.middleware";
@@ -64,5 +65,8 @@ router.post(
   authMiddleware,           // Requiere estar autenticado
   solicitarGuia
 );
+
+// GET /api/auth/itinerarios?uid=xxx&role=turista
+router.get('/itinerarios', getItinerariosUsuario);
 
 export default router;

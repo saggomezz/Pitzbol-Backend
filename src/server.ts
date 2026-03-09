@@ -1,18 +1,16 @@
+import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import dotenv from "dotenv";
-dotenv.config();
 import express from 'express';
-import { createServer } from 'http';
-import { Server } from 'socket.io';
-import cookieParser from 'cookie-parser';
-import authRoutes from './routes/auth.routes';
-import guideRoutes from './routes/guide.routes';
-import businessRoutes from "./routes/business.routes";
-import ocrRoutes from './routes/ocr.routes';
 import adminRoutes from './routes/admin.routes';
+import aiRoutes from "./routes/ai.routes";
+import authRoutes from './routes/auth.routes';
+import businessRoutes from "./routes/business.routes";
+import guideRoutes from './routes/guide.routes';
+import historialRoutes from './routes/historial.routes';
+import ocrRoutes from './routes/ocr.routes';
 import paymentRoutes from "./routes/payment.routes";
 import perfilRoutes from './routes/perfil.routes';
-import historialRoutes from './routes/historial.routes';
 import placesRoutes from './routes/places.routes';
 import supportRoutes from './routes/support.routes';
 import favoritesRoutes from './routes/favorites.routes';
@@ -23,20 +21,12 @@ import placeRatingRoutes from './routes/place-rating.routes';
 import availabilityRoutes from './routes/availability.routes';
 import walletRoutes from './routes/wallet.routes';
 import { ChatService } from './services/chat.service';
+=======
+dotenv.config();
 
 
 dotenv.config();
 const app = express();
-const httpServer = createServer(app);
-const io = new Server(httpServer, {
-  cors: {
-    origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001'],
-    methods: ["GET", "POST"],
-    credentials: true,
-    allowedHeaders: ["Content-Type", "Authorization"]
-  }
-});
-const PORT = process.env.PORT || 3001;
 
 // Configuración CORS más permisiva para desarrollo
 const allowedOrigins = [
@@ -47,16 +37,6 @@ const allowedOrigins = [
 ];
 
 app.use(cors({
-  origin: function (origin, callback) {
-    // Permitir requests sin origin (como mobile apps o curl)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
-      callback(null, true);
-    } else {
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization", "Cache-Control", "Pragma"],
   credentials: true,
@@ -83,13 +63,6 @@ app.use('/api/perfil', perfilRoutes);
 app.use('/api', historialRoutes);
 app.use('/api/lugares', placesRoutes);
 app.use('/api/support', supportRoutes);
-app.use('/api/favorites', favoritesRoutes);
-app.use('/api/chat', chatRoutes);
-app.use('/api/bookings', bookingRoutes);
-app.use('/api/ratings', ratingRoutes);
-app.use('/api/place-ratings', placeRatingRoutes);
-app.use('/api/availability', availabilityRoutes);
-app.use('/api/wallet', walletRoutes);
 // Manejo de rutas no encontradas
 app.use('/api', (req, res) => {
   console.warn(`Ruta no encontrada: [${req.method}] ${req.url}`);
@@ -194,7 +167,5 @@ app.get('/', (req, res) => {
     `);
 });
 
-httpServer.listen(PORT, () => {
-  console.log(`Servidor corriendo en http://localhost:${PORT}`);
-  console.log(`Socket.IO corriendo en http://localhost:${PORT}`);
 });
+
