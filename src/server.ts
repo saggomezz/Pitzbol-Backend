@@ -92,7 +92,7 @@ app.use('/api/availability', availabilityRoutes);
 app.use('/api/wallet', walletRoutes);
 // Manejo de rutas no encontradas
 app.use('/api', (req, res) => {
-  console.warn(`⚠️ Ruta no encontrada: [${req.method}] ${req.url}`);
+  console.warn(`Ruta no encontrada: [${req.method}] ${req.url}`);
   res.status(404).json({
     success: false,
     msg: 'Endpoint no encontrado',
@@ -102,7 +102,7 @@ app.use('/api', (req, res) => {
 
 // Manejo global de errores
 app.use((err: any, req: any, res: any, next: any) => {
-  console.error('❌ Error en el servidor:', err);
+  console.error('Error en el servidor:', err);
   res.status(err.status || 500).json({
     success: false,
     msg: err.message || 'Error interno del servidor',

@@ -109,20 +109,20 @@ export const login = async (req: Request, res: Response) => {
     const { email, password } = req.body;
     
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('🔐 INTENTO DE LOGIN');
-    console.log('📧 Email:', email);
-    console.log('🔑 Password length:', password?.length, 'caracteres');
-    console.log('🌐 Firebase API Key configurada:', FIREBASE_WEB_API_KEY ? 'Sí ✅' : 'NO ❌');
+    console.log('INTENTO DE LOGIN');
+    console.log('Email:', email);
+    console.log('Password length:', password?.length, 'caracteres');
+    console.log('Firebase API Key configurada:', FIREBASE_WEB_API_KEY ? 'Sí ✅' : 'NO ❌');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_WEB_API_KEY}`;
     
-    console.log('🔄 Intentando autenticar con Firebase...');
+    console.log('Intentando autenticar con Firebase...');
     const response = await axios.post(url, { email, password, returnSecureToken: true });
     const { localId } = response.data;
     
-    console.log('✅ Firebase autenticó correctamente');
-    console.log('👤 UID:', localId);
+    console.log('Firebase autenticó correctamente');
+    console.log('UID:', localId);
     
     let userData: any = null;
     let userRole: string = "";
@@ -191,7 +191,7 @@ export const login = async (req: Request, res: Response) => {
     });
 
     // Logging seguro (sin revelar datos sensibles)
-    console.log(`✅ Login exitoso para usuario: ${localId}`);
+    console.log(`Login exitoso para usuario: ${localId}`);
 
     res.json({
       success: true,
@@ -221,11 +221,11 @@ export const login = async (req: Request, res: Response) => {
     const code = firebaseError?.message;
 
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.error('❌ ERROR EN LOGIN');
-    console.error('📋 Email intentado:', req.body.email);
-    console.error('🔥 Código de error Firebase:', code || 'Sin código');
-    console.error('📝 Mensaje de error:', error.message);
-    console.error('📊 Respuesta completa de Firebase:', JSON.stringify(error.response?.data, null, 2));
+    console.error('ERROR EN LOGIN');
+    console.error('Email intentado:', req.body.email);
+    console.error('Código de error Firebase:', code || 'Sin código');
+    console.error('Mensaje de error:', error.message);
+    console.error('Respuesta completa de Firebase:', JSON.stringify(error.response?.data, null, 2));
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     // Mensajes de error más descriptivos
@@ -274,7 +274,7 @@ export const login = async (req: Request, res: Response) => {
 
 // Recuperar contraseña
 export const recoverPassword = async (req: Request, res: Response) => {
-  console.log("🚀 Petición de recuperación recibida para:", req.body.email);
+  console.log("Petición de recuperación recibida para:", req.body.email);
   
   try {
     const { email } = req.body;
@@ -454,7 +454,7 @@ export const solicitarGuia = async (req: any, res: Response) => {
       return res.status(401).json({ msg: "Usuario no autenticado" });
     }
 
-    console.log(`📋 Solicitud de guía para uid: ${uid}`);
+    console.log(`Solicitud de guía para uid: ${uid}`);
 
     // Buscar el usuario en turistas para obtener sus datos
     const turistaSnapshot = await db.collection("usuarios")
@@ -529,13 +529,13 @@ export const solicitarGuia = async (req: any, res: Response) => {
           }
         });
         await batch.commit();
-        console.log('✅ Notificación enviada a administradores');
+        console.log('Notificación enviada a administradores');
       }
     } catch (notifError) {
-      console.warn('⚠️ Error al notificar a administradores:', notifError);
+      console.warn('Error al notificar a administradores:', notifError);
     }
 
-    console.log(`✅ Solicitud de guía creada para uid: ${uid}`);
+    console.log(`Solicitud de guía creada para uid: ${uid}`);
 
     res.status(201).json({
       msg: "Solicitud de guía enviada correctamente",

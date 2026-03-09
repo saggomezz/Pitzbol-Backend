@@ -51,13 +51,18 @@ export class BookingService {
     const bookingsRef = db.collection('bookings');
     const snapshot = await bookingsRef
       .where('touristId', '==', touristId)
-      .orderBy('createdAt', 'desc')
       .get();
 
-    return snapshot.docs.map(doc => ({
+    const bookings = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
     })) as Booking[];
+
+    return bookings.sort((a, b) => {
+      const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+      const dateB = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+      return dateB - dateA;
+    });
   }
 
   // Obtener reservas de un guía
@@ -65,13 +70,19 @@ export class BookingService {
     const bookingsRef = db.collection('bookings');
     const snapshot = await bookingsRef
       .where('guideId', '==', guideId)
-      .orderBy('createdAt', 'desc')
       .get();
 
-    return snapshot.docs.map(doc => ({
+    const bookings = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data(),
     })) as Booking[];
+
+    // Ordenar en memoria por createdAt descendente
+    return bookings.sort((a, b) => {
+      const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
+      const dateB = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
+      return dateB - dateA;
+    });
   }
 
   // Actualizar estado de reserva

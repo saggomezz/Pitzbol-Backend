@@ -362,7 +362,7 @@ export const getVerifiedGuides = async (req: Request, res: Response) => {
         console.log(`✅ Se encontraron ${guides.length} guías verificados`);
         
         // Log detallado del primer guía
-        if (guides.length > 0) {
+        if (guides.length > 0 && guides[0]) {
             console.log("📌 Ejemplo de guía devuelto:", {
                 uid: guides[0].uid,
                 nombre: guides[0].nombre,
@@ -378,7 +378,7 @@ export const getVerifiedGuides = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        console.error("❌ Error al obtener guías verificados:", error);
+        console.error("Error al obtener guías verificados:", error);
         return res.status(500).json({ 
             message: 'Error interno al obtener guías',
             error: error.message 
@@ -408,7 +408,7 @@ export const getGuideRequest = async (req: Request, res: Response) => {
             .limit(1)
             .get();
 
-        if (!pendientesSnapshot.empty) {
+        if (!pendientesSnapshot.empty && pendientesSnapshot.docs[0]) {
             const doc = pendientesSnapshot.docs[0];
             const data = doc.data();
             
@@ -446,7 +446,7 @@ export const getGuideRequest = async (req: Request, res: Response) => {
             .limit(1)
             .get();
 
-        if (!aprobadosSnapshot.empty) {
+        if (!aprobadosSnapshot.empty && aprobadosSnapshot.docs[0]) {
             const doc = aprobadosSnapshot.docs[0];
             const data = doc.data();
             
@@ -484,7 +484,7 @@ export const getGuideRequest = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        console.error("❌ Error al obtener solicitud de guía:", error);
+        console.error("Error al obtener solicitud de guía:", error);
         return res.status(500).json({ 
             success: false,
             message: 'Error interno al obtener solicitud',
@@ -504,7 +504,7 @@ export const getGuidePublicProfile = async (req: Request, res: Response) => {
             });
         }
 
-        console.log("📋 Obteniendo perfil público del guía:", uid);
+        console.log("Obteniendo perfil público del guía:", uid);
 
         // Buscar el guía en la colección de verificados
         const guidesSnapshot = await db.collection('usuarios')
@@ -515,14 +515,14 @@ export const getGuidePublicProfile = async (req: Request, res: Response) => {
             .get();
 
         if (guidesSnapshot.empty) {
-            console.log("ℹ️ No se encontró el guía con UID:", uid);
+            console.log("ℹNo se encontró el guía con UID:", uid);
             return res.status(404).json({ 
                 success: false,
                 message: 'Guía no encontrado' 
             });
         }
 
-        const guideDoc = guidesSnapshot.docs[0];
+        const guideDoc = guidesSnapshot.docs[0]!;
         const data = guideDoc.data();
 
         const guideProfile = {
@@ -545,7 +545,7 @@ export const getGuidePublicProfile = async (req: Request, res: Response) => {
             resenas: data.numeroResenas || 0,
         };
 
-        console.log(`✅ Perfil del guía encontrado:`, guideProfile.nombre);
+        console.log(`Perfil del guía encontrado:`, guideProfile.nombre);
         
         return res.status(200).json({ 
             success: true,
@@ -553,7 +553,7 @@ export const getGuidePublicProfile = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        console.error("❌ Error al obtener perfil público del guía:", error);
+        console.error("Error al obtener perfil público del guía:", error);
         return res.status(500).json({ 
             success: false,
             message: 'Error interno al obtener perfil del guía',

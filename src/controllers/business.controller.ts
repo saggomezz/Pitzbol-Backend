@@ -214,7 +214,7 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
     } = req.body;
 
     console.log("[registerBusinessWithImages] Body recibido:", req.body);
-    console.log("[registerBusinessWithImages] 📍 Coordenadas recibidas:", { latitud, longitud });
+    console.log("[registerBusinessWithImages] Coordenadas recibidas:", { latitud, longitud });
     console.log("[registerBusinessWithImages] Files recibidos:", req.files);
 
     // Validar que los campos obligatorios estén presentes
@@ -322,7 +322,7 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
       },
     };
     
-    console.log(`[registerBusinessWithImages] 💾 Guardando en Firestore con coordenadas:`, {
+    console.log(`[registerBusinessWithImages] Guardando en Firestore con coordenadas:`, {
       latitud: businessData.business.latitud,
       longitud: businessData.business.longitud
     });
@@ -352,9 +352,9 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
       };
       console.log(`[registerBusinessWithImages] Contenido de notificación:`, JSON.stringify(notificacion, null, 2));
       await sendNotificationToUser(ownerUid, notificacion);
-      console.log(`[registerBusinessWithImages] ✅ Notificación enviada exitosamente`);
+      console.log(`[registerBusinessWithImages] Notificación enviada exitosamente`);
     } else {
-      console.log(`[registerBusinessWithImages] ⚠️ No se envió notificación porque no se proporcionó ownerUid`);
+      console.log(`[registerBusinessWithImages] No se envió notificación porque no se proporcionó ownerUid`);
     }
 
     return res.status(201).json({
@@ -495,8 +495,8 @@ export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
             ? new Date((data.business.createdAt?.seconds || 0) * 1000).toISOString()
             : new Date().toISOString();
 
-          console.log(`[getMyBusiness] ✅ Negocio encontrado en Pendientes por ownerUid`);
-          console.log(`[getMyBusiness] 📍 Coordenadas en documento:`, {
+          console.log(`[getMyBusiness] Negocio encontrado en Pendientes por ownerUid`);
+          console.log(`[getMyBusiness] Coordenadas en documento:`, {
             latitud: data.business?.latitud,
             longitud: data.business?.longitud
           });
@@ -535,7 +535,7 @@ export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
         ? new Date((data.business.createdAt?.seconds || 0) * 1000).toISOString()
         : new Date().toISOString();
 
-      console.log(`[getMyBusiness] ✅ Negocio encontrado en Pendientes por email`);
+      console.log(`[getMyBusiness] Negocio encontrado en Pendientes por email`);
       return res.json({
         success: true,
         business: {
@@ -567,7 +567,7 @@ export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
             ? new Date((data.business.createdAt?.seconds || 0) * 1000).toISOString()
             : new Date().toISOString();
 
-          console.log(`[getMyBusiness] ✅ Negocio encontrado en Business por ownerUid`);
+          console.log(`[getMyBusiness] Negocio encontrado en Business por ownerUid`);
           return res.json({
             success: true,
             business: {
@@ -633,7 +633,7 @@ export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
             ? new Date((data.business.createdAt?.seconds || 0) * 1000).toISOString()
             : new Date().toISOString();
 
-          console.log(`[getMyBusiness] ✅ Negocio encontrado en archivados por ownerUid`);
+          console.log(`[getMyBusiness] Negocio encontrado en archivados por ownerUid`);
           return res.json({
             success: true,
             business: {
@@ -681,7 +681,7 @@ export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
       });
     }
 
-    console.log(`[getMyBusiness] ❌ No se encontró ningún negocio para uid: ${userUid}, email: ${userEmail}`);
+    console.log(`[getMyBusiness] No se encontró ningún negocio para uid: ${userUid}, email: ${userEmail}`);
     return res.status(404).json({ success: false, message: "No tienes un negocio registrado" });
 
   } catch (error: any) {

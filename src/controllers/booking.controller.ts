@@ -3,6 +3,7 @@ import { db, auth } from '../config/firebase';
 import { Booking } from '../models/booking.model';
 import { BookingService } from '../services/booking.service';
 import { sendBookingConfirmationEmail } from '../services/email.service';
+import { AvailabilityService } from '../services/availability.service';
 
 const getTouristContact = async (uid: string) => {
   const snapshot = await db
@@ -101,6 +102,25 @@ export const createBooking = async (req: Request, res: Response) => {
     });
 
     notifyBookingByEmail(booking);
+
+    // Notificar al guía de la nueva solicitud
+    try {
+      const notificacion = {
+        tipo: 'nueva_solicitud_tour',
+        titulo: 'Nueva Solicitud de Tour',
+        mensaje: `${booking.touristName} ha solicitado un tour para el ${booking.fecha} (${booking.duracion === 'medio' ? 'Medio Día' : 'Día Completo'}).`,
+        fecha: new Date().toISOString(),
+        leido: false,
+        enlace: '/guide/solicitudes',
+      };
+
+      await db.collection('usuarios')
+        .doc('notificaciones')
+        .collection(booking.guideId)
+        .add(notificacion);
+    } catch (notifError) {
+      console.warn('No se pudo enviar notificación al guía:', notifError);
+    }
 
     res.status(201).json({
       success: true,
@@ -338,6 +358,112 @@ export const completeTour = async (req: Request, res: Response) => {
     res.status(500).json({
       success: false,
       message: 'Error al completar tour',
+      error: error.message,
+    });
+  }
+};
+
+// Confirmar o rechazar una solicitud de reserva (solo el guía puede hacerlo)
+export const confirmBooking = async (req: Request, res: Response) => {
+  try {
+    const { bookingId } = req.params;
+    const { guideId, action } = req.body; // action: 'confirmar' | 'rechazar'
+
+    if (!bookingId || Array.isArray(bookingId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'bookingId es requerido',
+      });
+    }
+
+    if (!guideId) {
+      return res.status(400).json({
+        success: false,
+        message: 'guideId es requerido',
+      });
+    }
+
+    if (!action || !['confirmar', 'rechazar'].includes(action)) {
+      return res.status(400).json({
+        success: false,
+        message: 'action debe ser "confirmar" o "rechazar"',
+      });
+    }
+
+    // Verificar que la reserva existe y pertenece al guía
+    const booking = await BookingService.getBookingById(bookingId);
+
+    if (!booking) {
+      return res.status(404).json({
+        success: false,
+        message: 'Reserva no encontrada',
+      });
+    }
+
+    if (booking.guideId !== guideId) {
+      return res.status(403).json({
+        success: false,
+        message: 'No tienes permiso para gestionar esta reserva',
+      });
+    }
+
+    if (booking.status !== 'pendiente') {
+      return res.status(400).json({
+        success: false,
+        message: `No se puede ${action} una reserva con estado "${booking.status}"`,
+      });
+    }
+
+    const newStatus = action === 'confirmar' ? 'confirmado' : 'cancelado';
+    await BookingService.updateBookingStatus(bookingId, newStatus);
+
+    // Si se rechaza, decrementar disponibilidad
+    if (action === 'rechazar') {
+      try {
+        await AvailabilityService.decrementBookingCount(
+          booking.guideId,
+          booking.fecha,
+          booking.horaInicio
+        );
+      } catch (err) {
+        console.warn('No se pudo actualizar disponibilidad al rechazar:', err);
+      }
+    }
+
+    // Notificar al turista
+    try {
+      const mensaje = action === 'confirmar'
+        ? `Tu reserva con ${booking.guideName} para el ${booking.fecha} ha sido confirmada. Procede al pago para asegurar tu lugar.`
+        : `Tu solicitud de reserva con ${booking.guideName} para el ${booking.fecha} fue rechazada por el guía.`;
+
+      const notificacion = {
+        tipo: action === 'confirmar' ? 'reserva_confirmada' : 'reserva_rechazada',
+        titulo: action === 'confirmar' ? 'Reserva Confirmada ✓' : 'Reserva Rechazada',
+        mensaje,
+        fecha: new Date().toISOString(),
+        leido: false,
+        enlace: action === 'confirmar' ? `/tours/pago/${bookingId}` : '/tours',
+      };
+
+      await db.collection('usuarios')
+        .doc('notificaciones')
+        .collection(booking.touristId)
+        .add(notificacion);
+    } catch (notifError) {
+      console.warn('No se pudo enviar notificación al turista:', notifError);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: action === 'confirmar'
+        ? 'Reserva confirmada exitosamente. El turista será notificado para proceder al pago.'
+        : 'Reserva rechazada exitosamente.',
+    });
+  } catch (error: any) {
+    console.error('Error al confirmar/rechazar reserva:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al procesar la solicitud',
       error: error.message,
     });
   }
