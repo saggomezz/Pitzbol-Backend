@@ -5,6 +5,7 @@ import {
   registerBusinessWithImages,
   validateBusinessUniqueness,
   getMyBusiness,
+  getMyBusinessRequests,
   getBusinessById,
   updateBusiness,
   updateBusinessImages,
@@ -12,6 +13,7 @@ import {
 import { upload } from '../middleware/uploadMiddleware';
 import { recoverPassword } from "../controllers/auth.controller";
 import { authMiddleware } from "../middlewares/auth.middleware";
+import { optionalAuthMiddleware } from "../middlewares/auth.middleware";
 import { isBusiness } from "../middlewares/business.middleware";
 
 const router = Router();
@@ -23,6 +25,7 @@ router.post("/validate-uniqueness", validateBusinessUniqueness);
 // Nuevo endpoint para registro de negocio con logo y hasta 3 imágenes
 router.post(
   "/register-with-images",
+  optionalAuthMiddleware,
   upload.fields([
     { name: 'logo', maxCount: 1 },
     { name: 'images', maxCount: 3 }
@@ -38,6 +41,13 @@ router.get(
   "/my-business",
   authMiddleware,
   getMyBusiness
+);
+
+// PROTEGIDO - Obtener todas mis solicitudes de negocio
+router.get(
+  "/my-requests",
+  authMiddleware,
+  getMyBusinessRequests
 );
 
 router.get(
