@@ -376,7 +376,7 @@ const updateCloudinaryUrls = (data: any): any => {
 
 // Aprobar o rechazar un negocio pendiente
 export const gestionarNegocioPendiente = async (req: Request, res: Response) => {
-    const { negocioId, accion, adminUid } = req.body;
+    const { negocioId, accion, adminUid, motivoRechazo } = req.body;
     if (!negocioId || !accion || !adminUid) {
         return res.status(400).json({ success: false, message: "Faltan datos obligatorios" });
     }
@@ -390,6 +390,7 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
         const negocioData = negocioSnap.data();
         
         if (accion === "aprobar") {
+            const ownerUid = firstNonEmpty(negocioData?.owner, negocioData?.ownerUid, negocioData?.business?.owner);
             // Reorganizar imágenes en Cloudinary (de pendientes a activos) y validar resultado
             const moveResult = await reorganizeBusinessImages(negocioId);
             const hadMoveErrors = moveResult.failed > 0;
@@ -422,14 +423,15 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
             console.log(`[gestionarNegocioPendiente] ✅ Negocio ${negocioId} movido de Pendientes a Activos`);
             
             // Notify owner
-            if (negocioData?.owner) {
-                await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
+            if (ownerUid) {
+                await sendNotificationToUser(ownerUid, {
                     tipo: 'negocio_aprobado',
                     titulo: 'Negocio aprobado',
                     mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido aprobado y ya es visible para los usuarios.`,
                     fecha: new Date().toISOString(),
                     leido: false,
-                    enlace: '/negocio/estatus'
+                    enlace: `/negocio/mis-solicitudes/${negocioId}`,
+                    negocioId,
                 });
             }
             return res.json({
@@ -439,19 +441,38 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
             });
         } else if (accion === "rechazar") {
             console.log(`[gestionarNegocioPendiente] 🔄 Iniciando rechazo de negocio ${negocioId}`);
+            let ownerUid = firstNonEmpty(negocioData?.ownerUid, negocioData?.owner, negocioData?.business?.owner);
+            const ownerEmailFromDoc = negocioData?.ownerEmail || negocioData?.email || null;
+
+            // Si ownerUid no está disponible, intentar resolverlo desde Firebase Auth por email
+            if (!ownerUid && ownerEmailFromDoc) {
+                try {
+                    const authUser = await auth.getUserByEmail(ownerEmailFromDoc);
+                    ownerUid = authUser.uid;
+                    console.log(`[gestionarNegocioPendiente] ✅ ownerUid resuelto desde Auth por email: ${ownerUid}`);
+                } catch {
+                    console.warn(`[gestionarNegocioPendiente] ⚠️ No se pudo resolver ownerUid desde email: ${ownerEmailFromDoc}`);
+                }
+            }
             
             const rejectedAt = new Date().toISOString();
+            const rechazoMotivo = typeof motivoRechazo === "string" ? motivoRechazo.trim() : "";
             const archivedData = {
                 ...negocioData,
+                ownerUid: ownerUid || negocioData?.ownerUid || null, // Asegurar que ownerUid quede guardado
+                ownerEmail: ownerEmailFromDoc,                         // Guardar email del dueño para búsquedas
                 status: "archivado",
-                archivedReason: "Solicitud rechazada por administrador",
+                archivedReason: rechazoMotivo || "Solicitud rechazada por administrador",
                 archivedAt: rejectedAt,
                 archivedBy: adminUid,
+                rejectedAt,
+                rejectedBy: adminUid,
+                rejectionReason: rechazoMotivo || null,
                 updatedAt: rejectedAt,
                 history: [
                     ...(negocioData?.history || []),
-                    { action: "rechazado", date: rejectedAt, by: adminUid },
-                    { action: "archivado", date: rejectedAt, by: adminUid, reason: "Solicitud rechazada por administrador" }
+                    { action: "rechazado", date: rejectedAt, by: adminUid, reason: rechazoMotivo || null },
+                    { action: "archivado", date: rejectedAt, by: adminUid, reason: rechazoMotivo || "Solicitud rechazada por administrador" }
                 ]
             };
 
@@ -468,14 +489,20 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
             console.log(`[gestionarNegocioPendiente] ✅ Negocio ${negocioId} rechazado y movido a Archivados`);
             
             // Notify owner
-            if (negocioData?.owner) {
-                await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
+            if (ownerUid) {
+                const motivoMsg = rechazoMotivo
+                    ? ` Motivo compartido por el equipo: ${rechazoMotivo}`
+                    : '';
+                await sendNotificationToUser(ownerUid, {
                     tipo: 'negocio_rechazado',
-                    titulo: 'Negocio rechazado',
-                    mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" fue rechazado y archivado por el administrador.`,
+                    titulo: 'Actualización de tu solicitud de negocio',
+                    mensaje: `Gracias por enviar tu solicitud para "${negocioData?.business?.name || negocioData?.name}". En esta ocasión no fue aprobada.${motivoMsg} Puedes actualizar la información y volver a intentarlo.`,
                     fecha: rejectedAt,
                     leido: false,
-                    enlace: '/negocio/estatus'
+                    enlace: `/negocio/mis-solicitudes/${negocioId}`,
+                    negocioId,
+                    rejectionReason: rechazoMotivo || undefined,
+                    rejectedAt,
                 });
             }
             return res.json({ success: true, message: "Negocio rechazado y movido a Archivados" });
@@ -1291,7 +1318,9 @@ export const marcarNotificacionComoLeida = async (req: Request, res: Response) =
         const docSnapshot = await docRef.get();
         
         if (!docSnapshot.exists) {
-            return res.status(404).json({ success: false, message: "Notificación no encontrada" });
+            // Notificación solo en localStorage (no en Firestore), ignorar silenciosamente
+            console.log(`ℹ️ Notificación ${id} no encontrada en Firestore (puede ser local)`);
+            return res.json({ success: true, message: "Notificación no encontrada en Firestore" });
         }
 
         await docRef.update({ leido: true });
