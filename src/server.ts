@@ -23,6 +23,7 @@ import placeRatingRoutes from './routes/place-rating.routes';
 import availabilityRoutes from './routes/availability.routes';
 import walletRoutes from './routes/wallet.routes';
 import { ChatService } from './services/chat.service';
+import { setSocketServer } from './socket';
 
 
 dotenv.config();
@@ -36,6 +37,7 @@ const io = new Server(httpServer, {
     allowedHeaders: ["Content-Type", "Authorization"]
   }
 });
+setSocketServer(io);
 const PORT = process.env.PORT || 3001;
 
 // Configuración CORS más permisiva para desarrollo
