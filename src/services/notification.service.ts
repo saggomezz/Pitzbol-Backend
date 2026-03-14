@@ -1,4 +1,5 @@
 import admin from 'firebase-admin';
+import { emitNotificationToUser } from '../socket';
 
 export async function sendNotificationToUser(userId: string, notification: any) {
   const db = admin.firestore();
@@ -18,6 +19,11 @@ export async function sendNotificationToUser(userId: string, notification: any) 
     .doc('notificaciones')
     .collection(userId)
     .add(normalized);
+
+  emitNotificationToUser(userId, {
+    id: docRef.id,
+    ...normalized,
+  });
 
   console.log(`[NotificationService] \u2705 Notificaci\u00f3n guardada con ID: ${docRef.id}`);
 }
