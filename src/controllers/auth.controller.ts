@@ -158,7 +158,7 @@ export const login = async (req: Request, res: Response) => {
     const apellido = userData?.apellido || userData?.["02_apellido"] || "";
     const nacionalidad = userData?.nacionalidad || userData?.["05_nacionalidad"] || "No registrado";
     const telefono = userData?.telefono || userData?.["06_telefono"] || "No registrado";
-    const especialidadesUnificadas = userData?.especialidades || userData?.["07_especialidades"] || [];
+    const especialidadesUnificadas = userData?.["07_intereses"] || userData?.especialidades || userData?.["07_especialidades"] || [];
     const guideStatusRaw = userData?.solicitudStatus || userData?.status || userData?.guide_status;
     const guideStatus = guideStatusRaw || (guideCollection === "pendientes" ? "pendiente" : "ninguno");
 
@@ -198,6 +198,9 @@ export const login = async (req: Request, res: Response) => {
         "15_descripcion": userData["15_descripcion"],
         "14_foto_perfil": userData["14_foto_perfil"],
         role: userRole,
+        "07_intereses": userRole === 'turista' ? especialidadesUnificadas : [],
+        "07_especialidades": userRole !== 'turista' ? especialidadesUnificadas : [],
+        especialidades: especialidadesUnificadas,
       },
     });;
   }   

@@ -181,7 +181,7 @@ export const updateGuideProfile = async (req: Request, res: Response) => {
         const config = [
             { ref: db.collection('usuarios').doc('guias').collection('lista'), field: "07_especialidades" },
             { ref: db.collection('usuarios').doc('guias').collection('pendientes'), field: "07_especialidades" },
-            { ref: db.collection('usuarios').doc('turistas').collection('lista'), field: "especialidades" }
+            { ref: db.collection('usuarios').doc('turistas').collection('lista'), field: "07_intereses" }
         ];
 
         for (const item of config) {
@@ -197,8 +197,9 @@ export const updateGuideProfile = async (req: Request, res: Response) => {
                         "updatedAt": new Date().toISOString()
                     };
 
+                    // Sincronizar ambos campos solo en guías
                     if (item.field === "07_especialidades") {
-                        updateData["especialidades"] = admin.firestore.FieldValue.delete();
+                        updateData["especialidades"] = categorias;
                     }
 
                     await docSnapshot.ref.update(updateData);
