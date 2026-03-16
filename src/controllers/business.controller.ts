@@ -214,7 +214,7 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
     } = req.body;
 
     console.log("[registerBusinessWithImages] Body recibido:", req.body);
-    console.log("[registerBusinessWithImages] Coordenadas recibidas:", { latitud, longitud });
+    console.log("[registerBusinessWithImages] 📍 Coordenadas recibidas:", { latitud, longitud });
     console.log("[registerBusinessWithImages] Files recibidos:", req.files);
 
     // Validar que los campos obligatorios estén presentes
@@ -322,7 +322,7 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
       },
     };
     
-    console.log(`[registerBusinessWithImages] Guardando en Firestore con coordenadas:`, {
+    console.log(`[registerBusinessWithImages] 💾 Guardando en Firestore con coordenadas:`, {
       latitud: businessData.business.latitud,
       longitud: businessData.business.longitud
     });
@@ -348,13 +348,13 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
         mensaje: `Tu negocio "${businessName}" fue enviado a revision.`,
         fecha: new Date().toISOString(),
         leido: false,
-        enlace: `/negocio/preview?id=${uid}`
+        enlace: `/negocio/mis-solicitudes/${uid}`
       };
       console.log(`[registerBusinessWithImages] Contenido de notificación:`, JSON.stringify(notificacion, null, 2));
       await sendNotificationToUser(ownerUid, notificacion);
-      console.log(`[registerBusinessWithImages] Notificación enviada exitosamente`);
+      console.log(`[registerBusinessWithImages] ✅ Notificación enviada exitosamente`);
     } else {
-      console.log(`[registerBusinessWithImages] No se envió notificación porque no se proporcionó ownerUid`);
+      console.log(`[registerBusinessWithImages] ⚠️ No se envió notificación porque no se proporcionó ownerUid`);
     }
 
     return res.status(201).json({
@@ -442,7 +442,7 @@ export const registerBusiness = async (req: RequestWithUser, res: Response) => {
         mensaje: `Tu negocio "${businessName}" fue enviado a revision.`,
         fecha: new Date().toISOString(),
         leido: false,
-        enlace: `/negocio/preview?id=${uid}`
+        enlace: `/negocio/mis-solicitudes/${uid}`
       });
 
       return res.status(201).json({
@@ -495,8 +495,8 @@ export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
             ? new Date((data.business.createdAt?.seconds || 0) * 1000).toISOString()
             : new Date().toISOString();
 
-          console.log(`[getMyBusiness] Negocio encontrado en Pendientes por ownerUid`);
-          console.log(`[getMyBusiness] Coordenadas en documento:`, {
+          console.log(`[getMyBusiness] ✅ Negocio encontrado en Pendientes por ownerUid`);
+          console.log(`[getMyBusiness] 📍 Coordenadas en documento:`, {
             latitud: data.business?.latitud,
             longitud: data.business?.longitud
           });
@@ -535,7 +535,7 @@ export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
         ? new Date((data.business.createdAt?.seconds || 0) * 1000).toISOString()
         : new Date().toISOString();
 
-      console.log(`[getMyBusiness] Negocio encontrado en Pendientes por email`);
+      console.log(`[getMyBusiness] ✅ Negocio encontrado en Pendientes por email`);
       return res.json({
         success: true,
         business: {
@@ -567,7 +567,7 @@ export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
             ? new Date((data.business.createdAt?.seconds || 0) * 1000).toISOString()
             : new Date().toISOString();
 
-          console.log(`[getMyBusiness] Negocio encontrado en Business por ownerUid`);
+          console.log(`[getMyBusiness] ✅ Negocio encontrado en Business por ownerUid`);
           return res.json({
             success: true,
             business: {
@@ -633,7 +633,7 @@ export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
             ? new Date((data.business.createdAt?.seconds || 0) * 1000).toISOString()
             : new Date().toISOString();
 
-          console.log(`[getMyBusiness] Negocio encontrado en archivados por ownerUid`);
+          console.log(`[getMyBusiness] ✅ Negocio encontrado en archivados por ownerUid`);
           return res.json({
             success: true,
             business: {
@@ -681,11 +681,139 @@ export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
       });
     }
 
-    console.log(`[getMyBusiness] No se encontró ningún negocio para uid: ${userUid}, email: ${userEmail}`);
+    console.log(`[getMyBusiness] ❌ No se encontró ningún negocio para uid: ${userUid}, email: ${userEmail}`);
     return res.status(404).json({ success: false, message: "No tienes un negocio registrado" });
 
   } catch (error: any) {
     console.error("Error getMyBusiness:", error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
+// Repara docs huérfanos (ownerUid == null) asociándoles el UID del usuario autenticado
+const repairOrphanedDocs = async (docs: admin.firestore.QueryDocumentSnapshot[], ownerUid: string) => {
+  for (const doc of docs) {
+    const data = doc.data();
+    if (!data.ownerUid && ownerUid) {
+      try {
+        await doc.ref.update({ ownerUid });
+        console.log(`[repairOrphanedDocs] ✅ Reparado doc ${doc.id} con ownerUid: ${ownerUid}`);
+      } catch (e) {
+        console.warn(`[repairOrphanedDocs] ⚠️ No se pudo reparar doc ${doc.id}:`, e);
+      }
+    }
+  }
+};
+
+// Helper para mapear doc de cualquier colección
+const mapSolicitudDoc = (
+  doc: admin.firestore.QueryDocumentSnapshot | admin.firestore.DocumentSnapshot,
+  estado: string
+) => {
+  const data = doc.data() || {};
+  const createdAt = data?.business?.createdAt
+    ? new Date((data.business.createdAt?.seconds || 0) * 1000).toISOString()
+    : data?.createdAt
+    ? new Date((data.createdAt?.seconds || 0) * 1000).toISOString()
+    : null;
+  return {
+    id: doc.id,
+    estado,
+    email: data.email || data.ownerEmail || data.business?.email || null,
+    ownerUid: data.ownerUid || data.owner || null,
+    business: {
+      ...data.business,
+      createdAt,
+      // campos planos como fallback para negocios registrados con registerBusiness
+      name: data.business?.name || data.businessName || null,
+      category: data.business?.category || data.category || null,
+      phone: data.business?.phone || data.phone || null,
+      location: data.business?.location || data.location || null,
+      description: data.business?.description || data.description || null,
+      logo: data.business?.logo || data.logo || null,
+      images: data.business?.images || data.images || [],
+    },
+    rejectedAt: data.rejectedAt || null,
+    rejectionReason: data.rejectionReason || null,
+    archivedAt: data.archivedAt || null,
+  };
+};
+
+export const getMyBusinessRequests = async (req: RequestWithUser, res: Response) => {
+  try {
+    const userUid = req.user?.uid;
+    const userEmail = req.user?.email;
+
+    if (!userUid) {
+      return res.status(401).json({ success: false, message: "No autenticado" });
+    }
+
+    console.log(`[getMyBusinessRequests] uid: ${userUid}, email: ${userEmail}`);
+
+    const collectionsMap: { ref: admin.firestore.CollectionReference; estado: string }[] = [
+      { ref: db.collection("negocios").doc("Pendientes").collection("items"), estado: "pendiente" },
+      { ref: db.collection("negocios").doc("Activos").collection("items"),    estado: "aprobado"  },
+      { ref: db.collection("negocios").doc("Archivados").collection("items"), estado: "archivado" },
+    ];
+
+    const results: any[] = [];
+    const seen = new Set<string>();
+
+    for (const { ref, estado } of collectionsMap) {
+      // 1. Buscar por ownerUid
+      const byUid = await ref.where("ownerUid", "==", userUid).get();
+      for (const doc of byUid.docs) {
+        if (!seen.has(doc.id)) {
+          seen.add(doc.id);
+          const mapped = mapSolicitudDoc(doc, estado === "archivado" && doc.data().rejectedAt ? "rechazado" : estado);
+          results.push(mapped);
+        }
+      }
+
+      // 2. Buscar por owner (campo alternativo)
+      const byOwner = await ref.where("owner", "==", userUid).get();
+      for (const doc of byOwner.docs) {
+        if (!seen.has(doc.id)) {
+          seen.add(doc.id);
+          const mapped = mapSolicitudDoc(doc, estado === "archivado" && doc.data().rejectedAt ? "rechazado" : estado);
+          results.push(mapped);
+        }
+      }
+
+      // 3. Buscar por ownerEmail
+      if (userEmail) {
+        const byEmail = await ref.where("ownerEmail", "==", userEmail).get();
+        const orphans: admin.firestore.QueryDocumentSnapshot[] = [];
+        for (const doc of byEmail.docs) {
+          if (!seen.has(doc.id)) {
+            seen.add(doc.id);
+            orphans.push(doc);
+            const mapped = mapSolicitudDoc(doc, estado === "archivado" && doc.data().rejectedAt ? "rechazado" : estado);
+            results.push(mapped);
+          }
+        }
+        await repairOrphanedDocs(orphans, userUid);
+
+        // 4. Buscar por email plano
+        const byEmailPlain = await ref.where("email", "==", userEmail).get();
+        const orphans2: admin.firestore.QueryDocumentSnapshot[] = [];
+        for (const doc of byEmailPlain.docs) {
+          if (!seen.has(doc.id)) {
+            seen.add(doc.id);
+            orphans2.push(doc);
+            const mapped = mapSolicitudDoc(doc, estado === "archivado" && doc.data().rejectedAt ? "rechazado" : estado);
+            results.push(mapped);
+          }
+        }
+        await repairOrphanedDocs(orphans2, userUid);
+      }
+    }
+
+    console.log(`[getMyBusinessRequests] ✅ ${results.length} solicitudes encontradas`);
+    return res.json({ success: true, solicitudes: results });
+
+  } catch (error: any) {
+    console.error("Error getMyBusinessRequests:", error);
     return res.status(500).json({ success: false, error: error.message });
   }
 };
@@ -786,6 +914,8 @@ export const getBusinessById = async (req: RequestWithUser, res: Response) => {
       const data = pendientesDoc.data();
       const isOwner =
         data?.ownerUid === userUid ||
+        data?.owner === userUid ||
+        data?.business?.owner === userUid ||
         data?.uid === userUid ||
         (userEmail && data?.email === userEmail);
 
@@ -814,6 +944,8 @@ export const getBusinessById = async (req: RequestWithUser, res: Response) => {
       const data = approvedDoc.data();
       const isOwner =
         data?.ownerUid === userUid ||
+        data?.owner === userUid ||
+        data?.business?.owner === userUid ||
         data?.uid === userUid ||
         (userEmail && data?.email === userEmail);
 
@@ -842,6 +974,8 @@ export const getBusinessById = async (req: RequestWithUser, res: Response) => {
       const data = archivedDoc.data();
       const isOwner =
         data?.ownerUid === userUid ||
+        data?.owner === userUid ||
+        data?.business?.owner === userUid ||
         data?.uid === userUid ||
         (userEmail && data?.email === userEmail);
 

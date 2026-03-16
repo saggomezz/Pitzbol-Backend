@@ -8,7 +8,7 @@ import { uploadImageStreamToCloudinary } from '../utils/cloudinaryHelper';
 
 // Configurar Cloudinary con validación
 if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-  console.warn('Variables de Cloudinary no configuradas en .env');
+  console.warn('⚠️ Variables de Cloudinary no configuradas en .env');
 }
 
 cloudinary.config({
@@ -31,14 +31,14 @@ const subirBase64ACloudinary = async (base64Image: string, uid: string): Promise
       resource_type: 'auto',
       format: 'webp',
       transformation: [
-        { width: 800, height: 800, crop: 'fill'},
-        { quality: 'auto:good'}
+        { width: 800, height: 800, crop: 'fill' },
+        { quality: 'auto:good' }
       ]
     });
     
     return uploadResult.secure_url;
   } catch (error) {
-    console.error('Error subiendo base64 a Cloudinary:', error);
+    console.error('❌ Error subiendo base64 a Cloudinary:', error);
     throw error;
   }
 };
@@ -48,11 +48,11 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
     const uid = (req as any).user?.uid;
 
     if (!uid) {
-      return res.status(401).json({ error: 'No autenticado'});
+      return res.status(401).json({ error: 'No autenticado' });
     }
 
     if (!req.file) {
-      return res.status(400).json({ error: 'No se envio archivo'});
+      return res.status(400).json({ error: 'No se envio archivo' });
     }
 
     const file = req.file;
@@ -60,7 +60,7 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
 
     // VALIDAR TAMAÑO
     if (file.size > MAX_FILE_SIZE) {
-      return res.status(400).json({ error: 'Archivo demasiado grande. Máximo 5MB.'});
+      return res.status(400).json({ error: 'Archivo demasiado grande. Máximo 5MB.' });
     }
 
     // VALIDAR TIPO MIME
@@ -75,11 +75,11 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
     try {
       metadata = await sharp(file.buffer).metadata();
     } catch (error) {
-      return res.status(400).json({ error: 'Archivo corrupto o no es una imagen válida'});
+      return res.status(400).json({ error: 'Archivo corrupto o no es una imagen válida' });
     }
 
     if (!metadata.width || !metadata.height) {
-      return res.status(400).json({ error: 'No se pudo leer dimensiones de la imagen'});
+      return res.status(400).json({ error: 'No se pudo leer dimensiones de la imagen' });
     }
 
     if (metadata.width > MAX_IMAGE_DIMENSIONS.width || metadata.height > MAX_IMAGE_DIMENSIONS.height) {
@@ -100,10 +100,10 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
       .webp({ quality: 80 })
       .toBuffer();
 
-    //  SUBIR A CLOUDINARY CON LA ESTRUCTURA CORRECTA: pitzbol/usuarios/{uid}/perfil
-    console.log('Subiendo foto de perfil a Cloudinary con estructura correcta...');
+    // 📤 SUBIR A CLOUDINARY CON LA ESTRUCTURA CORRECTA: pitzbol/usuarios/{uid}/perfil
+    console.log('📸 Subiendo foto de perfil a Cloudinary con estructura correcta...');
     const fotoPerfil = await uploadImageStreamToCloudinary(optimizedBuffer, uid, 'perfil');
-    console.log('Foto de perfil subida:', fotoPerfil);
+    console.log('✅ Foto de perfil subida:', fotoPerfil);
 
     // ACTUALIZAR EN FIRESTORE - Buscar en TODAS las colecciones
     const userDocRefs: any[] = [];
@@ -196,17 +196,17 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
     }
 
     if (userDocRefs.length === 0) {
-      return res.status(404).json({ error: 'Usuario no encontrado'});
+      return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
     // Eliminar foto anterior de Cloudinary si existe
     if (oldPublicId) {
       try {
-        console.log('Eliminando foto anterior de Cloudinary:', oldPublicId);
+        console.log('🗑️ Eliminando foto anterior de Cloudinary:', oldPublicId);
         await cloudinary.uploader.destroy(oldPublicId);
-        console.log('Foto anterior eliminada exitosamente');
+        console.log('✅ Foto anterior eliminada exitosamente');
       } catch (error) {
-        console.error('Error al eliminar foto anterior:', error);
+        console.error('⚠️ Error al eliminar foto anterior:', error);
       }
     }
 
@@ -222,11 +222,11 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
       fotoPerfilCloudinary: publicIdFull
     };
 
-    console.log(`Actualizando foto en ${userDocRefs.length} ubicación(es): ${ubicacionesActualizadas.join(', ')}`);
+    console.log(`🔄 Actualizando foto en ${userDocRefs.length} ubicación(es): ${ubicacionesActualizadas.join(', ')}`);
     const updatePromises = userDocRefs.map(ref => ref.update(fotoData));
     await Promise.all(updatePromises);
 
-    console.log(`Foto de perfil actualizada en: ${ubicacionesActualizadas.join(', ')}`);
+    console.log(`✅ Foto de perfil actualizada en: ${ubicacionesActualizadas.join(', ')}`);
 
     return res.status(200).json({
       message: 'Foto de perfil actualizada exitosamente',
@@ -247,10 +247,10 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
     const uid = (req as any).user?.uid;
 
     if (!uid) {
-      return res.status(401).json({ error: 'No autenticado'});
+      return res.status(401).json({ error: 'No autenticado' });
     }
 
-    console.log(`Buscando foto de perfil para uid: ${uid}`);
+    console.log(`🔍 Buscando foto de perfil para uid: ${uid}`);
 
     // Buscar primero en turistas
     const snapshot = await db.collection('usuarios')
@@ -263,7 +263,7 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
     if (!snapshot.empty) {
       const userDoc = snapshot.docs[0];
       const userData = userDoc ? userDoc.data() : null;
-      console.log(`Usuario encontrado en turistas`);
+      console.log(`✅ Usuario encontrado en turistas`);
       
       // IMPORTANTE: La foto de validación facial (13_foto_rostro) NUNCA se usa como foto de perfil
       // Son dos cosas completamente diferentes y separadas
@@ -285,7 +285,7 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
     if (!adminSnap.empty) {
       const adminDoc = adminSnap.docs[0];
       const adminData = adminDoc ? adminDoc.data() : null;
-      console.log(`Usuario encontrado en admins`);
+      console.log(`✅ Usuario encontrado en admins`);
       return res.status(200).json({
         fotoPerfil: adminData?.fotoPerfil || null,
         fotoPerfilSubidaEn: adminData?.fotoPerfilSubidaEn || null
@@ -301,7 +301,7 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
     for (const doc of guiasSnapshot.docs) {
       const data = doc.data();
       if (data && data.uid === uid) {
-        console.log(`Usuario encontrado en guías/lista`);
+        console.log(`✅ Usuario encontrado en guías/lista`);
         
         // IMPORTANTE: La foto de validación facial (13_foto_rostro) NUNCA se usa como foto de perfil
         // Devolver solo la foto de perfil si existe, caso contrario null
@@ -321,8 +321,8 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
     for (const doc of pendientesSnapshot.docs) {
       const data = doc.data();
       if (data && data.uid === uid) {
-        console.log(`Usuario encontrado en guías/pendientes`);
-        console.log(`Foto de perfil: ${data.fotoPerfil ? 'SÍ existe': 'NO existe'}`);
+        console.log(`✅ Usuario encontrado en guías/pendientes`);
+        console.log(`📸 Foto de perfil: ${data.fotoPerfil ? 'SÍ existe' : 'NO existe'}`);
         
         // IMPORTANTE: La foto de validación facial (13_foto_rostro) NUNCA se usa como foto de perfil
         // Devolver solo la foto de perfil si existe, caso contrario null
@@ -333,12 +333,12 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
       }
     }
 
-    console.warn(`Usuario no encontrado en ninguna colección: ${uid}`);
-    return res.status(404).json({ error: 'Usuario no encontrado'});
+    console.warn(`⚠️ Usuario no encontrado en ninguna colección: ${uid}`);
+    return res.status(404).json({ error: 'Usuario no encontrado' });
 
   } catch (error: any) {
     console.error('Error al obtener foto de perfil:', error);
-    return res.status(500).json({ error: 'Error al obtener foto de perfil'});
+    return res.status(500).json({ error: 'Error al obtener foto de perfil' });
   }
 };
 
@@ -355,13 +355,13 @@ export const eliminarFotoPerfilAnterior = async (publicId: string) => {
 
 export const actualizarPerfil = async (req: Request, res: Response) => {
   try {
-    console.log("actualizarPerfil llamado");
+    console.log("🔵 actualizarPerfil llamado");
     const uid = (req as any).user?.uid;
     const { descripcion, idiomas, especialidades, nombre, apellido } = req.body;
 
-    console.log("Datos recibidos en el backend:", { uid, descripcion, idiomas, especialidades, nombre, apellido });
+    console.log("📥 Datos recibidos en el backend:", { uid, descripcion, idiomas, especialidades, nombre, apellido });
 
-    if (!uid) return res.status(401).json({ error: 'No autenticado'});
+    if (!uid) return res.status(401).json({ error: 'No autenticado' });
 
     const camposAActualizar: any = {
       ultimaActualizacion: new Date().toISOString()
@@ -426,12 +426,12 @@ export const actualizarPerfil = async (req: Request, res: Response) => {
     }
 
     if (userDocRefs.length === 0) {
-      return res.status(404).json({ error: 'Usuario no encontrado en Firebase'});
+      return res.status(404).json({ error: 'Usuario no encontrado en Firebase' });
     }
 
     // Actualizar TODAS las referencias encontradas
-    console.log(`Actualizando perfil en ${userDocRefs.length} ubicación(es): ${ubicacionesActualizadas.join(', ')}`);
-    console.log(`Campos a actualizar:`, {
+    console.log(`🔄 Actualizando perfil en ${userDocRefs.length} ubicación(es): ${ubicacionesActualizadas.join(', ')}`);
+    console.log(`📝 Campos a actualizar:`, {
       nombre: camposAActualizar.nombre,
       apellido: camposAActualizar.apellido,
       descripcion: camposAActualizar.descripcion?.substring(0, 30),
@@ -442,7 +442,7 @@ export const actualizarPerfil = async (req: Request, res: Response) => {
     const updatePromises = userDocRefs.map(ref => ref.update(camposAActualizar));
     await Promise.all(updatePromises);
 
-    console.log(`Perfil actualizado exitosamente en: ${ubicacionesActualizadas.join(', ')}`);
+    console.log(`✅ Perfil actualizado exitosamente en: ${ubicacionesActualizadas.join(', ')}`);
 
     return res.status(200).json({
       msg: 'Perfil actualizado exitosamente',
@@ -451,17 +451,17 @@ export const actualizarPerfil = async (req: Request, res: Response) => {
     });
 
   } catch (error: any) {
-    console.error('Error fatal en actualizarPerfil:', error);
+    console.error('❌ Error fatal en actualizarPerfil:', error);
     return res.status(500).json({ msg: 'Error interno del servidor', details: error.message });
   }
 };
 
 const publicProfileCollections = [
-  { role: 'guia', ref: db.collection('usuarios').doc('guias').collection('lista'), path: 'usuarios/guias/lista'},
-  { role: 'turista', ref: db.collection('usuarios').doc('turistas').collection('lista'), path: 'usuarios/turistas/lista'},
-  { role: 'admin', ref: db.collection('usuarios').doc('admins').collection('lista'), path: 'usuarios/admins/lista'},
-  { role: 'guia-pendiente', ref: db.collection('usuarios').doc('guias').collection('pendientes'), path: 'usuarios/guias/pendientes'},
-  { role: 'negociante', ref: db.collection('usuarios').doc('negocios').collection('lista'), path: 'usuarios/negocios/lista'},
+  { role: 'guia', ref: db.collection('usuarios').doc('guias').collection('lista'), path: 'usuarios/guias/lista' },
+  { role: 'turista', ref: db.collection('usuarios').doc('turistas').collection('lista'), path: 'usuarios/turistas/lista' },
+  { role: 'admin', ref: db.collection('usuarios').doc('admins').collection('lista'), path: 'usuarios/admins/lista' },
+  { role: 'guia-pendiente', ref: db.collection('usuarios').doc('guias').collection('pendientes'), path: 'usuarios/guias/pendientes' },
+  { role: 'negociante', ref: db.collection('usuarios').doc('negocios').collection('lista'), path: 'usuarios/negocios/lista' },
 ];
 
 const buildPublicProfile = (userData: any, role: string, fallbackUid: string) => {
@@ -496,14 +496,14 @@ const buildPublicProfile = (userData: any, role: string, fallbackUid: string) =>
 
 const findPublicProfileByIdentifier = async (identifier: string) => {
   for (const collection of publicProfileCollections) {
-    console.log(`[obtenerPerfilPublico] Buscando en ${collection.path} por uid...`);
+    console.log(`🔍 [obtenerPerfilPublico] Buscando en ${collection.path} por uid...`);
     const byUid = await collection.ref.where('uid', '==', identifier).limit(1).get();
     if (!byUid.empty) {
       const userData = byUid.docs[0]?.data() || {};
       return buildPublicProfile(userData, collection.role, identifier);
     }
 
-    console.log(`[obtenerPerfilPublico] Buscando en ${collection.path} por docId...`);
+    console.log(`🔍 [obtenerPerfilPublico] Buscando en ${collection.path} por docId...`);
     const byDocId = await collection.ref.doc(identifier).get();
     if (byDocId.exists) {
       const userData = byDocId.data() || {};
@@ -515,18 +515,18 @@ const findPublicProfileByIdentifier = async (identifier: string) => {
 };
 
 const extractOwnerIdentifierFromBusiness = (data: any): string | null => {
-  if (typeof data?.ownerUid === 'string'&& data.ownerUid.trim()) return data.ownerUid.trim();
-  if (typeof data?.business?.owner === 'string'&& data.business.owner.trim()) return data.business.owner.trim();
-  if (typeof data?.owner?.uid === 'string'&& data.owner.uid.trim()) return data.owner.uid.trim();
-  if (typeof data?.owner === 'string'&& data.owner.trim()) return data.owner.trim();
+  if (typeof data?.ownerUid === 'string' && data.ownerUid.trim()) return data.ownerUid.trim();
+  if (typeof data?.business?.owner === 'string' && data.business.owner.trim()) return data.business.owner.trim();
+  if (typeof data?.owner?.uid === 'string' && data.owner.uid.trim()) return data.owner.uid.trim();
+  if (typeof data?.owner === 'string' && data.owner.trim()) return data.owner.trim();
   return null;
 };
 
 const extractOwnerEmailFromBusiness = (data: any): string | null => {
-  const emailFromRoot = typeof data?.email === 'string'? data.email.trim() : '';
+  const emailFromRoot = typeof data?.email === 'string' ? data.email.trim() : '';
   if (emailFromRoot) return emailFromRoot;
 
-  const emailFromBusiness = typeof data?.business?.email === 'string'? data.business.email.trim() : '';
+  const emailFromBusiness = typeof data?.business?.email === 'string' ? data.business.email.trim() : '';
   if (emailFromBusiness) return emailFromBusiness;
 
   return null;
@@ -534,7 +534,7 @@ const extractOwnerEmailFromBusiness = (data: any): string | null => {
 
 const findPublicProfileByEmail = async (email: string) => {
   for (const collection of publicProfileCollections) {
-    console.log(`[obtenerPerfilPublico] Buscando en ${collection.path} por correo...`);
+    console.log(`🔍 [obtenerPerfilPublico] Buscando en ${collection.path} por correo...`);
 
     const byLegacyEmail = await collection.ref.where('04_correo', '==', email).limit(1).get();
     if (!byLegacyEmail.empty) {
@@ -616,45 +616,45 @@ const resolveOwnerIdentifierFromBusiness = async (identifier: string): Promise<s
 
 export const obtenerPerfilPublico = async (req: Request, res: Response) => {
   try {
-    const uid = Array.isArray(req.params.uid) ? req.params.uid[0] : req.params.uid;
+    const { uid } = req.params;
 
-    console.log(`[obtenerPerfilPublico] Buscando perfil para identificador: ${uid}`);
+    console.log(`📋 [obtenerPerfilPublico] Buscando perfil para identificador: ${uid}`);
 
     if (!uid) {
-      console.error('[obtenerPerfilPublico] Identificador no proporcionado');
-      return res.status(400).json({ success: false, message: 'UID es requerido'});
+      console.error('❌ [obtenerPerfilPublico] Identificador no proporcionado');
+      return res.status(400).json({ success: false, message: 'UID es requerido' });
     }
 
     const profile = await findPublicProfileByIdentifier(uid);
     if (profile) {
-      console.log(`[obtenerPerfilPublico] Perfil encontrado directo`, { uid: profile.uid, role: profile.role });
+      console.log(`✅ [obtenerPerfilPublico] Perfil encontrado directo`, { uid: profile.uid, role: profile.role });
       return res.status(200).json({ success: true, profile });
     }
 
     const ownerIdentifier = await resolveOwnerIdentifierFromBusiness(uid);
     if (ownerIdentifier) {
-      console.log(`[obtenerPerfilPublico] Fallback por negocio, ownerIdentifier: ${ownerIdentifier}`);
+      console.log(`ℹ️ [obtenerPerfilPublico] Fallback por negocio, ownerIdentifier: ${ownerIdentifier}`);
       const ownerProfile = await findPublicProfileByIdentifier(ownerIdentifier);
       if (ownerProfile) {
-        console.log(`[obtenerPerfilPublico] Perfil encontrado por fallback de negocio`, { uid: ownerProfile.uid, role: ownerProfile.role });
+        console.log(`✅ [obtenerPerfilPublico] Perfil encontrado por fallback de negocio`, { uid: ownerProfile.uid, role: ownerProfile.role });
         return res.status(200).json({ success: true, profile: ownerProfile });
       }
     }
 
     const ownerEmail = await resolveOwnerEmailFromBusiness(uid);
     if (ownerEmail) {
-      console.log(`[obtenerPerfilPublico] Fallback por email de negocio: ${ownerEmail}`);
+      console.log(`ℹ️ [obtenerPerfilPublico] Fallback por email de negocio: ${ownerEmail}`);
       const ownerProfileByEmail = await findPublicProfileByEmail(ownerEmail);
       if (ownerProfileByEmail) {
-        console.log(`[obtenerPerfilPublico] Perfil encontrado por fallback de email`, { uid: ownerProfileByEmail.uid, role: ownerProfileByEmail.role });
+        console.log(`✅ [obtenerPerfilPublico] Perfil encontrado por fallback de email`, { uid: ownerProfileByEmail.uid, role: ownerProfileByEmail.role });
         return res.status(200).json({ success: true, profile: ownerProfileByEmail });
       }
     }
 
-    console.error(`[obtenerPerfilPublico] Usuario con identificador ${uid} no encontrado`);
-    return res.status(404).json({ success: false, message: 'Usuario no encontrado'});
+    console.error(`❌ [obtenerPerfilPublico] Usuario con identificador ${uid} no encontrado`);
+    return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
   } catch (error: any) {
-    console.error('Error al obtener perfil público:', error);
+    console.error('❌ Error al obtener perfil público:', error);
     return res.status(500).json({
       success: false,
       message: 'Error interno al obtener perfil público',
@@ -664,7 +664,7 @@ export const obtenerPerfilPublico = async (req: Request, res: Response) => {
 };
 
 
-/**
+    /**
  * WALLET CONTROLLERS
  */
 
@@ -673,25 +673,25 @@ export const obtenerTarjetas = async (req: any, res: Response) => {
   try {
     const uid = req.user?.uid;
 
-    console.log('[obtenerTarjetas] Iniciando...');
-    console.log(`- UID del token: ${uid}`);
-    console.log(`- req.user completo:`, req.user);
+    console.log('📋 [obtenerTarjetas] Iniciando...');
+    console.log(`   - UID del token: ${uid}`);
+    console.log(`   - req.user completo:`, req.user);
 
     if (!uid) {
-      console.error('[obtenerTarjetas] UID no encontrado en token');
-      return res.status(401).json({ error: 'No autenticado - UID no encontrado en token'});
+      console.error('❌ [obtenerTarjetas] UID no encontrado en token');
+      return res.status(401).json({ error: 'No autenticado - UID no encontrado en token' });
     }
 
-    console.log(`[obtenerTarjetas] UID validado: ${uid}`);
+    console.log(`✅ [obtenerTarjetas] UID validado: ${uid}`);
 
     const cards = await getUserCards(uid);
     
-    console.log(`[obtenerTarjetas] ${cards.length} tarjeta(s) encontrada(s) para UID: ${uid}`);
+    console.log(`✅ [obtenerTarjetas] ${cards.length} tarjeta(s) encontrada(s) para UID: ${uid}`);
     
     res.json({ cards });
   } catch (error: any) {
-    console.error('Error obteniendo tarjetas:', error);
-    res.status(500).json({ error: error.message || 'Error al obtener tarjetas'});
+    console.error('❌ Error obteniendo tarjetas:', error);
+    res.status(500).json({ error: error.message || 'Error al obtener tarjetas' });
   }
 };
 
@@ -700,28 +700,28 @@ export const crearSetupIntent = async (req: any, res: Response) => {
   try {
     const uid = req.user?.uid;
     
-    console.log('[crearSetupIntent] Iniciando...');
-    console.log(`- UID del token: ${uid}`);
-    console.log(`- req.user completo:`, req.user);
+    console.log('🔐 [crearSetupIntent] Iniciando...');
+    console.log(`   - UID del token: ${uid}`);
+    console.log(`   - req.user completo:`, req.user);
 
     if (!uid) {
-      console.error('[crearSetupIntent] UID no encontrado en token');
-      return res.status(401).json({ error: 'No autenticado - UID no encontrado en token'});
+      console.error('❌ [crearSetupIntent] UID no encontrado en token');
+      return res.status(401).json({ error: 'No autenticado - UID no encontrado en token' });
     }
 
-    console.log(`[crearSetupIntent] UID validado: ${uid}`);
+    console.log(`✅ [crearSetupIntent] UID validado: ${uid}`);
 
     const setupIntent = await stripe.setupIntents.create({
       payment_method_types: ['card'],
       metadata: { uid },
     });
 
-    console.log(`[crearSetupIntent] Setup intent creado: ${setupIntent.id}`);
+    console.log(`✅ [crearSetupIntent] Setup intent creado: ${setupIntent.id}`);
 
     res.json({ clientSecret: setupIntent.client_secret });
   } catch (error: any) {
-    console.error('Error creando setup intent:', error);
-    res.status(500).json({ error: error.message || 'Error creando setup intent'});
+    console.error('❌ Error creando setup intent:', error);
+    res.status(500).json({ error: error.message || 'Error creando setup intent' });
   }
 };
 
@@ -731,34 +731,34 @@ export const guardarTarjeta = async (req: any, res: Response) => {
     const uid = req.user?.uid;
     const { paymentMethodId } = req.body;
 
-    console.log('[guardarTarjeta] Iniciando...');
-    console.log(`- UID del token: ${uid}`);
-    console.log(`- Payment Method ID: ${paymentMethodId}`);
-    console.log(`- req.user completo:`, req.user);
+    console.log('💳 [guardarTarjeta] Iniciando...');
+    console.log(`   - UID del token: ${uid}`);
+    console.log(`   - Payment Method ID: ${paymentMethodId}`);
+    console.log(`   - req.user completo:`, req.user);
 
     if (!uid) {
-      console.error('[guardarTarjeta] UID no encontrado en token');
-      return res.status(401).json({ error: 'No autenticado - UID no encontrado en token'});
+      console.error('❌ [guardarTarjeta] UID no encontrado en token');
+      return res.status(401).json({ error: 'No autenticado - UID no encontrado en token' });
     }
 
     if (!paymentMethodId) {
-      console.error('[guardarTarjeta] Payment method ID requerido');
-      return res.status(400).json({ error: 'Payment method ID requerido'});
+      console.error('❌ [guardarTarjeta] Payment method ID requerido');
+      return res.status(400).json({ error: 'Payment method ID requerido' });
     }
 
-    console.log(`[guardarTarjeta] Validaciones pasadas. UID: ${uid}`);
+    console.log(`✅ [guardarTarjeta] Validaciones pasadas. UID: ${uid}`);
 
     // Obtener detalles de Stripe
     const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
 
     if (!paymentMethod.card) {
-      console.error('[guardarTarjeta] Payment method no válido');
-      return res.status(400).json({ error: 'Payment method no válido'});
+      console.error('❌ [guardarTarjeta] Payment method no válido');
+      return res.status(400).json({ error: 'Payment method no válido' });
     }
 
     const card = paymentMethod.card;
 
-    console.log(`[guardarTarjeta] Payment method validado. Brand: ${card.brand}, Last4: ${card.last4}`);
+    console.log(`✅ [guardarTarjeta] Payment method validado. Brand: ${card.brand}, Last4: ${card.last4}`);
 
     // Guardar en Firestore
     const newCard = await saveCard(uid, {
@@ -769,7 +769,7 @@ export const guardarTarjeta = async (req: any, res: Response) => {
       expYear: card.exp_year || 0,
     });
 
-    console.log(`[guardarTarjeta] Tarjeta guardada en Firestore. ID: ${newCard.id}, UID: ${uid}`);
+    console.log(`✅ [guardarTarjeta] Tarjeta guardada en Firestore. ID: ${newCard.id}, UID: ${uid}`);
 
     res.json({
       success: true,
@@ -784,8 +784,8 @@ export const guardarTarjeta = async (req: any, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('Error guardando tarjeta:', error);
-    res.status(500).json({ error: error.message || 'Error guardando tarjeta'});
+    console.error('❌ Error guardando tarjeta:', error);
+    res.status(500).json({ error: error.message || 'Error guardando tarjeta' });
   }
 };
 
@@ -796,11 +796,11 @@ export const eliminarTarjeta = async (req: any, res: Response) => {
     const { cardId } = req.params;
 
     if (!uid) {
-      return res.status(401).json({ error: 'No autenticado'});
+      return res.status(401).json({ error: 'No autenticado' });
     }
 
     if (!cardId) {
-      return res.status(400).json({ error: 'Card ID requerido'});
+      return res.status(400).json({ error: 'Card ID requerido' });
     }
 
     await deleteCard(uid, cardId);
@@ -810,8 +810,8 @@ export const eliminarTarjeta = async (req: any, res: Response) => {
       message: 'Tarjeta eliminada',
     });
   } catch (error: any) {
-    console.error('Error eliminando tarjeta:', error);
-    res.status(500).json({ error: error.message || 'Error eliminando tarjeta'});
+    console.error('❌ Error eliminando tarjeta:', error);
+    res.status(500).json({ error: error.message || 'Error eliminando tarjeta' });
   }
 };
 
@@ -822,11 +822,11 @@ export const establecerPredeterminada = async (req: any, res: Response) => {
     const { cardId } = req.params;
 
     if (!uid) {
-      return res.status(401).json({ error: 'No autenticado'});
+      return res.status(401).json({ error: 'No autenticado' });
     }
 
     if (!cardId) {
-      return res.status(400).json({ error: 'Card ID requerido'});
+      return res.status(400).json({ error: 'Card ID requerido' });
     }
 
     await setDefaultCard(uid, cardId);
@@ -836,8 +836,8 @@ export const establecerPredeterminada = async (req: any, res: Response) => {
       message: 'Tarjeta establecida como predeterminada',
     });
   } catch (error: any) {
-    console.error('Error estableciendo predeterminada:', error);
-    res.status(500).json({ error: error.message || 'Error estableciendo predeterminada'});
+    console.error('❌ Error estableciendo predeterminada:', error);
+    res.status(500).json({ error: error.message || 'Error estableciendo predeterminada' });
   }
 };
 
@@ -846,16 +846,16 @@ export const obtenerToursGuia = async (req: Request, res: Response) => {
     const { uid } = req.params;
     
     if (!uid) {
-      console.error('[obtenerToursGuia] UID no proporcionado');
-      return res.status(400).json({ success: false, message: 'UID es requerido'});
+      console.error('❌ [obtenerToursGuia] UID no proporcionado');
+      return res.status(400).json({ success: false, message: 'UID es requerido' });
     }
 
-    console.log(`[obtenerToursGuia] Buscando tours para guía UID: ${uid}`);
+    console.log(`📋 [obtenerToursGuia] Buscando tours para guía UID: ${uid}`);
 
     const bookingsSnapshot = await db.collection('bookings').where('guideId', '==', uid).get();
     
     if (bookingsSnapshot.empty) {
-      console.log(`[obtenerToursGuia] No hay tours para el guía ${uid}`);
+      console.log(`ℹ️ [obtenerToursGuia] No hay tours para el guía ${uid}`);
       return res.status(200).json({
         success: true,
         tours: []
@@ -867,13 +867,13 @@ export const obtenerToursGuia = async (req: Request, res: Response) => {
       ...doc.data()
     }));
 
-    console.log(`[obtenerToursGuia] Se encontraron ${tours.length} tours`);
+    console.log(`✅ [obtenerToursGuia] Se encontraron ${tours.length} tours`);
     return res.status(200).json({
       success: true,
       tours
     });
   } catch (error: any) {
-    console.error('Error al obtener tours del guía:', error);
+    console.error('❌ Error al obtener tours del guía:', error);
     return res.status(500).json({
       success: false,
       message: 'Error al obtener tours',
@@ -887,11 +887,11 @@ export const obtenerNegociosUsuario = async (req: Request, res: Response) => {
     const { uid } = req.params;
     
     if (!uid) {
-      console.error('[obtenerNegociosUsuario] UID no proporcionado');
-      return res.status(400).json({ success: false, message: 'UID es requerido'});
+      console.error('❌ [obtenerNegociosUsuario] UID no proporcionado');
+      return res.status(400).json({ success: false, message: 'UID es requerido' });
     }
 
-    console.log(`[obtenerNegociosUsuario] Buscando negocios para UID: ${uid}`);
+    console.log(`📋 [obtenerNegociosUsuario] Buscando negocios para UID: ${uid}`);
 
     const negocios: any[] = [];
 
@@ -935,13 +935,13 @@ export const obtenerNegociosUsuario = async (req: Request, res: Response) => {
       });
     });
 
-    console.log(`[obtenerNegociosUsuario] Se encontraron ${negocios.length} negocios`);
+    console.log(`✅ [obtenerNegociosUsuario] Se encontraron ${negocios.length} negocios`);
     return res.status(200).json({
       success: true,
       negocios
     });
   } catch (error: any) {
-    console.error('Error al obtener negocios del usuario:', error);
+    console.error('❌ Error al obtener negocios del usuario:', error);
     return res.status(500).json({
       success: false,
       message: 'Error al obtener negocios',

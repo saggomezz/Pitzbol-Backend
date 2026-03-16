@@ -1,4 +1,4 @@
-{
+﻿{
   "compilerOptions": {
     // File Layout
     "rootDir": "./src",
@@ -23,8 +23,9 @@
     // Recommended Options
     "strict": true,
     "skipLibCheck": true,
+    "ignoreDeprecations": "6.0",
 
-    // Backend–specific
+    // Backend-specific
     "esModuleInterop": true,
     "resolveJsonModule": true,
     "forceConsistentCasingInFileNames": true

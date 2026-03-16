@@ -118,32 +118,6 @@ router.get(
   adminController.obtenerUsuariosGestionables
 );
 
-// ====== GESTIÓN DE GUÍAS ======
-
-// PROTEGIDO - Obtener guías aprobados con detalle completo
-router.get(
-  '/guias/aprobados',
-  authMiddleware,
-  requireAdmin,
-  adminController.obtenerGuiasAprobados
-);
-
-// PROTEGIDO - Obtener guías pendientes con detalle completo
-router.get(
-  '/guias/pendientes',
-  authMiddleware,
-  requireAdmin,
-  adminController.obtenerGuiasPendientes
-);
-
-// PROTEGIDO - Editar guía aprobado
-router.patch(
-  '/guias/:uid/editar',
-  authMiddleware,
-  requireAdmin,
-  adminController.editarGuia
-);
-
 // PROTEGIDO - Obtener detalle completo de un usuario
 router.get(
   '/usuarios/:uid/detalle',
@@ -181,26 +155,11 @@ router.put(
   adminController.marcarNotificacionComoLeida
 );
 
-// PROTEGIDO - Eliminar todas las notificaciones de un usuario
-router.delete(
-  '/notifications/user/:uid',
-  authMiddleware,
-  adminController.limpiarNotificacionesUsuario
-);
-
 // PROTEGIDO - Eliminar notificación
 router.delete(
   '/notifications/:id',
   authMiddleware,
   adminController.eliminarNotificacion
-);
-
-// PROTEGIDO - Crear reserva de tour como admin
-router.post(
-  '/bookings/create',
-  authMiddleware,
-  requireAdmin,
-  adminController.adminCreateBooking
 );
 
 export default router;

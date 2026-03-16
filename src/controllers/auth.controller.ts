@@ -109,20 +109,20 @@ export const login = async (req: Request, res: Response) => {
     const { email, password } = req.body;
     
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('INTENTO DE LOGIN');
-    console.log('Email:', email);
-    console.log('Password length:', password?.length, 'caracteres');
-    console.log('Firebase API Key configurada:', FIREBASE_WEB_API_KEY ? 'Sí ✅' : 'NO ❌');
+    console.log('🔐 INTENTO DE LOGIN');
+    console.log('📧 Email:', email);
+    console.log('🔑 Password length:', password?.length, 'caracteres');
+    console.log('🌐 Firebase API Key configurada:', FIREBASE_WEB_API_KEY ? 'Sí ✅' : 'NO ❌');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_WEB_API_KEY}`;
     
-    console.log('Intentando autenticar con Firebase...');
+    console.log('🔄 Intentando autenticar con Firebase...');
     const response = await axios.post(url, { email, password, returnSecureToken: true });
     const { localId } = response.data;
     
-    console.log('Firebase autenticó correctamente');
-    console.log('UID:', localId);
+    console.log('✅ Firebase autenticó correctamente');
+    console.log('👤 UID:', localId);
     
     let userData: any = null;
     let userRole: string = "";
@@ -191,7 +191,7 @@ export const login = async (req: Request, res: Response) => {
     });
 
     // Logging seguro (sin revelar datos sensibles)
-    console.log(`Login exitoso para usuario: ${localId}`);
+    console.log(`✅ Login exitoso para usuario: ${localId}`);
 
     res.json({
       success: true,
@@ -221,11 +221,11 @@ export const login = async (req: Request, res: Response) => {
     const code = firebaseError?.message;
 
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.error('ERROR EN LOGIN');
-    console.error('Email intentado:', req.body.email);
-    console.error('Código de error Firebase:', code || 'Sin código');
-    console.error('Mensaje de error:', error.message);
-    console.error('Respuesta completa de Firebase:', JSON.stringify(error.response?.data, null, 2));
+    console.error('❌ ERROR EN LOGIN');
+    console.error('📋 Email intentado:', req.body.email);
+    console.error('🔥 Código de error Firebase:', code || 'Sin código');
+    console.error('📝 Mensaje de error:', error.message);
+    console.error('📊 Respuesta completa de Firebase:', JSON.stringify(error.response?.data, null, 2));
     console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     // Mensajes de error más descriptivos
@@ -274,7 +274,7 @@ export const login = async (req: Request, res: Response) => {
 
 // Recuperar contraseña
 export const recoverPassword = async (req: Request, res: Response) => {
-  console.log("Petición de recuperación recibida para:", req.body.email);
+  console.log("🚀 Petición de recuperación recibida para:", req.body.email);
   
   try {
     const { email } = req.body;
@@ -362,7 +362,7 @@ export const updateProfile = async (req: any, res: Response) => {
   try {
     // 1. Mantenemos la extracción original y añadimos 'descripcion'
     const uid = req.user?.uid;
-    const { telefono, nacionalidad, especialidades, descripcion, tarifa, tarifaDiaCompleto, rutaTour } = req.body;
+    const { telefono, nacionalidad, especialidades, descripcion } = req.body;
 
     if (!uid) {
       return res.status(401).json({ msg: "Usuario no autenticado" });
@@ -425,13 +425,11 @@ export const updateProfile = async (req: any, res: Response) => {
       },
       "15_descripcion": descripcion !== undefined ? descripcion : (userData["15_descripcion"] || userData.descripcion || ""),
       "16_status": userData.status || userData["16_status"] || "en_revision",
-      "17_tarifa_mxn": tarifa !== undefined ? Number(tarifa) : (userData["17_tarifa_mxn"] || 0),
+      "17_tarifa_mxn": userData.tarifa_mxn || userData["17_tarifa_mxn"] || 0,
       "18_validacion_biometrica": {
         porcentaje: userData.validacion_biometrica?.porcentaje || userData["18_validacion_biometrica"]?.porcentaje || "0",
         mensaje: userData.validacion_biometrica?.mensaje || userData["18_validacion_biometrica"]?.mensaje || ""
       },
-      "19_tarifa_dia_completo": tarifaDiaCompleto !== undefined ? Number(tarifaDiaCompleto) : (userData["19_tarifa_dia_completo"] || 0),
-      "20_ruta_tour": rutaTour !== undefined ? rutaTour : (userData["20_ruta_tour"] || ""),
     };
 
     await docRef.update(updateData);
@@ -454,7 +452,7 @@ export const solicitarGuia = async (req: any, res: Response) => {
       return res.status(401).json({ msg: "Usuario no autenticado" });
     }
 
-    console.log(`Solicitud de guía para uid: ${uid}`);
+    console.log(`📋 Solicitud de guía para uid: ${uid}`);
 
     // Buscar el usuario en turistas para obtener sus datos
     const turistaSnapshot = await db.collection("usuarios")
@@ -529,13 +527,13 @@ export const solicitarGuia = async (req: any, res: Response) => {
           }
         });
         await batch.commit();
-        console.log('Notificación enviada a administradores');
+        console.log('✅ Notificación enviada a administradores');
       }
     } catch (notifError) {
-      console.warn('Error al notificar a administradores:', notifError);
+      console.warn('⚠️ Error al notificar a administradores:', notifError);
     }
 
-    console.log(`Solicitud de guía creada para uid: ${uid}`);
+    console.log(`✅ Solicitud de guía creada para uid: ${uid}`);
 
     res.status(201).json({
       msg: "Solicitud de guía enviada correctamente",
@@ -546,31 +544,5 @@ export const solicitarGuia = async (req: any, res: Response) => {
   } catch (error: any) {
     console.error("Error en solicitarGuia:", error);
     res.status(500).json({ msg: "Error interno del servidor", error: error.message });
-  }
-};
-
-// GET /api/auth/itinerarios?uid=xxx&role=turista
-export const getItinerariosUsuario = async (req: Request, res: Response) => {
-  try {
-    const { uid, role } = req.query;
-    if (!uid || typeof uid !== 'string') {
-      return res.status(400).json({ error: 'uid requerido' });
-    }
-    const roleMap: Record<string, string> = { turista: 'turistas', guia: 'guias', admin: 'admins', negociante: 'negocios' };
-    const roleCollection = roleMap[role as string] || 'turistas';
-
-    const snapshot = await db
-      .collection('usuarios').doc(roleCollection).collection('lista')
-      .where('uid', '==', uid).limit(1).get();
-
-    if (snapshot.empty) return res.json([]);
-
-    const itinSnap = await snapshot.docs[0]!.ref
-      .collection('itinerarios').orderBy('creadoEn', 'desc').get();
-
-    return res.json(itinSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-  } catch (error: any) {
-    console.error('Error en getItinerariosUsuario:', error);
-    return res.status(500).json({ error: error.message });
   }
 };

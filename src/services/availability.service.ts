@@ -1,12 +1,10 @@
-import { db } from '../config/firebase';
+﻿import { db } from '../config/firebase';
 import { GuideAvailability, SetAvailabilityRequest, TimeSlot } from '../models/guide-availability.model';
 
 export class AvailabilityService {
-  // Establecer disponibilidad del guía para una fecha
   static async setGuideAvailability(request: SetAvailabilityRequest): Promise<GuideAvailability> {
     const availabilityRef = db.collection('guide_availability');
-    
-    // Verificar si ya existe disponibilidad para esa fecha
+
     const existingQuery = await availabilityRef
       .where('guideId', '==', request.guideId)
       .where('fecha', '==', request.fecha)
@@ -28,7 +26,6 @@ export class AvailabilityService {
       updatedAt: new Date(),
     };
 
-    // Si ya existe, actualizar
     if (!existingQuery.empty && existingQuery.docs[0]) {
       const docId = existingQuery.docs[0].id;
       const existingData = existingQuery.docs[0].data();
@@ -36,7 +33,6 @@ export class AvailabilityService {
       return { id: docId, ...availabilityData, createdAt: existingData.createdAt || new Date() };
     }
 
-    // Si no existe, crear nuevo
     const newAvailability = {
       ...availabilityData,
       createdAt: new Date(),
@@ -46,7 +42,6 @@ export class AvailabilityService {
     return { id: docRef.id, ...newAvailability };
   }
 
-  // Obtener disponibilidad del guía para una fecha
   static async getGuideAvailability(guideId: string, fecha: string): Promise<GuideAvailability | null> {
     const snapshot = await db.collection('guide_availability')
       .where('guideId', '==', guideId)
@@ -58,11 +53,10 @@ export class AvailabilityService {
 
     const doc = snapshot.docs[0];
     if (!doc || !doc.exists) return null;
-    
+
     return { id: doc.id, ...doc.data() } as GuideAvailability;
   }
 
-  // Obtener todas las disponibilidades del guía
   static async getGuideAvailabilities(guideId: string, desde?: string): Promise<GuideAvailability[]> {
     let query = db.collection('guide_availability')
       .where('guideId', '==', guideId);
@@ -81,41 +75,36 @@ export class AvailabilityService {
     })) as GuideAvailability[];
   }
 
-  // Eliminar disponibilidad
   static async deleteAvailability(availabilityId: string): Promise<void> {
     await db.collection('guide_availability').doc(availabilityId).delete();
   }
 
-  // Verificar si un horario específico está disponible
   static async isTimeSlotAvailable(
     guideId: string,
     fecha: string,
     horaInicio: string
   ): Promise<boolean> {
     const availability = await this.getGuideAvailability(guideId, fecha);
-    
-    // Si el guía no ha configurado disponibilidad, se asume disponible
+
+    // Compatibilidad: si no hay disponibilidad configurada, se asume disponible.
     if (!availability) return true;
 
     const timeSlot = availability.horasDisponibles.find(
       slot => slot.horaInicio === horaInicio
     );
 
-    // Si el horario no está en la lista configurada, se asume disponible
     if (!timeSlot) return true;
 
     return timeSlot.disponible && timeSlot.reservasActuales < availability.maxReservasPorHora;
   }
 
-  // Incrementar contador de reservas para un horario
   static async incrementBookingCount(
     guideId: string,
     fecha: string,
     horaInicio: string
   ): Promise<void> {
     const availability = await this.getGuideAvailability(guideId, fecha);
-    
-    // Si no hay disponibilidad configurada, no hay nada que incrementar
+
     if (!availability) return;
 
     const timeSlotIndex = availability.horasDisponibles.findIndex(
@@ -127,8 +116,7 @@ export class AvailabilityService {
     }
 
     availability.horasDisponibles[timeSlotIndex].reservasActuales++;
-    
-    // Marcar como no disponible si alcanzó el máximo
+
     if (availability.horasDisponibles[timeSlotIndex].reservasActuales >= availability.maxReservasPorHora) {
       availability.horasDisponibles[timeSlotIndex].disponible = false;
     }
@@ -139,14 +127,13 @@ export class AvailabilityService {
     });
   }
 
-  // Decrementar contador de reservas (cuando se cancela)
   static async decrementBookingCount(
     guideId: string,
     fecha: string,
     horaInicio: string
   ): Promise<void> {
     const availability = await this.getGuideAvailability(guideId, fecha);
-    
+
     if (!availability) return;
 
     const timeSlotIndex = availability.horasDisponibles.findIndex(

@@ -347,8 +347,6 @@ export const getVerifiedGuides = async (req: Request, res: Response) => {
                 idiomas: data["09_idiomas"] || data.idiomas || [],
                 especialidades: data["07_especialidades"] || data.especialidades || [],
                 tarifa: data["17_tarifa_mxn"] || data.tarifa || 0,
-                tarifaCompleta: data["19_tarifa_dia_completo"] || data.tarifaCompleta || 0,
-                rutaTour: data["20_ruta_tour"] || data.rutaTour || "",
                 ubicacion: data.ubicacion || "Guadalajara, Jalisco",
                 email: data["04_correo"] || data.email || "",
                 telefono: data["06_telefono"] || data.telefono || "",
@@ -362,7 +360,7 @@ export const getVerifiedGuides = async (req: Request, res: Response) => {
         console.log(`✅ Se encontraron ${guides.length} guías verificados`);
         
         // Log detallado del primer guía
-        if (guides.length > 0 && guides[0]) {
+        if (guides.length > 0) {
             console.log("📌 Ejemplo de guía devuelto:", {
                 uid: guides[0].uid,
                 nombre: guides[0].nombre,
@@ -378,7 +376,7 @@ export const getVerifiedGuides = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        console.error("Error al obtener guías verificados:", error);
+        console.error("❌ Error al obtener guías verificados:", error);
         return res.status(500).json({ 
             message: 'Error interno al obtener guías',
             error: error.message 
@@ -408,7 +406,7 @@ export const getGuideRequest = async (req: Request, res: Response) => {
             .limit(1)
             .get();
 
-        if (!pendientesSnapshot.empty && pendientesSnapshot.docs[0]) {
+        if (!pendientesSnapshot.empty) {
             const doc = pendientesSnapshot.docs[0];
             const data = doc.data();
             
@@ -446,7 +444,7 @@ export const getGuideRequest = async (req: Request, res: Response) => {
             .limit(1)
             .get();
 
-        if (!aprobadosSnapshot.empty && aprobadosSnapshot.docs[0]) {
+        if (!aprobadosSnapshot.empty) {
             const doc = aprobadosSnapshot.docs[0];
             const data = doc.data();
             
@@ -484,7 +482,7 @@ export const getGuideRequest = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        console.error("Error al obtener solicitud de guía:", error);
+        console.error("❌ Error al obtener solicitud de guía:", error);
         return res.status(500).json({ 
             success: false,
             message: 'Error interno al obtener solicitud',
@@ -504,7 +502,7 @@ export const getGuidePublicProfile = async (req: Request, res: Response) => {
             });
         }
 
-        console.log("Obteniendo perfil público del guía:", uid);
+        console.log("📋 Obteniendo perfil público del guía:", uid);
 
         // Buscar el guía en la colección de verificados
         const guidesSnapshot = await db.collection('usuarios')
@@ -515,14 +513,14 @@ export const getGuidePublicProfile = async (req: Request, res: Response) => {
             .get();
 
         if (guidesSnapshot.empty) {
-            console.log("ℹNo se encontró el guía con UID:", uid);
+            console.log("ℹ️ No se encontró el guía con UID:", uid);
             return res.status(404).json({ 
                 success: false,
                 message: 'Guía no encontrado' 
             });
         }
 
-        const guideDoc = guidesSnapshot.docs[0]!;
+        const guideDoc = guidesSnapshot.docs[0];
         const data = guideDoc.data();
 
         const guideProfile = {
@@ -534,8 +532,7 @@ export const getGuidePublicProfile = async (req: Request, res: Response) => {
             idiomas: data["09_idiomas"] || data.idiomas || [],
             especialidades: data["07_especialidades"] || data.especialidades || [],
             tarifa: data["17_tarifa_mxn"] || data.tarifa || 0,
-            tarifaCompleta: data["19_tarifa_dia_completo"] || data.tarifaCompleta || null,
-            rutaTour: data["20_ruta_tour"] || data.rutaTour || "",
+            tarifaCompleta: data["18_tarifa_dia_completo"] || data.tarifaCompleta || null,
             ubicacion: data.ubicacion || "Guadalajara, Jalisco",
             experiencia: data.experiencia || null,
             certificaciones: data.certificaciones || [],
@@ -545,7 +542,7 @@ export const getGuidePublicProfile = async (req: Request, res: Response) => {
             resenas: data.numeroResenas || 0,
         };
 
-        console.log(`Perfil del guía encontrado:`, guideProfile.nombre);
+        console.log(`✅ Perfil del guía encontrado:`, guideProfile.nombre);
         
         return res.status(200).json({ 
             success: true,
@@ -553,7 +550,7 @@ export const getGuidePublicProfile = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        console.error("Error al obtener perfil público del guía:", error);
+        console.error("❌ Error al obtener perfil público del guía:", error);
         return res.status(500).json({ 
             success: false,
             message: 'Error interno al obtener perfil del guía',

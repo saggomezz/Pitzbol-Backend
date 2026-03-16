@@ -1,17 +1,17 @@
-
-import { Router } from "express";
+﻿import { Router } from "express";
 import {
   registerBusiness,
   registerBusinessWithImages,
   validateBusinessUniqueness,
   getMyBusiness,
+  getMyBusinessRequests,
   getBusinessById,
   updateBusiness,
   updateBusinessImages,
 } from "../controllers/business.controller";
 import { upload } from '../middleware/uploadMiddleware';
 import { recoverPassword } from "../controllers/auth.controller";
-import { authMiddleware } from "../middlewares/auth.middleware";
+import { authMiddleware, optionalAuthMiddleware } from "../middlewares/auth.middleware";
 import { isBusiness } from "../middlewares/business.middleware";
 
 const router = Router();
@@ -19,10 +19,10 @@ const router = Router();
 // Endpoint para validar unicidad de datos del negocio
 router.post("/validate-uniqueness", validateBusinessUniqueness);
 
-
-// Nuevo endpoint para registro de negocio con logo y hasta 3 imágenes
+// Nuevo endpoint para registro de negocio con logo y hasta 3 imagenes
 router.post(
   "/register-with-images",
+  optionalAuthMiddleware,
   upload.fields([
     { name: 'logo', maxCount: 1 },
     { name: 'images', maxCount: 3 }
@@ -40,6 +40,13 @@ router.get(
   getMyBusiness
 );
 
+// PROTEGIDO - Obtener todas mis solicitudes de negocio
+router.get(
+  "/my-requests",
+  authMiddleware,
+  getMyBusinessRequests
+);
+
 router.get(
   "/by-id/:id",
   authMiddleware,
@@ -55,7 +62,7 @@ router.get(
   }
 );
 
-// RUTAS DE ACTUALIZACIÓN (admin only)
+// RUTAS DE ACTUALIZACION (admin only)
 router.put(
   "/:businessId",
   authMiddleware,
