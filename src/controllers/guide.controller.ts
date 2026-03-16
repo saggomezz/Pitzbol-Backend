@@ -257,7 +257,7 @@ export const updateGuideProfile = async (req: Request, res: Response) => {
         const config = [
             { ref: db.collection('usuarios').doc('guias').collection('lista'), field: "07_especialidades" },
             { ref: db.collection('usuarios').doc('guias').collection('pendientes'), field: "07_especialidades" },
-            { ref: db.collection('usuarios').doc('turistas').collection('lista'), field: "07_intereses" }
+            { ref: db.collection('usuarios').doc('turistas').collection('lista'), field: "especialidades" }
         ];
 
         const ubicacionesActualizadas: string[] = [];
@@ -279,9 +279,11 @@ export const updateGuideProfile = async (req: Request, res: Response) => {
                         "updatedAt": new Date().toISOString()
                     };
 
-                    // Sincronizar ambos campos solo en guías
+                    // Sincronizar ambos campos en guías
                     if (item.field === "07_especialidades") {
                         updateData["especialidades"] = categorias;
+                    } else if (item.field === "especialidades") {
+                        updateData["07_especialidades"] = categorias;
                     }
 
                     await docSnapshot.ref.update(updateData);
