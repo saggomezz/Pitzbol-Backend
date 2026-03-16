@@ -1,38 +1,7 @@
 import { Request, Response } from 'express';
 import { db, auth } from '../config/firebase';
 import { sendNotificationToUser } from '../services/notification.service';
-import { sendProfileApprovalEmail, sendBookingConfirmationEmail } from '../services/email.service';
 import { reorganizeBusinessImages, deleteBusinessFromCloudinary } from '../utils/cloudinaryHelper';
-import { BookingService } from '../services/booking.service';
-import { AuthRequest } from '../middlewares/auth.middleware';
-
-const notifyGuideApprovalByEmail = async (params: { uid: string; fullName: string; email?: string }) => {
-    try {
-        let destination = params.email;
-
-        if (!destination) {
-            try {
-                const userRecord = await auth.getUser(params.uid);
-                destination = userRecord.email || undefined;
-            } catch (authError) {
-                console.warn('No se pudo obtener el correo del guía desde Firebase Auth:', authError);
-            }
-        }
-
-        if (!destination) {
-            console.warn(`No se envió correo: guía ${params.uid} sin email registrado`);
-            return;
-        }
-
-        await sendProfileApprovalEmail({
-            to: destination,
-            fullName: params.fullName,
-            ...(process.env.GUIDE_DASHBOARD_URL ? { dashboardUrl: process.env.GUIDE_DASHBOARD_URL } : {}),
-        });
-    } catch (emailError) {
-        console.warn('No se pudo enviar correo de aprobación de perfil:', emailError);
-    }
-};
 
 const firstNonEmpty = (...values: any[]): string => {
     for (const value of values) {
@@ -407,7 +376,7 @@ const updateCloudinaryUrls = (data: any): any => {
 
 // Aprobar o rechazar un negocio pendiente
 export const gestionarNegocioPendiente = async (req: Request, res: Response) => {
-    const { negocioId, accion, adminUid } = req.body;
+    const { negocioId, accion, adminUid, motivoRechazo } = req.body;
     if (!negocioId || !accion || !adminUid) {
         return res.status(400).json({ success: false, message: "Faltan datos obligatorios" });
     }
@@ -421,6 +390,7 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
         const negocioData = negocioSnap.data();
         
         if (accion === "aprobar") {
+            const ownerUid = firstNonEmpty(negocioData?.owner, negocioData?.ownerUid, negocioData?.business?.owner);
             // Reorganizar imágenes en Cloudinary (de pendientes a activos) y validar resultado
             const moveResult = await reorganizeBusinessImages(negocioId);
             const hadMoveErrors = moveResult.failed > 0;
@@ -450,17 +420,18 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
             // Delete from Pendientes
             await negocioRef.delete();
             
-            console.log(`[gestionarNegocioPendiente] Negocio ${negocioId} movido de Pendientes a Activos`);
+            console.log(`[gestionarNegocioPendiente] ✅ Negocio ${negocioId} movido de Pendientes a Activos`);
             
             // Notify owner
-            if (negocioData?.owner) {
-                await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
+            if (ownerUid) {
+                await sendNotificationToUser(ownerUid, {
                     tipo: 'negocio_aprobado',
                     titulo: 'Negocio aprobado',
                     mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido aprobado y ya es visible para los usuarios.`,
                     fecha: new Date().toISOString(),
                     leido: false,
-                    enlace: '/negocio/estatus'
+                    enlace: `/negocio/mis-solicitudes/${negocioId}`,
+                    negocioId,
                 });
             }
             return res.json({
@@ -470,43 +441,68 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
             });
         } else if (accion === "rechazar") {
             console.log(`[gestionarNegocioPendiente] 🔄 Iniciando rechazo de negocio ${negocioId}`);
+            let ownerUid = firstNonEmpty(negocioData?.ownerUid, negocioData?.owner, negocioData?.business?.owner);
+            const ownerEmailFromDoc = negocioData?.ownerEmail || negocioData?.email || null;
+
+            // Si ownerUid no está disponible, intentar resolverlo desde Firebase Auth por email
+            if (!ownerUid && ownerEmailFromDoc) {
+                try {
+                    const authUser = await auth.getUserByEmail(ownerEmailFromDoc);
+                    ownerUid = authUser.uid;
+                    console.log(`[gestionarNegocioPendiente] ✅ ownerUid resuelto desde Auth por email: ${ownerUid}`);
+                } catch {
+                    console.warn(`[gestionarNegocioPendiente] ⚠️ No se pudo resolver ownerUid desde email: ${ownerEmailFromDoc}`);
+                }
+            }
             
             const rejectedAt = new Date().toISOString();
+            const rechazoMotivo = typeof motivoRechazo === "string" ? motivoRechazo.trim() : "";
             const archivedData = {
                 ...negocioData,
+                ownerUid: ownerUid || negocioData?.ownerUid || null, // Asegurar que ownerUid quede guardado
+                ownerEmail: ownerEmailFromDoc,                         // Guardar email del dueño para búsquedas
                 status: "archivado",
-                archivedReason: "Solicitud rechazada por administrador",
+                archivedReason: rechazoMotivo || "Solicitud rechazada por administrador",
                 archivedAt: rejectedAt,
                 archivedBy: adminUid,
+                rejectedAt,
+                rejectedBy: adminUid,
+                rejectionReason: rechazoMotivo || null,
                 updatedAt: rejectedAt,
                 history: [
                     ...(negocioData?.history || []),
-                    { action: "rechazado", date: rejectedAt, by: adminUid },
-                    { action: "archivado", date: rejectedAt, by: adminUid, reason: "Solicitud rechazada por administrador" }
+                    { action: "rechazado", date: rejectedAt, by: adminUid, reason: rechazoMotivo || null },
+                    { action: "archivado", date: rejectedAt, by: adminUid, reason: rechazoMotivo || "Solicitud rechazada por administrador" }
                 ]
             };
 
-            console.log(`[gestionarNegocioPendiente] Guardando en negocios/Archivados/items...`);
+            console.log(`[gestionarNegocioPendiente] 📁 Guardando en negocios/Archivados/items...`);
             // Move from Pendientes to Archivados
             await db.collection("negocios").doc("Archivados").collection("items").doc(negocioId).set(archivedData);
-            console.log(`[gestionarNegocioPendiente] Guardado en negocios/Archivados/items`);
+            console.log(`[gestionarNegocioPendiente] ✅ Guardado en negocios/Archivados/items`);
 
-            console.log(`[gestionarNegocioPendiente] Eliminando de Pendientes...`);
+            console.log(`[gestionarNegocioPendiente] 🗑️ Eliminando de Pendientes...`);
             // Delete from Pendientes
             await negocioRef.delete();
-            console.log(`[gestionarNegocioPendiente] Eliminado de Pendientes`);
+            console.log(`[gestionarNegocioPendiente] ✅ Eliminado de Pendientes`);
 
-            console.log(`[gestionarNegocioPendiente] Negocio ${negocioId} rechazado y movido a Archivados`);
+            console.log(`[gestionarNegocioPendiente] ✅ Negocio ${negocioId} rechazado y movido a Archivados`);
             
             // Notify owner
-            if (negocioData?.owner) {
-                await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
+            if (ownerUid) {
+                const motivoMsg = rechazoMotivo
+                    ? ` Motivo compartido por el equipo: ${rechazoMotivo}`
+                    : '';
+                await sendNotificationToUser(ownerUid, {
                     tipo: 'negocio_rechazado',
-                    titulo: 'Negocio rechazado',
-                    mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" fue rechazado y archivado por el administrador.`,
+                    titulo: 'Actualización de tu solicitud de negocio',
+                    mensaje: `Gracias por enviar tu solicitud para "${negocioData?.business?.name || negocioData?.name}". En esta ocasión no fue aprobada.${motivoMsg} Puedes actualizar la información y volver a intentarlo.`,
                     fecha: rejectedAt,
                     leido: false,
-                    enlace: '/negocio/estatus'
+                    enlace: `/negocio/mis-solicitudes/${negocioId}`,
+                    negocioId,
+                    rejectionReason: rechazoMotivo || undefined,
+                    rejectedAt,
                 });
             }
             return res.json({ success: true, message: "Negocio rechazado y movido a Archivados" });
@@ -565,7 +561,7 @@ export const archivarNegocio = async (req: Request, res: Response) => {
         // Delete from current location
         await negocioRef.delete();
         
-        console.log(`[archivarNegocio] Negocio ${negocioId} archivado (estaba en ${location})`);
+        console.log(`[archivarNegocio] ✅ Negocio ${negocioId} archivado (estaba en ${location})`);
         
         // Notify owner
         if (negocioData?.owner) {
@@ -634,7 +630,7 @@ export const regresarAPendientes = async (req: Request, res: Response) => {
         // Delete from Activos
         await activosRef.delete();
         
-        console.log(`[regresarAPendientes] Negocio ${negocioId} movido de Activos a Pendientes`);
+        console.log(`[regresarAPendientes] ✅ Negocio ${negocioId} movido de Activos a Pendientes`);
         
         // Notify owner
         if (negocioData?.owner) {
@@ -698,7 +694,7 @@ export const desarchivarNegocio = async (req: Request, res: Response) => {
         // Delete from archived
         await archivedRef.delete();
         
-        console.log(`[desarchivarNegocio] Negocio ${negocioId} desarchivado y movido a Pendientes`);
+        console.log(`[desarchivarNegocio] ✅ Negocio ${negocioId} desarchivado y movido a Pendientes`);
         
         // Notify owner
         if (negocioData?.owner) {
@@ -746,10 +742,10 @@ export const eliminarNegocioPermanente = async (req: Request, res: Response) => 
         let cloudinaryResult;
         try {
             cloudinaryResult = await deleteBusinessFromCloudinary(negocioId);
-            console.log(`[eliminarNegocioPermanente] Cloudinary: ${cloudinaryResult.deleted} eliminados, ${cloudinaryResult.failed} fallidos`);
+            console.log(`[eliminarNegocioPermanente] ✅ Cloudinary: ${cloudinaryResult.deleted} eliminados, ${cloudinaryResult.failed} fallidos`);
             
             if (cloudinaryResult.failed > 0) {
-                console.warn(`[eliminarNegocioPermanente] Algunos archivos de Cloudinary no se pudieron eliminar:`, cloudinaryResult.errors);
+                console.warn(`[eliminarNegocioPermanente] ⚠️ Algunos archivos de Cloudinary no se pudieron eliminar:`, cloudinaryResult.errors);
             }
         } catch (cloudinaryError) {
             console.error(`[eliminarNegocioPermanente] Error eliminando de Cloudinary:`, cloudinaryError);
@@ -759,7 +755,7 @@ export const eliminarNegocioPermanente = async (req: Request, res: Response) => 
         // Delete from Firestore
         await archivedRef.delete();
         
-        console.log(`[eliminarNegocioPermanente] Negocio ${negocioId} eliminado permanentemente de Firestore`);
+        console.log(`[eliminarNegocioPermanente] ✅ Negocio ${negocioId} eliminado permanentemente de Firestore`);
         
         return res.json({ 
             success: true, 
@@ -808,7 +804,7 @@ export const getSolicitudesPendientes = async (req: any, res: any) => {
         console.log(`✅ Se encontraron ${solicitudes.length} solicitudes pendientes`);
         return res.status(200).json({ solicitudes });
     } catch (error: any) {
-        console.error("Error de Firebase:", error);
+        console.error("❌ Error de Firebase:", error);
         return res.status(500).json({ message: "Error interno", error: error.message });
     }
 };
@@ -873,7 +869,7 @@ export const obtenerUsuariosGestionables = async (req: Request, res: Response) =
             negociantes,
         });
     } catch (error: any) {
-        console.error('Error al obtener usuarios gestionables:', error);
+        console.error('❌ Error al obtener usuarios gestionables:', error);
         return res.status(500).json({ success: false, message: 'Error interno', error: error.message });
     }
 };
@@ -941,7 +937,7 @@ export const eliminarUsuarioGestionable = async (req: Request, res: Response) =>
             eliminados,
         });
     } catch (error: any) {
-        console.error('Error al eliminar usuario gestionable:', error);
+        console.error('❌ Error al eliminar usuario gestionable:', error);
         return res.status(500).json({ success: false, message: 'Error al eliminar usuario', error: error.message });
     }
 };
@@ -961,7 +957,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
             .get();
 
         if (pendientesSnapshot.empty) {
-            console.error(`No se encontró solicitud pendiente para uid: ${uid}`);
+            console.error(`❌ No se encontró solicitud pendiente para uid: ${uid}`);
             return res.status(404).json({ 
                 success: false,
                 message: "La solicitud ya no existe o fue procesada previamente" 
@@ -978,7 +974,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
 
         const data = docPendiente.data();
 
-        console.log(`Documento encontrado: ${docPendiente.id}`, data);
+        console.log(`📄 Documento encontrado: ${docPendiente.id}`, data);
 
         if (accion === 'aprobar') {
             // Mover a guías/lista
@@ -986,7 +982,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
             const apellido = data?.["02_apellido"] || "Nombre";
             const customId = `${nombre}_${apellido}`.replace(/\s+/g, '_');
 
-            console.log(`Aprobando guía con customId: ${customId}`);
+            console.log(`✅ Aprobando guía con customId: ${customId}`);
 
             // Crear documento en guías/lista
             await db.collection('usuarios')
@@ -1002,14 +998,14 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
                     approvedAt: new Date().toISOString()
                 });
 
-            console.log(`Documento movido a guías/lista`);
+            console.log(`✅ Documento movido a guías/lista`);
 
             // Actualizar custom claims en Auth
             try {
                 await auth.setCustomUserClaims(uid, { role: 'guia' });
-                console.log(`Custom claims actualizados para uid: ${uid}`);
+                console.log(`✅ Custom claims actualizados para uid: ${uid}`);
             } catch (authError) {
-                console.error(`Error al actualizar custom claims: ${authError}`);
+                console.error(`⚠️ Error al actualizar custom claims: ${authError}`);
             }
 
             // Actualizar en turistas/lista
@@ -1023,7 +1019,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
             if (!turistaQuery.empty) {
                 const userDoc = turistaQuery.docs[0];
                 if (userDoc && userDoc.exists) {
-                    console.log(`Actualizando turista documento: ${userDoc.id}`);
+                    console.log(`📝 Actualizando turista documento: ${userDoc.id}`);
                     
                     await userDoc.ref.update({ 
                         "03_rol": "guia",
@@ -1032,10 +1028,10 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
                         updatedAt: new Date().toISOString()
                     });
                     
-                    console.log(` Turista actualizado a guía`);
+                    console.log(`✅ Turista actualizado a guía`);
                 }
             } else {
-                console.warn(`No se encontró usuario en turistas/lista con uid: ${uid}`);
+                console.warn(`⚠️ No se encontró usuario en turistas/lista con uid: ${uid}`);
             }
 
             // Guardar notificación en Firestore
@@ -1051,14 +1047,14 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
                         leido: false,
                         enlace: '/perfil'
                     });
-                console.log(`Notificación de aprobación guardada`);
+                console.log(`📬 Notificación de aprobación guardada`);
             } catch (notifError) {
-                console.warn(`Error al guardar notificación: ${notifError}`);
+                console.warn(`⚠️ Error al guardar notificación: ${notifError}`);
             }
 
             // Eliminar de pendientes
             await docPendiente.ref.delete();
-            console.log(`Solicitud eliminada de pendientes`);
+            console.log(`🗑️ Solicitud eliminada de pendientes`);
 
             // Notificar al usuario de aprobación de negocio
             await sendNotificationToUser(uid, {
@@ -1069,13 +1065,6 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
                 leido: false,
                 enlace: '/negocio/estatus'
             });
-
-            const fullName = `${nombre} ${apellido}`.trim() || nombre || 'Guía Pitzbol';
-            void notifyGuideApprovalByEmail({
-                uid,
-                fullName,
-                email: data?.['04_correo'] || data?.email,
-            });
             
             return res.json({ 
                 success: true, 
@@ -1085,7 +1074,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
             });
 
         } else if (accion === 'rechazar') {
-            console.log(`Rechazando solicitud para uid: ${uid}`);
+            console.log(`❌ Rechazando solicitud para uid: ${uid}`);
 
             // Actualizar en turistas/lista para marcar que fue rechazado
             const turistaQuery = await db.collection("usuarios")
@@ -1098,7 +1087,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
             if (!turistaQuery.empty) {
                 const docTurista = turistaQuery.docs[0];
                 if (docTurista && docTurista.exists) {
-                    console.log(`Actualizando turista documento: ${docTurista.id}`);
+                    console.log(`📝 Actualizando turista documento: ${docTurista.id}`);
                     
                     await docTurista.ref.update({ 
                         "03_rol": "turista",
@@ -1107,10 +1096,10 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
                         rejectedAt: new Date().toISOString()
                     });
                     
-                    console.log(`Turista marcado como rechazado`);
+                    console.log(`✅ Turista marcado como rechazado`);
                 }
             } else {
-                console.warn(`No se encontró usuario en turistas/lista con uid: ${uid}`);
+                console.warn(`⚠️ No se encontró usuario en turistas/lista con uid: ${uid}`);
             }
 
             // Guardar notificación en Firestore
@@ -1126,14 +1115,14 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
                         leido: false,
                         enlace: '/perfil'
                     });
-                console.log(`Notificación de rechazo guardada`);
+                console.log(`📬 Notificación de rechazo guardada`);
             } catch (notifError) {
-                console.warn(`Error al guardar notificación: ${notifError}`);
+                console.warn(`⚠️ Error al guardar notificación: ${notifError}`);
             }
 
             // Eliminar de pendientes
             await docPendiente.ref.delete();
-            console.log(`Solicitud eliminada de pendientes`);
+            console.log(`🗑️ Solicitud eliminada de pendientes`);
 
             // Notificar al usuario de rechazo de negocio
             await sendNotificationToUser(uid, {
@@ -1159,7 +1148,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        console.error("Error en gestión admin:", error);
+        console.error("❌ Error en gestión admin:", error);
         res.status(500).json({ 
             success: false,
             error: error.message 
@@ -1171,7 +1160,7 @@ export const verificarEstadoUsuario = async (req: Request, res: Response) => {
     const uid = req.params.uid as string;
 
     try {
-        console.log(`Verificando estado del usuario: ${uid}`);
+        console.log(`🔍 Verificando estado del usuario: ${uid}`);
 
         // Buscar en turistas
         const turistaQuery = await db.collection("usuarios")
@@ -1185,7 +1174,7 @@ export const verificarEstadoUsuario = async (req: Request, res: Response) => {
             const doc = turistaQuery.docs[0];
             if (doc && doc.exists) {
                 const userData = doc.data();
-                console.log(`Usuario encontrado en turistas:`, userData);
+                console.log(`✅ Usuario encontrado en turistas:`, userData);
                 
                 return res.json({
                     success: true,
@@ -1205,7 +1194,7 @@ export const verificarEstadoUsuario = async (req: Request, res: Response) => {
         for (const doc of guiasSnapshot.docs) {
             const data = doc.data();
             if (data && data.uid === uid) {
-                console.log(`Usuario encontrado en guías/lista:`, data);
+                console.log(`✅ Usuario encontrado en guías/lista:`, data);
                 
                 return res.json({
                     success: true,
@@ -1225,7 +1214,7 @@ export const verificarEstadoUsuario = async (req: Request, res: Response) => {
         for (const doc of pendientesSnapshot.docs) {
             const data = doc.data();
             if (data && data.uid === uid) {
-                console.log(`Usuario encontrado en guías/pendientes:`, data);
+                console.log(`✅ Usuario encontrado en guías/pendientes:`, data);
                 
                 return res.json({
                     success: true,
@@ -1236,14 +1225,14 @@ export const verificarEstadoUsuario = async (req: Request, res: Response) => {
             }
         }
 
-        console.warn(`Usuario no encontrado en ninguna colección: ${uid}`);
+        console.warn(`⚠️ Usuario no encontrado en ninguna colección: ${uid}`);
         return res.status(404).json({ 
             success: false,
             message: "Usuario no encontrado" 
         });
 
     } catch (error: any) {
-        console.error("Error al verificar estado:", error);
+        console.error("❌ Error al verificar estado:", error);
         res.status(500).json({ 
             success: false,
             error: error.message 
@@ -1304,7 +1293,7 @@ export const obtenerDetalleUsuarioAdmin = async (req: Request, res: Response) =>
 
         return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
     } catch (error: any) {
-        console.error('Error al obtener detalle admin de usuario:', error);
+        console.error('❌ Error al obtener detalle admin de usuario:', error);
         return res.status(500).json({ success: false, error: error.message });
     }
 };
@@ -1319,7 +1308,7 @@ export const marcarNotificacionComoLeida = async (req: Request, res: Response) =
             return res.status(400).json({ success: false, message: "UID e ID requeridos" });
         }
 
-        console.log(`Marcando notificación como leída: ${id}`);
+        console.log(`📝 Marcando notificación como leída: ${id}`);
 
         const docRef = db.collection('usuarios')
             .doc('notificaciones')
@@ -1329,15 +1318,17 @@ export const marcarNotificacionComoLeida = async (req: Request, res: Response) =
         const docSnapshot = await docRef.get();
         
         if (!docSnapshot.exists) {
-            return res.status(404).json({ success: false, message: "Notificación no encontrada" });
+            // Notificación solo en localStorage (no en Firestore), ignorar silenciosamente
+            console.log(`ℹ️ Notificación ${id} no encontrada en Firestore (puede ser local)`);
+            return res.json({ success: true, message: "Notificación no encontrada en Firestore" });
         }
 
         await docRef.update({ leido: true });
-        console.log(`Notificación marcada como leída`);
+        console.log(`✅ Notificación marcada como leída`);
         return res.json({ success: true, message: "Notificación marcada como leída" });
 
     } catch (error: any) {
-        console.error("Error al marcar notificación:", error);
+        console.error("❌ Error al marcar notificación:", error);
         res.status(500).json({ success: false, error: error.message });
     }
 };
@@ -1352,7 +1343,7 @@ export const eliminarNotificacion = async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, message: "UID e ID requeridos" });
         }
 
-        console.log(`Eliminando notificación: ${id}`);
+        console.log(`🗑️ Eliminando notificación: ${id}`);
 
         const docRef = db.collection('usuarios')
             .doc('notificaciones')
@@ -1366,11 +1357,11 @@ export const eliminarNotificacion = async (req: Request, res: Response) => {
         }
 
         await docRef.delete();
-        console.log(`Notificación eliminada`);
+        console.log(`✅ Notificación eliminada`);
         return res.json({ success: true, message: "Notificación eliminada" });
 
     } catch (error: any) {
-        console.error("Error al eliminar notificación:", error);
+        console.error("❌ Error al eliminar notificación:", error);
         res.status(500).json({ success: false, error: error.message });
     }
 };
@@ -1398,12 +1389,12 @@ export const limpiarNotificacionesUsuario = async (req: Request, res: Response) 
         });
 
         await batch.commit();
-        console.log(`Notificaciones del usuario limpiadas`);
+        console.log(`✅ Notificaciones del usuario limpiadas`);
         
         return res.json({ success: true, message: "Todas las notificaciones han sido eliminadas" });
 
     } catch (error: any) {
-        console.error("Error al limpiar notificaciones:", error);
+        console.error("❌ Error al limpiar notificaciones:", error);
         res.status(500).json({ success: false, error: error.message });
     }
 };
@@ -1432,139 +1423,18 @@ export const obtenerNotificacionesUsuario = async (req: Request, res: Response) 
                 id: doc.id,
                 ...data
             };
-            console.log(`Notificación ${doc.id}:`, JSON.stringify(notif, null, 2));
+            console.log(`📧 Notificación ${doc.id}:`, JSON.stringify(notif, null, 2));
             return notif;
         });
 
-        console.log(`Se obtuvieron ${notificaciones.length} notificaciones`);
+        console.log(`✅ Se obtuvieron ${notificaciones.length} notificaciones`);
         return res.json({ success: true, notificaciones });
 
     } catch (error: any) {
-        console.error("Error al obtener notificaciones:", error);
+        console.error("❌ Error al obtener notificaciones:", error);
         res.status(500).json({ 
             success: false,
             error: error.message 
-        });
-    }
-};
-
-// Reservar un tour como admin (en nombre de un turista)
-export const adminCreateBooking = async (req: AuthRequest, res: Response) => {
-    try {
-        const {
-            guideId,
-            guideName,
-            touristId,
-            touristName,
-            fecha,
-            horaInicio,
-            duracion,
-            numPersonas,
-            notas,
-            total,
-        } = req.body;
-
-        // Validaciones de campos requeridos
-        if (!guideId || !touristId || !fecha || !horaInicio || !duracion || !numPersonas || total == null) {
-            return res.status(400).json({
-                success: false,
-                message: 'Faltan datos requeridos: guideId, touristId, fecha, horaInicio, duracion, numPersonas y total son obligatorios',
-            });
-        }
-
-        // Verificar que el guía exista en la colección de guías aprobados
-        const guideSnapshot = await db
-            .collection('usuarios')
-            .doc('guias')
-            .collection('lista')
-            .where('uid', '==', guideId)
-            .limit(1)
-            .get();
-
-        if (guideSnapshot.empty) {
-            return res.status(404).json({
-                success: false,
-                message: 'El guía especificado no existe o no está aprobado',
-            });
-        }
-
-        // Verificar que el turista exista
-        const touristSnapshot = await db
-            .collection('usuarios')
-            .doc('turistas')
-            .collection('lista')
-            .where('uid', '==', touristId)
-            .limit(1)
-            .get();
-
-        if (touristSnapshot.empty) {
-            return res.status(404).json({
-                success: false,
-                message: 'El turista especificado no existe',
-            });
-        }
-
-        // Verificar disponibilidad del guía
-        const isAvailable = await BookingService.checkGuideAvailability(guideId, fecha, horaInicio);
-
-        if (!isAvailable) {
-            return res.status(409).json({
-                success: false,
-                message: 'El guía no está disponible en esa fecha y hora',
-            });
-        }
-
-        // Crear la reserva con estado confirmado (el admin la respalda)
-        const booking = await BookingService.createBooking({
-            guideId,
-            guideName: guideName || '',
-            touristId,
-            touristName: touristName || '',
-            fecha,
-            horaInicio,
-            duracion,
-            numPersonas,
-            notas: notas || '',
-            total,
-            status: 'confirmado',
-            createdAt: new Date(),
-            updatedAt: new Date(),
-        });
-
-        // Intentar enviar correo de confirmación al turista
-        const touristData = touristSnapshot.docs[0]?.data();
-        const touristEmail = touristData?.['04_correo'] || touristData?.email;
-        const touristFullName = touristName
-            || `${touristData?.['01_nombre'] || ''} ${touristData?.['02_apellido'] || ''}`.trim()
-            || 'Turista';
-
-        if (touristEmail) {
-            sendBookingConfirmationEmail({
-                to: touristEmail,
-                touristName: touristFullName,
-                guideName: guideName || 'Guía',
-                fecha,
-                horaInicio,
-                duracion,
-                numPersonas,
-                total,
-            }).catch((err: any) => console.warn('No se pudo enviar correo de confirmación (admin booking):', err));
-        }
-
-        console.log(`✅ [Admin] Reserva creada por admin ${req.user?.uid} → booking ${booking.id}`);
-
-        return res.status(201).json({
-            success: true,
-            message: 'Reserva creada exitosamente por el administrador',
-            bookingId: booking.id,
-            booking,
-        });
-    } catch (error: any) {
-        console.error('Error al crear reserva como admin:', error);
-        return res.status(500).json({
-            success: false,
-            message: 'Error al crear reserva como administrador',
-            error: error.message,
         });
     }
 };
@@ -1604,151 +1474,6 @@ export const forzarMoverImagenesNegocio = async (req: Request, res: Response) =>
         });
     } catch (error: any) {
         console.error("[forzarMoverImagenesNegocio] Error:", error);
-        return res.status(500).json({ success: false, error: error.message });
-    }
-};
-
-// ====== GESTIÓN DE GUÍAS ======
-
-// Obtener todos los guías aprobados con detalle completo
-export const obtenerGuiasAprobados = async (req: Request, res: Response) => {
-    try {
-        const snapshot = await db.collection('usuarios').doc('guias').collection('lista').get();
-        const guias = await Promise.all(snapshot.docs.map(async (doc) => {
-            const data = doc.data();
-            // Obtener tours publicados
-            let tours: any[] = [];
-            try {
-                const toursSnap = await db.collection('usuarios').doc('guias')
-                    .collection('lista').doc(doc.id).collection('tours_publicados').get();
-                tours = toursSnap.docs.map(t => ({ id: t.id, ...t.data() }));
-            } catch (_) { /* sin tours */ }
-
-            return {
-                id: doc.id,
-                uid: data.uid || doc.id,
-                nombre: data["01_nombre"] || data.nombre || '',
-                apellido: data["02_apellido"] || data.apellido || '',
-                correo: data["04_correo"] || data.email || '',
-                telefono: data["06_telefono"] || data.telefono || '',
-                nacionalidad: data["05_nacionalidad"] || '',
-                especialidades: data["07_especialidades"] || [],
-                rfc: data["08_rfc"] || '',
-                idiomas: data["09_idiomas"] || [],
-                codigoPostal: data["10_cp"] || '',
-                fotoFrente: data["11_foto_frente"] || '',
-                fotoReverso: data["12_foto_reverso"] || '',
-                fotoRostro: data["13_foto_rostro"] || '',
-                fotoPerfil: data["14_foto_perfil"]?.url || '',
-                descripcion: data["15_descripcion"] || '',
-                status: data["16_status"] || data.status || 'activo',
-                tarifaMxn: data["17_tarifa_mxn"] || 0,
-                tarifaDiaCompleto: data["18_tarifa_dia_completo"] || null,
-                validacionBiometrica: data["18_validacion_biometrica"] || null,
-                biografia: data["19_biografia"] || '',
-                calificacion: data.calificacion || 0,
-                resenas: data.numeroResenas || 0,
-                tours,
-                createdAt: data.createdAt || '',
-                approvedAt: data.approvedAt || '',
-            };
-        }));
-        return res.json({ success: true, guias });
-    } catch (error: any) {
-        console.error("[obtenerGuiasAprobados] Error:", error);
-        return res.status(500).json({ success: false, error: error.message });
-    }
-};
-
-// Obtener guías pendientes de aprobación con detalle completo
-export const obtenerGuiasPendientes = async (req: Request, res: Response) => {
-    try {
-        const snapshot = await db.collection('usuarios').doc('guias').collection('pendientes').get();
-        const guias = snapshot.docs.map(doc => {
-            const data = doc.data();
-            return {
-                id: doc.id,
-                uid: data.uid || doc.id,
-                nombre: data["01_nombre"] || data.nombre || '',
-                apellido: data["02_apellido"] || data.apellido || '',
-                correo: data["04_correo"] || data.email || '',
-                telefono: data["06_telefono"] || data.telefono || '',
-                nacionalidad: data["05_nacionalidad"] || '',
-                especialidades: data["07_especialidades"] || [],
-                rfc: data["08_rfc"] || '',
-                codigoPostal: data["10_cp"] || '',
-                fotoFrente: data["11_foto_frente"] || '',
-                fotoReverso: data["12_foto_reverso"] || '',
-                fotoRostro: data["13_foto_rostro"] || '',
-                fotoPerfil: data["14_foto_perfil"]?.url || '',
-                descripcion: data["15_descripcion"] || '',
-                status: data["16_status"] || 'en_revision',
-                tarifaMxn: data["17_tarifa_mxn"] || 0,
-                validacionBiometrica: data["18_validacion_biometrica"] || null,
-                createdAt: data.createdAt || '',
-            };
-        });
-        return res.json({ success: true, guias });
-    } catch (error: any) {
-        console.error("[obtenerGuiasPendientes] Error:", error);
-        return res.status(500).json({ success: false, error: error.message });
-    }
-};
-
-// Editar campos de un guía aprobado
-export const editarGuia = async (req: Request, res: Response) => {
-    const uid = req.params.uid as string;
-    if (!uid) {
-        return res.status(400).json({ success: false, message: 'UID del guía requerido' });
-    }
-
-    try {
-        // Buscar el documento del guía por uid
-        const snapshot = await db.collection('usuarios').doc('guias')
-            .collection('lista').where('uid', '==', uid).limit(1).get();
-
-        if (snapshot.empty) {
-            return res.status(404).json({ success: false, message: 'Guía no encontrado' });
-        }
-
-        const docRef = snapshot.docs[0]!.ref;
-        const { adminUid, ...campos } = req.body;
-
-        // Mapear campos editables a los campos de Firestore
-        const fieldMap: Record<string, string> = {
-            nombre: '01_nombre',
-            apellido: '02_apellido',
-            correo: '04_correo',
-            telefono: '06_telefono',
-            nacionalidad: '05_nacionalidad',
-            especialidades: '07_especialidades',
-            rfc: '08_rfc',
-            idiomas: '09_idiomas',
-            codigoPostal: '10_cp',
-            descripcion: '15_descripcion',
-            tarifaMxn: '17_tarifa_mxn',
-            tarifaDiaCompleto: '18_tarifa_dia_completo',
-            biografia: '19_biografia',
-        };
-
-        const updateData: Record<string, any> = { updatedAt: new Date().toISOString() };
-
-        for (const [key, value] of Object.entries(campos)) {
-            const firestoreKey = fieldMap[key];
-            if (firestoreKey && value !== undefined) {
-                updateData[firestoreKey] = value;
-            }
-        }
-
-        if (Object.keys(updateData).length <= 1) {
-            return res.status(400).json({ success: false, message: 'No se proporcionaron campos válidos para editar' });
-        }
-
-        await docRef.update(updateData);
-
-        return res.json({ success: true, message: 'Guía actualizado correctamente' });
-    } catch (error: any) {
-        console.error("[editarGuia] Error:", error);
         return res.status(500).json({ success: false, error: error.message });
     }
 };

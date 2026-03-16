@@ -1,4 +1,4 @@
-import cors from 'cors';
+﻿import cors from 'cors';
 import dotenv from "dotenv";
 dotenv.config();
 import express from 'express';
@@ -24,6 +24,7 @@ import availabilityRoutes from './routes/availability.routes';
 import walletRoutes from './routes/wallet.routes';
 import aiRoutes from "./routes/ai.routes";
 import { ChatService } from './services/chat.service';
+import { setSocketServer } from './socket';
 
 const app = express();
 const httpServer = createServer(app);
@@ -35,6 +36,8 @@ const io = new Server(httpServer, {
     allowedHeaders: ["Content-Type", "Authorization"]
   }
 });
+setSocketServer(io);
+
 const PORT = Number(process.env.PORT) || 3001;
 
 const allowedOrigins = [
@@ -49,6 +52,7 @@ const allowedOrigins = [
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
+
     if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
       callback(null, true);
     } else {
@@ -65,9 +69,8 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 
-// (Middleware)
 app.use((req, res, next) => {
-  console.log(`Petición recibida: [${req.method}] ${req.url}`);
+  console.log(`Peticion recibida: [${req.method}] ${req.url}`);
   next();
 });
 
@@ -88,9 +91,8 @@ app.use('/api/ratings', ratingRoutes);
 app.use('/api/place-ratings', placeRatingRoutes);
 app.use('/api/availability', availabilityRoutes);
 app.use('/api/wallet', walletRoutes);
-app.use("/api", aiRoutes);
+app.use('/api', aiRoutes);
 
-// Manejo de rutas no encontradas
 app.use('/api', (req, res) => {
   console.warn(`Ruta no encontrada: [${req.method}] ${req.url}`);
   res.status(404).json({
@@ -100,7 +102,6 @@ app.use('/api', (req, res) => {
   });
 });
 
-// Manejo global de errores
 app.use((err: any, req: any, res: any, next: any) => {
   console.error('Error en el servidor:', err);
   res.status(err.status || 500).json({
@@ -110,7 +111,6 @@ app.use((err: any, req: any, res: any, next: any) => {
   });
 });
 
-// Socket.IO para chat en tiempo real
 io.on('connection', (socket) => {
   console.log('Usuario conectado:', socket.id);
 
@@ -124,12 +124,12 @@ io.on('connection', (socket) => {
 
   socket.on('join-chat', (chatId: string) => {
     socket.join(chatId);
-    console.log(`Usuario ${socket.id} se unió al chat ${chatId}`);
+    console.log(`Usuario ${socket.id} se unio al chat ${chatId}`);
   });
 
   socket.on('leave-chat', (chatId: string) => {
     socket.leave(chatId);
-    console.log(`Usuario ${socket.id} salió del chat ${chatId}`);
+    console.log(`Usuario ${socket.id} salio del chat ${chatId}`);
   });
 
   socket.on('send-message', async (data: {
@@ -149,6 +149,7 @@ io.on('connection', (socket) => {
         timestamp: new Date(),
         read: false,
       });
+
       io.to(data.chatId).emit('new-message', message);
     } catch (error) {
       console.error('Error al guardar mensaje:', error);
@@ -166,7 +167,7 @@ io.on('connection', (socket) => {
 
   socket.on('mark-as-read', (data: { chatId: string; userId: string }) => {
     io.to(data.chatId).emit('messages-read', data);
-    console.log(`Mensajes del chat ${data.chatId} marcados como leídos por ${data.userId}`);
+    console.log(`Mensajes del chat ${data.chatId} marcados como leidos por ${data.userId}`);
   });
 
   socket.on('disconnect', () => {
@@ -176,13 +177,13 @@ io.on('connection', (socket) => {
 
 app.get('/', (req, res) => {
   res.send(`
-    <h1>El Backend sí funcionaa</h1>
-    <p>El servidor está corriendo correctamente</p>
+    <h1>El Backend si funcionaa</h1>
+    <p>El servidor esta corriendo correctamente</p>
     <p>Usa los endpoints en <code>/api/auth/login</code> o <code>/api/auth/register</code></p>
   `);
 });
 
-httpServer.listen(PORT, "0.0.0.0", () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor corriendo en puerto ${PORT}`);
   console.log(`Socket.IO corriendo en puerto ${PORT}`);
 });

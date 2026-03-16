@@ -1,13 +1,11 @@
-import { db } from '../config/firebase';
+﻿import { db } from '../config/firebase';
 import { Booking } from '../models/booking.model';
 import { AvailabilityService } from './availability.service';
 
 export class BookingService {
-  // Crear una reserva
   static async createBooking(bookingData: Omit<Booking, 'id'>): Promise<Booking> {
     const bookingsRef = db.collection('bookings');
-    
-    // Verificar disponibilidad usando el nuevo sistema
+
     const isAvailable = await AvailabilityService.isTimeSlotAvailable(
       bookingData.guideId,
       bookingData.fecha,
@@ -15,7 +13,7 @@ export class BookingService {
     );
 
     if (!isAvailable) {
-      throw new Error('El guía no está disponible en ese horario');
+      throw new Error('El guia no esta disponible en ese horario');
     }
 
     const newBooking = {
@@ -26,27 +24,24 @@ export class BookingService {
     };
 
     const bookingDoc = await bookingsRef.add(newBooking);
-    
-    // Incrementar el contador de reservas para ese horario
+
     await AvailabilityService.incrementBookingCount(
       bookingData.guideId,
       bookingData.fecha,
       bookingData.horaInicio
     );
-    
+
     return { id: bookingDoc.id, ...newBooking };
   }
 
-  // Obtener reserva por ID
   static async getBookingById(bookingId: string): Promise<Booking | null> {
     const bookingDoc = await db.collection('bookings').doc(bookingId).get();
-    
+
     if (!bookingDoc.exists) return null;
-    
+
     return { id: bookingDoc.id, ...bookingDoc.data() } as Booking;
   }
 
-  // Obtener reservas de un turista
   static async getTouristBookings(touristId: string): Promise<Booking[]> {
     const bookingsRef = db.collection('bookings');
     const snapshot = await bookingsRef
@@ -65,7 +60,6 @@ export class BookingService {
     });
   }
 
-  // Obtener reservas de un guía
   static async getGuideBookings(guideId: string): Promise<Booking[]> {
     const bookingsRef = db.collection('bookings');
     const snapshot = await bookingsRef
@@ -77,7 +71,6 @@ export class BookingService {
       ...doc.data(),
     })) as Booking[];
 
-    // Ordenar en memoria por createdAt descendente
     return bookings.sort((a, b) => {
       const dateA = a.createdAt instanceof Date ? a.createdAt.getTime() : new Date(a.createdAt).getTime();
       const dateB = b.createdAt instanceof Date ? b.createdAt.getTime() : new Date(b.createdAt).getTime();
@@ -85,9 +78,8 @@ export class BookingService {
     });
   }
 
-  // Actualizar estado de reserva
   static async updateBookingStatus(
-    bookingId: string, 
+    bookingId: string,
     status: Booking['status'],
     paymentId?: string
   ): Promise<void> {
@@ -103,11 +95,9 @@ export class BookingService {
     await db.collection('bookings').doc(bookingId).update(updateData);
   }
 
-  // Cancelar reserva
   static async cancelBooking(bookingId: string): Promise<void> {
-    // Obtener la reserva antes de cancelarla
     const booking = await this.getBookingById(bookingId);
-    
+
     if (!booking) {
       throw new Error('Reserva no encontrada');
     }
@@ -117,7 +107,6 @@ export class BookingService {
       updatedAt: new Date(),
     });
 
-    // Decrementar el contador de disponibilidad si la reserva no estaba cancelada
     if (booking.status !== 'cancelado') {
       try {
         await AvailabilityService.decrementBookingCount(
@@ -131,7 +120,6 @@ export class BookingService {
     }
   }
 
-  // Verificar disponibilidad del guía
   static async checkGuideAvailability(
     guideId: string,
     fecha: string,
@@ -144,12 +132,8 @@ export class BookingService {
       .where('status', 'in', ['pendiente', 'confirmado', 'pagado'])
       .get();
 
-    // Si no hay reservas para esa fecha, está disponible
     if (snapshot.empty) return true;
 
-    // Verificar conflictos de horario
-    // Por simplicidad, consideramos que si hay alguna reserva ese día, no está disponible
-    // En una implementación más compleja, verificarías las horas exactas
     return snapshot.empty;
   }
 }

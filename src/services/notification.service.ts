@@ -1,10 +1,11 @@
-import admin from 'firebase-admin';
+﻿import admin from 'firebase-admin';
+import { emitNotificationToUser } from '../socket';
 
 export async function sendNotificationToUser(userId: string, notification: any) {
   const db = admin.firestore();
-  console.log(`[NotificationService] Enviando notificaci\u00f3n a usuario ${userId}`);
+  console.log(`[NotificationService] Enviando notificacion a usuario ${userId}`);
   console.log(`[NotificationService] Contenido:`, JSON.stringify(notification, null, 2));
-  
+
   const normalized = {
     ...notification,
     fecha: notification?.fecha || new Date().toISOString(),
@@ -19,7 +20,12 @@ export async function sendNotificationToUser(userId: string, notification: any) 
     .collection(userId)
     .add(normalized);
 
-  console.log(`[NotificationService] \u2705 Notificaci\u00f3n guardada con ID: ${docRef.id}`);
+  emitNotificationToUser(userId, {
+    id: docRef.id,
+    ...normalized,
+  });
+
+  console.log(`[NotificationService] Notificacion guardada con ID: ${docRef.id}`);
 }
 
 export async function getUserNotifications(userId: string) {

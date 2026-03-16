@@ -1,4 +1,4 @@
-import { Router, Request, Response } from "express";
+﻿import { Router, Request, Response } from "express";
 import stripe from "../config/stripe";
 import { db } from '../config/firebase';
 import {
@@ -28,7 +28,7 @@ router.post('/cancel/:paymentIntentId', authMiddleware, cancelPayment);
 // Obtener historial de pagos del usuario
 router.get('/history/:userId', authMiddleware, getUserPayments);
 
-// Webhook de Stripe (no requiere autenticación)
+// Webhook de Stripe (no requiere autenticacion)
 router.post('/webhook', handleStripeWebhook);
 
 // ENDPOINTS LEGACY (mantener por compatibilidad)
@@ -36,8 +36,8 @@ router.post(
   "/create-payment-intent",
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const { amount, currency = "mxn", customerId, paymentMethodId, bookingId } = req.body as { 
-        amount: number; 
+      const { amount, currency = "mxn", customerId, paymentMethodId, bookingId } = req.body as {
+        amount: number;
         currency?: string;
         customerId?: string;
         paymentMethodId?: string;
@@ -45,14 +45,13 @@ router.post(
       };
 
       if (!amount || amount <= 0) {
-        res.status(400).json({ 
+        res.status(400).json({
           success: false,
-          error: "Monto inválido" 
+          error: "Monto invalido"
         });
         return;
       }
 
-      // Si se proporciona un paymentMethodId, usarlo directamente
       if (paymentMethodId) {
         const paymentIntent = await stripe.paymentIntents.create({
           amount,
@@ -75,7 +74,6 @@ router.post(
           paymentIntentId: paymentIntent.id,
         });
       } else {
-        // Crear payment intent normal
         const paymentIntent = await stripe.paymentIntents.create({
           amount,
           currency,
@@ -96,29 +94,27 @@ router.post(
       }
     } catch (error: unknown) {
       if (error instanceof Error) {
-        res.status(500).json({ 
+        res.status(500).json({
           success: false,
-          error: error.message 
+          error: error.message
         });
       } else {
-        res.status(500).json({ 
+        res.status(500).json({
           success: false,
-          error: "Error desconocido" 
+          error: "Error desconocido"
         });
       }
     }
   }
 );
 
-// Obtener tarjetas guardadas del usuario
 router.get(
   "/cards/:userId",
   async (req: Request, res: Response): Promise<void> => {
     try {
       const { userId } = req.params;
 
-      // Obtener tarjetas guardadas de Firebase
-      const walletDoc = await db.collection('wallets').doc(userId as string).get();
+      const walletDoc = await db.collection('wallets').doc(userId).get();
 
       if (!walletDoc.exists) {
         res.json({
@@ -137,21 +133,20 @@ router.get(
       });
     } catch (error: unknown) {
       if (error instanceof Error) {
-        res.status(500).json({ 
+        res.status(500).json({
           success: false,
-          error: error.message 
+          error: error.message
         });
       } else {
-        res.status(500).json({ 
+        res.status(500).json({
           success: false,
-          error: "Error desconocido" 
+          error: "Error desconocido"
         });
       }
     }
   }
 );
 
-// Guardar tarjeta del usuario
 router.post(
   "/cards/:userId",
   async (req: Request, res: Response): Promise<void> => {
@@ -160,14 +155,13 @@ router.post(
       const { paymentMethodId } = req.body;
 
       if (!paymentMethodId) {
-        res.status(400).json({ 
+        res.status(400).json({
           success: false,
-          error: "paymentMethodId es requerido" 
+          error: "paymentMethodId es requerido"
         });
         return;
       }
 
-      // Obtener detalles del payment method de Stripe
       const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
 
       const cardData = {
@@ -179,8 +173,7 @@ router.post(
         createdAt: new Date().toISOString(),
       };
 
-      // Guardar en Firebase
-      const walletRef = db.collection('wallets').doc(userId as string);
+      const walletRef = db.collection('wallets').doc(userId);
       const walletDoc = await walletRef.get();
 
       if (walletDoc.exists) {
@@ -203,14 +196,14 @@ router.post(
       });
     } catch (error: unknown) {
       if (error instanceof Error) {
-        res.status(500).json({ 
+        res.status(500).json({
           success: false,
-          error: error.message 
+          error: error.message
         });
       } else {
-        res.status(500).json({ 
+        res.status(500).json({
           success: false,
-          error: "Error desconocido" 
+          error: "Error desconocido"
         });
       }
     }
@@ -218,4 +211,3 @@ router.post(
 );
 
 export default router;
-
