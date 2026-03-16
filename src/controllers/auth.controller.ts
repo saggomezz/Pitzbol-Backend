@@ -198,9 +198,9 @@ export const login = async (req: Request, res: Response) => {
         "15_descripcion": userData["15_descripcion"],
         "14_foto_perfil": userData["14_foto_perfil"],
         role: userRole,
-        "07_intereses": userRole === 'turista' ? especialidadesUnificadas : [],
-        "07_especialidades": userRole !== 'turista' ? especialidadesUnificadas : [],
-        especialidades: especialidadesUnificadas,
+        ...(userRole === 'turista'
+          ? { "07_intereses": especialidadesUnificadas }
+          : { "07_especialidades": especialidadesUnificadas, especialidades: especialidadesUnificadas }),
       },
     });;
   }   

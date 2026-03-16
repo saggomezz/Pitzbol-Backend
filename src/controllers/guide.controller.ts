@@ -197,9 +197,13 @@ export const updateGuideProfile = async (req: Request, res: Response) => {
                         "updatedAt": new Date().toISOString()
                     };
 
-                    // Sincronizar ambos campos solo en guías
                     if (item.field === "07_especialidades") {
+                        // Guías: sincronizar campo alias
                         updateData["especialidades"] = categorias;
+                    } else if (item.field === "07_intereses") {
+                        // Turistas: eliminar campos viejos duplicados
+                        updateData["07_especialidades"] = admin.firestore.FieldValue.delete();
+                        updateData["especialidades"] = admin.firestore.FieldValue.delete();
                     }
 
                     await docSnapshot.ref.update(updateData);
