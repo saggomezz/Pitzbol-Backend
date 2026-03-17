@@ -640,3 +640,51 @@ export const updatePlace = async (req: Request, res: Response) => {
     return res.status(500).json({ message: 'Error interno', error: error.message });
   }
 };
+
+/**
+ * PATCH /api/lugares/:nombre/fotos - Reemplazar fotos de un lugar (solo auth requerida)
+ */
+export const setPlaceFotos = async (req: Request, res: Response) => {
+  try {
+    let { nombre } = req.params;
+    if (!nombre) return res.status(400).json({ message: 'Nombre requerido' });
+    if (Array.isArray(nombre)) nombre = nombre.join(' ');
+
+    const { fotos } = req.body;
+    if (!Array.isArray(fotos)) return res.status(400).json({ message: 'fotos debe ser un array' });
+
+    const fotosValidas = fotos.filter((u: any) => typeof u === 'string' && u.startsWith('http')).slice(0, 3);
+    const placeId = normalizePlaceName(nombre);
+
+    await db.collection('lugares').doc(placeId).set({
+      nombre,
+      fotos: fotosValidas,
+      ultimaActualizacion: new Date().toISOString()
+    }, { merge: true });
+
+    return res.status(200).json({ message: 'Fotos actualizadas', fotos: fotosValidas });
+  } catch (error: any) {
+    console.error('Error actualizando fotos:', error);
+    return res.status(500).json({ message: 'Error interno', error: error.message });
+  }
+};
+
+/**
+ * DELETE /api/lugares/:nombre - Eliminar un lugar completo de Firestore
+ */
+export const deletePlace = async (req: Request, res: Response) => {
+  try {
+    let { nombre } = req.params;
+    if (!nombre) return res.status(400).json({ message: 'Nombre requerido' });
+    if (Array.isArray(nombre)) nombre = nombre.join(' ');
+
+    const placeId = normalizePlaceName(nombre);
+    await db.collection('lugares').doc(placeId).delete();
+
+    console.log(`🗑️ Lugar eliminado: ${nombre} (ID: ${placeId})`);
+    return res.status(200).json({ message: 'Lugar eliminado correctamente' });
+  } catch (error: any) {
+    console.error('Error eliminando lugar:', error);
+    return res.status(500).json({ message: 'Error interno', error: error.message });
+  }
+};
