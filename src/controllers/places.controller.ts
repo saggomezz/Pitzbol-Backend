@@ -644,3 +644,23 @@ export const setPlaceFotos = async (req: Request, res: Response) => {
     return res.status(500).json({ message: 'Error interno', error: error.message });
   }
 };
+
+/**
+ * DELETE /api/lugares/:nombre - Eliminar un lugar completo de Firestore
+ */
+export const deletePlace = async (req: Request, res: Response) => {
+  try {
+    let { nombre } = req.params;
+    if (!nombre) return res.status(400).json({ message: 'Nombre requerido' });
+    if (Array.isArray(nombre)) nombre = nombre.join(' ');
+
+    const placeId = normalizePlaceName(nombre);
+    await db.collection('lugares').doc(placeId).delete();
+
+    console.log(`🗑️ Lugar eliminado: ${nombre} (ID: ${placeId})`);
+    return res.status(200).json({ message: 'Lugar eliminado correctamente' });
+  } catch (error: any) {
+    console.error('Error eliminando lugar:', error);
+    return res.status(500).json({ message: 'Error interno', error: error.message });
+  }
+};
