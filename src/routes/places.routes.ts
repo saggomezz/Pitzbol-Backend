@@ -54,6 +54,9 @@ router.delete(
   placesController.deletePlacePhoto
 );
 
+// PATCH /api/lugares/:nombre/fotos - Reemplazar fotos (solo auth, no admin)
+router.patch('/:nombre/fotos', authMiddleware, placesController.setPlaceFotos);
+
 // PUT /api/lugares/:nombre - Actualizar datos del lugar (admin)
 router.put(
   '/:nombre',
