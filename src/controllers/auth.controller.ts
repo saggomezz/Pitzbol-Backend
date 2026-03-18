@@ -172,7 +172,7 @@ export const login = async (req: Request, res: Response) => {
     const apellido = userData?.apellido || userData?.["02_apellido"] || "";
     const nacionalidad = userData?.nacionalidad || userData?.["05_nacionalidad"] || "No registrado";
     const telefono = userData?.telefono || userData?.["06_telefono"] || "No registrado";
-    const especialidadesUnificadas = userData?.especialidades || userData?.["07_especialidades"] || [];
+    const especialidadesUnificadas = userData?.["07_intereses"] || userData?.especialidades || userData?.["07_especialidades"] || [];
     const guideStatusRaw = userData?.solicitudStatus || userData?.status || userData?.guide_status;
     const guideStatus = guideStatusRaw || (guideCollection === "pendientes" ? "pendiente" : "ninguno");
 
@@ -212,6 +212,15 @@ export const login = async (req: Request, res: Response) => {
         "15_descripcion": userData["15_descripcion"],
         "14_foto_perfil": userData["14_foto_perfil"],
         role: userRole,
+<<<<<<< HEAD
+        "07_intereses": userRole === 'turista' ? especialidadesUnificadas : [],
+        "07_especialidades": userRole !== 'turista' ? especialidadesUnificadas : [],
+        especialidades: especialidadesUnificadas,
+=======
+        ...(userRole === 'turista'
+          ? { "07_intereses": especialidadesUnificadas }
+          : { "07_especialidades": especialidadesUnificadas, especialidades: especialidadesUnificadas }),
+>>>>>>> 4a8492caa51585043b0aee720b43f45825178e8a
       },
     });;
   }   
@@ -439,6 +448,61 @@ export const updateProfile = async (req: any, res: Response) => {
   } catch (error: any) {
     console.error("Error en updateProfile:", error);
     res.status(500).json({ msg: "Error interno del servidor", error: error.message });
+  }
+};
+
+// Refrescar token JWT expirado
+export const refreshToken = async (req: Request, res: Response) => {
+  try {
+    let token: string | undefined;
+
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const parts = authHeader.split(" ");
+      if (parts.length === 2) token = parts[1];
+    }
+    if (!token && req.cookies?.authToken) {
+      token = req.cookies.authToken;
+    }
+
+    if (!token) {
+      return res.status(401).json({ msg: "Token no proporcionado" });
+    }
+
+    // Verificar firma pero ignorar expiración
+    const decoded = jwt.verify(token, JWT_SECRET!, { ignoreExpiration: true }) as jwt.JwtPayload;
+
+    if (!decoded.uid || !decoded.email || !decoded.role) {
+      return res.status(401).json({ msg: "Token inválido" });
+    }
+
+    // Verificar que el usuario sigue existiendo en Firebase Auth
+    try {
+      await auth.getUser(decoded.uid);
+    } catch {
+      return res.status(401).json({ msg: "Usuario no encontrado" });
+    }
+
+    // Emitir nuevo token
+    const newToken = jwt.sign(
+      { uid: decoded.uid, email: decoded.email, role: decoded.role },
+      JWT_SECRET!,
+      { expiresIn: "7d" }
+    );
+
+    res.cookie('authToken', newToken, {
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      secure: process.env.NODE_ENV === 'production'
+    });
+
+    console.log(`🔄 Token refrescado para usuario: ${decoded.uid}`);
+
+    return res.json({ success: true, token: newToken });
+  } catch (error: any) {
+    console.error("❌ Error al refrescar token:", error.message);
+    return res.status(401).json({ msg: "No se pudo refrescar el token. Inicia sesión nuevamente." });
   }
 };
 

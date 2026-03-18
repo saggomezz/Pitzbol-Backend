@@ -1,7 +1,6 @@
 import { Request, Response } from 'express';
 import { db } from "../config/firebase";
 import admin from "firebase-admin";
-import { uploadImageToCloudinary } from "../utils/cloudinaryHelper";
 
 const FieldValue = admin.firestore.FieldValue; 
 
@@ -46,65 +45,6 @@ export const registerGuide = async (req: Request, res: Response) => {
 
         console.log("🔑 UID recibido:", uid);
         console.log("📝 Custom ID generado:", customId);
-
-        // �️ RECUPERAR FOTO DE PERFIL EXISTENTE DEL USUARIO TURISTA
-        let fotoPerfil_existente = { url: "", cloudinary_id: "", subida_en: "" };
-        try {
-            const turistaSnap = await db.collection("usuarios")
-                .doc("turistas")
-                .collection("lista")
-                .where("uid", "==", uid)
-                .limit(1)
-                .get();
-
-            if (!turistaSnap.empty && turistaSnap.docs[0]) {
-                const turistaData = turistaSnap.docs[0].data();
-                // Preservar la foto de perfil existente
-                if (turistaData["14_foto_perfil"]) {
-                    fotoPerfil_existente = turistaData["14_foto_perfil"];
-                    console.log("✅ Foto de perfil existente preservada:", fotoPerfil_existente.url);
-                } else if (turistaData.fotoPerfil) {
-                    fotoPerfil_existente = { url: turistaData.fotoPerfil, cloudinary_id: "", subida_en: "" };
-                    console.log("✅ Foto de perfil heredada de campo fotoPerfil");
-                }
-            }
-        } catch (err) {
-            console.log("ℹ️ No se encontró foto de perfil existente o error al recuperarla");
-        }
-
-        // 📤 SUBIR IMÁGENES A CLOUDINARY
-        let ineFrente_url = "";
-        let ineReverso_url = "";
-        let facePhoto_url = "";
-
-        try {
-            // Subir foto frontal de INE
-            if (data.ineFrente) {
-                console.log("📸 Subiendo foto frontal de INE a Cloudinary...");
-                ineFrente_url = await uploadImageToCloudinary(data.ineFrente, uid, 'ine_frente');
-                console.log("✅ INE frontal subida:", ineFrente_url);
-            }
-
-            // Subir foto reverso de INE
-            if (data.ineReverso) {
-                console.log("📸 Subiendo foto reverso de INE a Cloudinary...");
-                ineReverso_url = await uploadImageToCloudinary(data.ineReverso, uid, 'ine_reverso');
-                console.log("✅ INE reverso subida:", ineReverso_url);
-            }
-
-            // Subir foto de validación facial (SEPARADA DE LA FOTO DE PERFIL)
-            if (data.facePhoto) {
-                console.log("📸 Subiendo foto de validación facial a Cloudinary...");
-                facePhoto_url = await uploadImageToCloudinary(data.facePhoto, uid, 'rostro');
-                console.log("✅ Foto de rostro subida:", facePhoto_url);
-            }
-        } catch (uploadError) {
-            console.error("❌ Error al subir imágenes a Cloudinary:", uploadError);
-            return res.status(500).json({ 
-                message: 'Error al procesar imágenes. Por favor, intenta de nuevo.',
-                error: uploadError instanceof Error ? uploadError.message : 'Error desconocido'
-            });
-        }
        
         const datosSeguros = {
             "01_nombre": nombre ?? "",
@@ -116,10 +56,10 @@ export const registerGuide = async (req: Request, res: Response) => {
             "07_especialidades": data.categorias ?? [], 
             "08_rfc": data.rfc ?? "",
             "10_cp": data.codigoPostal ?? "",
-            "11_foto_frente": ineFrente_url,
-            "12_foto_reverso": ineReverso_url,
-            "13_foto_rostro": facePhoto_url,
-            "14_foto_perfil": fotoPerfil_existente,
+            "11_foto_frente": data.ineFrente ?? "",
+            "12_foto_reverso": data.ineReverso ?? "",
+            "13_foto_rostro": data.facePhoto ?? "",
+            "14_foto_perfil": { url: "", cloudinary_id: "", subida_en: "" },
             "15_descripcion": "",
             "16_status": "en_revision",
             "17_tarifa_mxn": data.precioMXN ?? 0,
@@ -179,22 +119,6 @@ export const registerGuide = async (req: Request, res: Response) => {
             console.log('✅ Notificación enviada a administradores');
         } catch (notifError) {
             console.warn('⚠️ Error al notificar a administradores:', notifError);
-        }
-
-        // Notificar al usuario que envió la solicitud
-        try {
-            const userNotificacion = {
-                tipo: 'info',
-                titulo: 'Solicitud Enviada ✓',
-                mensaje: 'Tu solicitud para ser Guía Pitzbol ha sido enviada correctamente. Estamos revisando tu información y te notificaremos pronto.',
-                fecha: new Date().toISOString(),
-                leido: false,
-                enlace: '/guide/estatus'
-            };
-            await db.collection('usuarios').doc('notificaciones').collection(uid).add(userNotificacion);
-            console.log('✅ Notificación enviada al usuario');
-        } catch (notifError) {
-            console.warn('⚠️ Error al notificar al usuario:', notifError);
         }
 
         res.status(201).json({ 
@@ -257,13 +181,9 @@ export const updateGuideProfile = async (req: Request, res: Response) => {
         const config = [
             { ref: db.collection('usuarios').doc('guias').collection('lista'), field: "07_especialidades" },
             { ref: db.collection('usuarios').doc('guias').collection('pendientes'), field: "07_especialidades" },
-            { ref: db.collection('usuarios').doc('turistas').collection('lista'), field: "especialidades" }
+            { ref: db.collection('usuarios').doc('turistas').collection('lista'), field: "07_intereses" }
         ];
 
-        const ubicacionesActualizadas: string[] = [];
-        let encontrado = false;
-
-        // Actualizar TODAS las colecciones donde se encuentre el usuario
         for (const item of config) {
             const snap = await item.ref.where('uid', '==', uid).limit(1).get();
             
@@ -271,43 +191,46 @@ export const updateGuideProfile = async (req: Request, res: Response) => {
                 const docSnapshot = snap.docs[0];
                 
                 if (docSnapshot && docSnapshot.exists) {
-                    encontrado = true;
-                    
                     // Preparamos el objeto de actualización
                     const updateData: { [key: string]: any } = {
                         [item.field]: categorias,
                         "updatedAt": new Date().toISOString()
                     };
 
-                    // Sincronizar ambos campos en guías
+<<<<<<< HEAD
+                    // Sincronizar ambos campos solo en guías
+=======
+>>>>>>> 4a8492caa51585043b0aee720b43f45825178e8a
                     if (item.field === "07_especialidades") {
+                        // Guías: sincronizar campo alias
                         updateData["especialidades"] = categorias;
-                    } else if (item.field === "especialidades") {
-                        updateData["07_especialidades"] = categorias;
+<<<<<<< HEAD
+=======
+                    } else if (item.field === "07_intereses") {
+                        // Turistas: eliminar campos viejos duplicados
+                        updateData["07_especialidades"] = admin.firestore.FieldValue.delete();
+                        updateData["especialidades"] = admin.firestore.FieldValue.delete();
+>>>>>>> 4a8492caa51585043b0aee720b43f45825178e8a
                     }
 
                     await docSnapshot.ref.update(updateData);
-                    ubicacionesActualizadas.push(item.ref.path);
                     
-                    console.log(`✅ Especialidades actualizadas en: ${item.ref.path}`);
+                    return res.status(200).json({ 
+                        message: "Sincronizado", 
+                        ubicacion: item.ref.path,
+                        campoActualizado: item.field
+                    });
                 }
             }
         }
 
-        if (!encontrado) {
-            return res.status(404).json({ message: "No se encontró el documento en ninguna colección" });
-        }
-
-        return res.status(200).json({ 
-            message: "Sincronizado en todas las ubicaciones", 
-            ubicacionesActualizadas,
-            especialidades: categorias
-        });
+        return res.status(404).json({ message: "No se encontró el documento en ninguna colección" });
         
     } catch (error: any) {
         console.error("Error en updateGuideProfile:", error);
         return res.status(500).json({ message: "Error interno al actualizar" });
     }
+<<<<<<< HEAD
 };
 
 export const getVerifiedGuides = async (req: Request, res: Response) => {
@@ -558,3 +481,6 @@ export const getGuidePublicProfile = async (req: Request, res: Response) => {
         });
     }
 };
+=======
+};
+>>>>>>> 4a8492caa51585043b0aee720b43f45825178e8a

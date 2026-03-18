@@ -23,7 +23,11 @@
     // Recommended Options
     "strict": true,
     "skipLibCheck": true,
+<<<<<<< HEAD
+    "ignoreDeprecations": "5.0",
+=======
     "ignoreDeprecations": "6.0",
+>>>>>>> 4a8492caa51585043b0aee720b43f45825178e8a
 
     // Backend-specific
     "esModuleInterop": true,
