@@ -599,10 +599,14 @@ export const archivarNegocio = async (req: Request, res: Response) => {
     if (Array.isArray(negocioId)) negocioId = negocioId[0];
     if (!negocioId) negocioId = "";
     const { motivo, adminUid } = req.body;
-    if (!motivo || !adminUid) {
-        return res.status(400).json({ success: false, message: "Motivo y adminUid requeridos" });
+    if (!adminUid) {
+        return res.status(400).json({ success: false, message: "adminUid requerido" });
     }
     try {
+        const motivoFinal = typeof motivo === "string" && motivo.trim()
+            ? motivo.trim()
+            : "Archivado por administrador";
+
         // Find the business in either Activos or Pendientes
         const businessResult = await findBusiness(negocioId);
         if (!businessResult) {
@@ -628,12 +632,12 @@ export const archivarNegocio = async (req: Request, res: Response) => {
         await db.collection("negocios").doc("Archivados").collection("items").doc(negocioId).set({
             ...archiveData,
             status: "archivado",
-            archivedReason: motivo,
+            archivedReason: motivoFinal,
             archivedAt: new Date().toISOString(),
             archivedBy: adminUid,
             history: [
                 ...(negocioData?.history || []),
-                { action: "archivado", date: new Date().toISOString(), by: adminUid, reason: motivo }
+                { action: "archivado", date: new Date().toISOString(), by: adminUid, reason: motivoFinal }
             ]
         });
         
@@ -646,7 +650,7 @@ export const archivarNegocio = async (req: Request, res: Response) => {
             adminUid,
             negocioData: { ...archiveData, business: archiveData?.business || negocioData?.business, owner: negocioData?.owner },
             source: location,
-            reason: motivo,
+            reason: motivoFinal,
             mensaje: `Negocio ${negocioId} archivado desde ${location}`,
         });
         
@@ -654,10 +658,11 @@ export const archivarNegocio = async (req: Request, res: Response) => {
         
         // Notify owner
         if (negocioData?.owner) {
+            const motivoMsg = motivoFinal ? ` Motivo: ${motivoFinal}` : "";
             await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
                 tipo: 'negocio_archivado',
                 titulo: 'Negocio eliminado',
-                mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido eliminado por el administrador. Motivo: ${motivo}`,
+                mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido eliminado por el administrador.${motivoMsg}`,
                 fecha: new Date().toISOString(),
                 leido: false,
                 enlace: '/negocio/estatus'
