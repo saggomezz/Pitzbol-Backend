@@ -212,15 +212,9 @@ export const login = async (req: Request, res: Response) => {
         "15_descripcion": userData["15_descripcion"],
         "14_foto_perfil": userData["14_foto_perfil"],
         role: userRole,
-<<<<<<< HEAD
         "07_intereses": userRole === 'turista' ? especialidadesUnificadas : [],
         "07_especialidades": userRole !== 'turista' ? especialidadesUnificadas : [],
         especialidades: especialidadesUnificadas,
-=======
-        ...(userRole === 'turista'
-          ? { "07_intereses": especialidadesUnificadas }
-          : { "07_especialidades": especialidadesUnificadas, especialidades: especialidadesUnificadas }),
->>>>>>> 4a8492caa51585043b0aee720b43f45825178e8a
       },
     });;
   }   
