@@ -903,6 +903,37 @@ export const getBusinessById = async (req: RequestWithUser, res: Response) => {
 
     const isAdmin = (userRole || "").toLowerCase() === "admin";
 
+    const canAccessBusiness = (data: any) => {
+      return (
+        data?.ownerUid === userUid ||
+        data?.owner === userUid ||
+        data?.business?.owner === userUid ||
+        data?.uid === userUid ||
+        (userEmail && data?.email === userEmail) ||
+        isAdmin
+      );
+    };
+
+    const mapAndRespond = async (docSnap: FirebaseFirestore.DocumentSnapshot<FirebaseFirestore.DocumentData>) => {
+      const data = docSnap.data();
+      if (!data) {
+        return res.status(404).json({ success: false, message: "Negocio no encontrado" });
+      }
+
+      if (!canAccessBusiness(data)) {
+        return res.status(403).json({ success: false, message: "No autorizado" });
+      }
+
+      const businessData = mapBusinessDoc(docSnap as any);
+      const ownerData = await getOwnerData(data?.ownerUid || data?.owner || data?.business?.owner);
+
+      return res.json({
+        success: true,
+        business: businessData,
+        owner: ownerData,
+      });
+    };
+
     const pendientesDoc = await db
       .collection("negocios")
       .doc("Pendientes")
@@ -911,26 +942,7 @@ export const getBusinessById = async (req: RequestWithUser, res: Response) => {
       .get();
 
     if (pendientesDoc.exists) {
-      const data = pendientesDoc.data();
-      const isOwner =
-        data?.ownerUid === userUid ||
-        data?.owner === userUid ||
-        data?.business?.owner === userUid ||
-        data?.uid === userUid ||
-        (userEmail && data?.email === userEmail);
-
-      if (!isOwner && !isAdmin) {
-        return res.status(403).json({ success: false, message: "No autorizado" });
-      }
-
-      const businessData = mapBusinessDoc(pendientesDoc);
-      const ownerData = await getOwnerData(data?.ownerUid);
-      
-      return res.json({ 
-        success: true, 
-        business: businessData,
-        owner: ownerData
-      });
+      return mapAndRespond(pendientesDoc as any);
     }
 
     const approvedDoc = await db
@@ -941,26 +953,7 @@ export const getBusinessById = async (req: RequestWithUser, res: Response) => {
       .get();
 
     if (approvedDoc.exists) {
-      const data = approvedDoc.data();
-      const isOwner =
-        data?.ownerUid === userUid ||
-        data?.owner === userUid ||
-        data?.business?.owner === userUid ||
-        data?.uid === userUid ||
-        (userEmail && data?.email === userEmail);
-
-      if (!isOwner && !isAdmin) {
-        return res.status(403).json({ success: false, message: "No autorizado" });
-      }
-
-      const businessData = mapBusinessDoc(approvedDoc);
-      const ownerData = await getOwnerData(data?.ownerUid);
-
-      return res.json({ 
-        success: true, 
-        business: businessData,
-        owner: ownerData
-      });
+      return mapAndRespond(approvedDoc as any);
     }
 
     const archivedDoc = await db
@@ -971,26 +964,30 @@ export const getBusinessById = async (req: RequestWithUser, res: Response) => {
       .get();
 
     if (archivedDoc.exists) {
-      const data = archivedDoc.data();
-      const isOwner =
-        data?.ownerUid === userUid ||
-        data?.owner === userUid ||
-        data?.business?.owner === userUid ||
-        data?.uid === userUid ||
-        (userEmail && data?.email === userEmail);
+      return mapAndRespond(archivedDoc as any);
+    }
 
-      if (!isOwner && !isAdmin) {
-        return res.status(403).json({ success: false, message: "No autorizado" });
+    // Fallback robusto: buscar por identificadores alternos cuando la notificación no trae el docId exacto
+    const collections = ["Pendientes", "Activos", "Archivados"];
+    const candidateFields = ["uid", "ownerUid", "owner", "business.owner"];
+
+    for (const collectionName of collections) {
+      for (const field of candidateFields) {
+        const snap = await db
+          .collection("negocios")
+          .doc(collectionName)
+          .collection("items")
+          .where(field, "==", businessId)
+          .limit(1)
+          .get();
+
+        if (!snap.empty) {
+          const firstDoc = snap.docs[0];
+          if (firstDoc) {
+            return mapAndRespond(firstDoc as any);
+          }
+        }
       }
-
-      const businessData = mapBusinessDoc(archivedDoc);
-      const ownerData = await getOwnerData(data?.ownerUid);
-
-      return res.json({ 
-        success: true, 
-        business: businessData,
-        owner: ownerData
-      });
     }
 
     return res.status(404).json({ success: false, message: "Negocio no encontrado" });

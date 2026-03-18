@@ -30,6 +30,14 @@ router.get(
   requireAdmin,
   adminController.obtenerNegociosArchivados
 );
+
+// PROTEGIDO - Obtener historial de movimientos administrativos de negocios
+router.get(
+  '/negocios/movimientos',
+  authMiddleware,
+  requireAdmin,
+  adminController.obtenerMovimientosNegocios
+);
 // PROTEGIDO - Editar negocio manualmente
 router.patch(
   '/negocios/:negocioId/editar',

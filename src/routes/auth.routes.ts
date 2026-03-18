@@ -5,10 +5,6 @@ import {
   recoverPassword,
   updateProfile,
   solicitarGuia,
-<<<<<<< HEAD
-  refreshToken,
-=======
->>>>>>> 4a8492caa51585043b0aee720b43f45825178e8a
 } from "../controllers/auth.controller";
 import { authMiddleware } from "../middlewares/auth.middleware";
 import { validateRegisterInput, validateLoginInput, validatePasswordRecoveryInput, validateProfileUpdate } from "../middlewares/validation.middleware";
@@ -69,10 +65,4 @@ router.post(
   solicitarGuia
 );
 
-<<<<<<< HEAD
-// POST /api/auth/refresh-token - Refrescar token expirado
-router.post("/refresh-token", refreshToken);
-
-=======
->>>>>>> 4a8492caa51585043b0aee720b43f45825178e8a
 export default router;

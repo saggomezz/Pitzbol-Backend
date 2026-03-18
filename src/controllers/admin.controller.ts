@@ -178,6 +178,56 @@ const resolveOwnerInfo = async (data: any, business: any = {}) => {
     return { ownerName, ownerPhoto };
 };
 
+const registrarMovimientoNegocioAdmin = async (payload: {
+    negocioId: string;
+    accion: string;
+    adminUid: string;
+    negocioData?: any;
+    source?: string;
+    reason?: string | null;
+    mensaje?: string;
+}) => {
+    try {
+        const negocioData = payload.negocioData || {};
+        const business = negocioData?.business || {};
+        const nombreNegocio = firstNonEmpty(business?.name, negocioData?.name, "Negocio sin nombre");
+        const ownerUid = firstNonEmpty(negocioData?.ownerUid, negocioData?.owner, business?.ownerUid, business?.owner);
+        const ownerEmail = firstNonEmpty(negocioData?.ownerEmail, negocioData?.email, business?.email);
+
+        await db.collection("negocios_movimientos").add({
+            negocioId: payload.negocioId,
+            accion: payload.accion,
+            adminUid: payload.adminUid,
+            nombreNegocio,
+            ownerUid: ownerUid || null,
+            ownerEmail: ownerEmail || null,
+            source: payload.source || null,
+            reason: payload.reason || null,
+            mensaje: payload.mensaje || null,
+            fecha: new Date().toISOString(),
+            tipo: "negocio_movimiento",
+        });
+    } catch (error) {
+        console.error("[registrarMovimientoNegocioAdmin] Error:", error);
+    }
+};
+
+export const obtenerMovimientosNegocios = async (req: Request, res: Response) => {
+    try {
+        const snap = await db
+            .collection("negocios_movimientos")
+            .orderBy("fecha", "desc")
+            .limit(500)
+            .get();
+
+        const movimientos = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        return res.json({ success: true, movimientos });
+    } catch (error: any) {
+        console.error("[obtenerMovimientosNegocios] Error:", error);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
 // Obtener negocios archivados (solo admin)
 export const obtenerNegociosArchivados = async (req: Request, res: Response) => {
     try {
@@ -419,6 +469,15 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
             
             // Delete from Pendientes
             await negocioRef.delete();
+
+            await registrarMovimientoNegocioAdmin({
+                negocioId,
+                accion: "aprobado",
+                adminUid,
+                negocioData: updatedData,
+                source: "pendientes",
+                mensaje: `Negocio ${negocioId} aprobado por admin`,
+            });
             
             console.log(`[gestionarNegocioPendiente] ✅ Negocio ${negocioId} movido de Pendientes a Activos`);
             
@@ -486,6 +545,26 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
             await negocioRef.delete();
             console.log(`[gestionarNegocioPendiente] ✅ Eliminado de Pendientes`);
 
+            await registrarMovimientoNegocioAdmin({
+                negocioId,
+                accion: "rechazado",
+                adminUid,
+                negocioData: archivedData,
+                source: "pendientes",
+                reason: rechazoMotivo || null,
+                mensaje: `Negocio ${negocioId} rechazado por admin`,
+            });
+
+            await registrarMovimientoNegocioAdmin({
+                negocioId,
+                accion: "archivado",
+                adminUid,
+                negocioData: archivedData,
+                source: "archivados",
+                reason: rechazoMotivo || "Solicitud rechazada por administrador",
+                mensaje: `Negocio ${negocioId} archivado tras rechazo`,
+            });
+
             console.log(`[gestionarNegocioPendiente] ✅ Negocio ${negocioId} rechazado y movido a Archivados`);
             
             // Notify owner
@@ -520,10 +599,14 @@ export const archivarNegocio = async (req: Request, res: Response) => {
     if (Array.isArray(negocioId)) negocioId = negocioId[0];
     if (!negocioId) negocioId = "";
     const { motivo, adminUid } = req.body;
-    if (!motivo || !adminUid) {
-        return res.status(400).json({ success: false, message: "Motivo y adminUid requeridos" });
+    if (!adminUid) {
+        return res.status(400).json({ success: false, message: "adminUid requerido" });
     }
     try {
+        const motivoFinal = typeof motivo === "string" && motivo.trim()
+            ? motivo.trim()
+            : "Archivado por administrador";
+
         // Find the business in either Activos or Pendientes
         const businessResult = await findBusiness(negocioId);
         if (!businessResult) {
@@ -549,26 +632,37 @@ export const archivarNegocio = async (req: Request, res: Response) => {
         await db.collection("negocios").doc("Archivados").collection("items").doc(negocioId).set({
             ...archiveData,
             status: "archivado",
-            archivedReason: motivo,
+            archivedReason: motivoFinal,
             archivedAt: new Date().toISOString(),
             archivedBy: adminUid,
             history: [
                 ...(negocioData?.history || []),
-                { action: "archivado", date: new Date().toISOString(), by: adminUid, reason: motivo }
+                { action: "archivado", date: new Date().toISOString(), by: adminUid, reason: motivoFinal }
             ]
         });
         
         // Delete from current location
         await negocioRef.delete();
+
+        await registrarMovimientoNegocioAdmin({
+            negocioId,
+            accion: "archivado",
+            adminUid,
+            negocioData: { ...archiveData, business: archiveData?.business || negocioData?.business, owner: negocioData?.owner },
+            source: location,
+            reason: motivoFinal,
+            mensaje: `Negocio ${negocioId} archivado desde ${location}`,
+        });
         
         console.log(`[archivarNegocio] ✅ Negocio ${negocioId} archivado (estaba en ${location})`);
         
         // Notify owner
         if (negocioData?.owner) {
+            const motivoMsg = motivoFinal ? ` Motivo: ${motivoFinal}` : "";
             await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
                 tipo: 'negocio_archivado',
                 titulo: 'Negocio eliminado',
-                mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido eliminado por el administrador. Motivo: ${motivo}`,
+                mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido eliminado por el administrador.${motivoMsg}`,
                 fecha: new Date().toISOString(),
                 leido: false,
                 enlace: '/negocio/estatus'
@@ -629,6 +723,15 @@ export const regresarAPendientes = async (req: Request, res: Response) => {
         
         // Delete from Activos
         await activosRef.delete();
+
+        await registrarMovimientoNegocioAdmin({
+            negocioId,
+            accion: "regresado_a_pendientes",
+            adminUid,
+            negocioData: updatedData,
+            source: "activos",
+            mensaje: `Negocio ${negocioId} regresado a pendientes`,
+        });
         
         console.log(`[regresarAPendientes] ✅ Negocio ${negocioId} movido de Activos a Pendientes`);
         
@@ -693,6 +796,15 @@ export const desarchivarNegocio = async (req: Request, res: Response) => {
         
         // Delete from archived
         await archivedRef.delete();
+
+        await registrarMovimientoNegocioAdmin({
+            negocioId,
+            accion: "desarchivado",
+            adminUid,
+            negocioData: pendientesData,
+            source: "archivados",
+            mensaje: `Negocio ${negocioId} desarchivado y enviado a pendientes`,
+        });
         
         console.log(`[desarchivarNegocio] ✅ Negocio ${negocioId} desarchivado y movido a Pendientes`);
         
@@ -754,6 +866,16 @@ export const eliminarNegocioPermanente = async (req: Request, res: Response) => 
         
         // Delete from Firestore
         await archivedRef.delete();
+
+        await registrarMovimientoNegocioAdmin({
+            negocioId,
+            accion: "eliminado_permanente",
+            adminUid,
+            negocioData,
+            source: "archivados",
+            reason: negocioData?.archivedReason || negocioData?.rejectionReason || null,
+            mensaje: `Negocio ${negocioId} eliminado permanentemente de Firestore`,
+        });
         
         console.log(`[eliminarNegocioPermanente] ✅ Negocio ${negocioId} eliminado permanentemente de Firestore`);
         
