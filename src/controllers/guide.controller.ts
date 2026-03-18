@@ -197,20 +197,14 @@ export const updateGuideProfile = async (req: Request, res: Response) => {
                         "updatedAt": new Date().toISOString()
                     };
 
-<<<<<<< HEAD
-                    // Sincronizar ambos campos solo en guías
-=======
->>>>>>> 4a8492caa51585043b0aee720b43f45825178e8a
+                    // Sincronizar campos según tipo de usuario
                     if (item.field === "07_especialidades") {
                         // Guías: sincronizar campo alias
                         updateData["especialidades"] = categorias;
-<<<<<<< HEAD
-=======
                     } else if (item.field === "07_intereses") {
                         // Turistas: eliminar campos viejos duplicados
                         updateData["07_especialidades"] = admin.firestore.FieldValue.delete();
                         updateData["especialidades"] = admin.firestore.FieldValue.delete();
->>>>>>> 4a8492caa51585043b0aee720b43f45825178e8a
                     }
 
                     await docSnapshot.ref.update(updateData);
@@ -230,7 +224,6 @@ export const updateGuideProfile = async (req: Request, res: Response) => {
         console.error("Error en updateGuideProfile:", error);
         return res.status(500).json({ message: "Error interno al actualizar" });
     }
-<<<<<<< HEAD
 };
 
 export const getVerifiedGuides = async (req: Request, res: Response) => {
@@ -248,9 +241,9 @@ export const getVerifiedGuides = async (req: Request, res: Response) => {
         }
 
         const guides = guidesSnapshot.docs.map(doc => {
-            const data = doc.data();
-            const nombre = data["01_nombre"] || data.nombre || "";
-            const apellido = data["02_apellido"] || data.apellido || "";
+            const data = doc.data() as any;
+            const nombre = (data["01_nombre"] as string) || data.nombre || "";
+            const apellido = (data["02_apellido"] as string) || data.apellido || "";
             const nombreCompleto = `${nombre} ${apellido}`.trim();
             
             // Log para debug
@@ -284,12 +277,13 @@ export const getVerifiedGuides = async (req: Request, res: Response) => {
         
         // Log detallado del primer guía
         if (guides.length > 0) {
+            const firstGuide = guides[0]!;
             console.log("📌 Ejemplo de guía devuelto:", {
-                uid: guides[0].uid,
-                nombre: guides[0].nombre,
-                descripcion: guides[0].descripcion?.substring(0, 50) + "...",
-                idiomas: guides[0].idiomas,
-                especialidades: guides[0].especialidades
+                uid: firstGuide.uid,
+                nombre: firstGuide.nombre,
+                descripcion: firstGuide.descripcion?.substring(0, 50) + "...",
+                idiomas: firstGuide.idiomas,
+                especialidades: firstGuide.especialidades
             });
         }
         
@@ -330,8 +324,8 @@ export const getGuideRequest = async (req: Request, res: Response) => {
             .get();
 
         if (!pendientesSnapshot.empty) {
-            const doc = pendientesSnapshot.docs[0];
-            const data = doc.data();
+            const doc = pendientesSnapshot.docs[0]!;
+            const data = doc.data() as any;
             
             console.log("✅ Solicitud pendiente encontrada para UID:", uid);
             
@@ -368,8 +362,8 @@ export const getGuideRequest = async (req: Request, res: Response) => {
             .get();
 
         if (!aprobadosSnapshot.empty) {
-            const doc = aprobadosSnapshot.docs[0];
-            const data = doc.data();
+            const doc = aprobadosSnapshot.docs[0]!;
+            const data = doc.data() as any;
             
             console.log("✅ Guía aprobado encontrado para UID:", uid);
             
@@ -443,8 +437,8 @@ export const getGuidePublicProfile = async (req: Request, res: Response) => {
             });
         }
 
-        const guideDoc = guidesSnapshot.docs[0];
-        const data = guideDoc.data();
+        const guideDoc = guidesSnapshot.docs[0]!;
+        const data = guideDoc.data() as any;
 
         const guideProfile = {
             uid: data.uid,
@@ -481,6 +475,3 @@ export const getGuidePublicProfile = async (req: Request, res: Response) => {
         });
     }
 };
-=======
-};
->>>>>>> 4a8492caa51585043b0aee720b43f45825178e8a
