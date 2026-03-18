@@ -26,19 +26,148 @@ function normalizePlaceName(nombre: string): string {
     .replace(/^_+|_+$/g, ""); // Quitar guiones al inicio y final
 }
 
+function firstNonEmptyString(...values: unknown[]): string {
+  for (const value of values) {
+    if (typeof value === 'string' && value.trim()) {
+      return value.trim();
+    }
+  }
+  return '';
+}
+
+function toStringOrEmpty(value: unknown): string {
+  if (value === null || value === undefined) return '';
+  return String(value).trim();
+}
+
+function getAddressFromBusinessData(business: any, rootData: any): string {
+  const directLocation = firstNonEmptyString(business?.location, rootData?.location);
+  if (directLocation) {
+    return directLocation;
+  }
+
+  const calle = firstNonEmptyString(business?.calle, rootData?.calle);
+  const numero = firstNonEmptyString(business?.numero, rootData?.numero);
+  const colonia = firstNonEmptyString(business?.colonia, rootData?.colonia);
+  const ciudad = firstNonEmptyString(business?.ciudad, rootData?.ciudad);
+  const estado = firstNonEmptyString(business?.estado, rootData?.estado);
+
+  return [calle, numero, colonia, ciudad, estado].filter(Boolean).join(', ');
+}
+
+function mapApprovedBusinessToPlace(doc: FirebaseFirestore.QueryDocumentSnapshot<FirebaseFirestore.DocumentData>) {
+  const data = doc.data() || {};
+  const business = data.business || {};
+
+  const nombre = firstNonEmptyString(business?.name, data?.name, data?.businessName);
+  if (!nombre) {
+    return null;
+  }
+
+  const categoria = firstNonEmptyString(business?.category, data?.category, 'Negocios');
+  const descripcion = firstNonEmptyString(business?.description, data?.description);
+  const ubicacion = getAddressFromBusinessData(business, data);
+  const latitud = toStringOrEmpty(business?.latitud ?? data?.latitud).replace(',', '.');
+  const longitud = toStringOrEmpty(business?.longitud ?? data?.longitud).replace(',', '.');
+
+  const photos = [
+    ...(Array.isArray(business?.images) ? business.images : []),
+    ...(Array.isArray(data?.images) ? data.images : []),
+  ].filter((url: unknown) => typeof url === 'string' && url.trim()) as string[];
+
+  const logo = firstNonEmptyString(business?.logo, data?.logo);
+  if (logo) {
+    photos.unshift(logo);
+  }
+
+  return {
+    id: `negocio_${doc.id}`,
+    negocioId: doc.id,
+    sourceType: 'negocio_aprobado',
+    status: 'aprobado',
+    nombre,
+    categoria,
+    descripcion,
+    ubicacion,
+    latitud,
+    longitud,
+    fotos: Array.from(new Set(photos)),
+  };
+}
+
+function mergePlaceData(existing: any, incoming: any) {
+  const existingPhotos = Array.isArray(existing?.fotos) ? existing.fotos : [];
+  const incomingPhotos = Array.isArray(incoming?.fotos) ? incoming.fotos : [];
+
+  return {
+    ...existing,
+    categoria: firstNonEmptyString(existing?.categoria, incoming?.categoria),
+    descripcion: firstNonEmptyString(existing?.descripcion, incoming?.descripcion),
+    ubicacion: firstNonEmptyString(existing?.ubicacion, incoming?.ubicacion),
+    latitud: firstNonEmptyString(existing?.latitud, incoming?.latitud),
+    longitud: firstNonEmptyString(existing?.longitud, incoming?.longitud),
+    fotos: Array.from(new Set([...existingPhotos, ...incomingPhotos])),
+    sourceType: existing?.sourceType || incoming?.sourceType,
+    negocioId: existing?.negocioId || incoming?.negocioId,
+    status: existing?.status || incoming?.status,
+  };
+}
+
+function shouldIncludeApprovedBusinesses(value: unknown): boolean {
+  if (typeof value !== 'string') return false;
+  const normalized = value.toLowerCase().trim();
+  return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'si';
+}
+
 /**
  * GET /api/lugares - Obtener todos los lugares con sus fotos
  */
 export const getAllPlaces = async (req: Request, res: Response) => {
   try {
+    const includeBusinesses = shouldIncludeApprovedBusinesses(req.query.includeApprovedBusinesses);
+
     const snapshot = await db.collection('lugares').get();
-    
+
     const lugares = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
+
+    if (!includeBusinesses) {
+      return res.status(200).json({ lugares });
+    }
+
+    const approvedBusinessesSnapshot = await db
+      .collection('negocios')
+      .doc('Activos')
+      .collection('items')
+      .get();
+
+    const approvedBusinessPlaces = approvedBusinessesSnapshot.docs
+      .map(mapApprovedBusinessToPlace)
+      .filter(Boolean) as any[];
+
+    const mergedByName = new Map<string, any>();
+
+    for (const place of lugares) {
+      const normalizedName = firstNonEmptyString(place?.nombre).toLowerCase();
+      if (!normalizedName) continue;
+      mergedByName.set(normalizedName, place);
+    }
+
+    for (const businessPlace of approvedBusinessPlaces) {
+      const normalizedName = firstNonEmptyString(businessPlace?.nombre).toLowerCase();
+      if (!normalizedName) continue;
+
+      const existing = mergedByName.get(normalizedName);
+      if (!existing) {
+        mergedByName.set(normalizedName, businessPlace);
+      } else {
+        mergedByName.set(normalizedName, mergePlaceData(existing, businessPlace));
+      }
+    }
     
-    return res.status(200).json({ lugares });
+    return res.status(200).json({ lugares: Array.from(mergedByName.values()) });
   } catch (error: any) {
     console.error('Error obteniendo lugares:', error);
     return res.status(500).json({ message: 'Error interno', error: error.message });
