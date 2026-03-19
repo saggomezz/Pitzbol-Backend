@@ -69,6 +69,30 @@ function mapApprovedBusinessToPlace(doc: FirebaseFirestore.QueryDocumentSnapshot
   const ubicacion = getAddressFromBusinessData(business, data);
   const latitud = toStringOrEmpty(business?.latitud ?? data?.latitud).replace(',', '.');
   const longitud = toStringOrEmpty(business?.longitud ?? data?.longitud).replace(',', '.');
+  const telefono = firstNonEmptyString(
+    business?.phone,
+    business?.telefono,
+    data?.phone,
+    data?.telefono,
+    data?.contactPhone
+  );
+  const website = firstNonEmptyString(
+    business?.website,
+    business?.sitioWeb,
+    data?.website,
+    data?.sitioWeb,
+    data?.web
+  );
+  const email = firstNonEmptyString(
+    data?.email,
+    data?.ownerEmail,
+    data?.userEmail,
+    data?.contactEmail,
+    business?.email,
+    business?.ownerEmail,
+    business?.contactEmail
+  );
+  const codigoPostal = firstNonEmptyString(business?.cp, data?.cp, business?.codigoPostal, data?.codigoPostal);
 
   const photos = [
     ...(Array.isArray(business?.images) ? business.images : []),
@@ -91,6 +115,10 @@ function mapApprovedBusinessToPlace(doc: FirebaseFirestore.QueryDocumentSnapshot
     ubicacion,
     latitud,
     longitud,
+    telefono,
+    website,
+    email,
+    codigoPostal,
     fotos: Array.from(new Set(photos)),
   };
 }
@@ -106,6 +134,10 @@ function mergePlaceData(existing: any, incoming: any) {
     ubicacion: firstNonEmptyString(existing?.ubicacion, incoming?.ubicacion),
     latitud: firstNonEmptyString(existing?.latitud, incoming?.latitud),
     longitud: firstNonEmptyString(existing?.longitud, incoming?.longitud),
+    telefono: firstNonEmptyString(existing?.telefono, incoming?.telefono),
+    website: firstNonEmptyString(existing?.website, incoming?.website),
+    email: firstNonEmptyString(existing?.email, incoming?.email),
+    codigoPostal: firstNonEmptyString(existing?.codigoPostal, incoming?.codigoPostal),
     fotos: Array.from(new Set([...existingPhotos, ...incomingPhotos])),
     sourceType: existing?.sourceType || incoming?.sourceType,
     negocioId: existing?.negocioId || incoming?.negocioId,
