@@ -7,7 +7,7 @@ import { db } from "../config/firebase";
  */
 async function fixPendingGuidesRole() {
   try {
-    console.log("🔄 Iniciando corrección de roles...");
+    console.log("Iniciando corrección de roles...");
     
     const pendientesRef = db.collection("usuarios")
       .doc("guias")
@@ -16,11 +16,11 @@ async function fixPendingGuidesRole() {
     const snapshot = await pendientesRef.get();
     
     if (snapshot.empty) {
-      console.log("✓ No hay guías pendientes para actualizar");
+      console.log("No hay guías pendientes para actualizar");
       return;
     }
     
-    console.log(`📋 Encontrados ${snapshot.size} documentos en pendientes`);
+    console.log(`Encontrados ${snapshot.size} documentos en pendientes`);
     
     let updated = 0;
     let unchanged = 0;
@@ -33,22 +33,22 @@ async function fixPendingGuidesRole() {
         await doc.ref.update({
           "03_rol": "turista"
         });
-        console.log(`✅ Actualizado: ${doc.id} → role: turista`);
+        console.log(`Actualizado: ${doc.id} → role: turista`);
         updated++;
       } else {
-        console.log(`⏭️  Omitido: ${doc.id} → role ya es: ${currentRole}`);
+        console.log(`Omitido: ${doc.id} → role ya es: ${currentRole}`);
         unchanged++;
       }
     }
     
-    console.log("\n📊 Resumen:");
+    console.log("\nResumen:");
     console.log(`   Actualizados: ${updated}`);
     console.log(`   Sin cambios: ${unchanged}`);
     console.log(`   Total: ${snapshot.size}`);
-    console.log("✅ Corrección completada");
+    console.log("Corrección completada");
     
   } catch (error) {
-    console.error("❌ Error al corregir roles:", error);
+    console.error("Error al corregir roles:", error);
     throw error;
   }
 }
@@ -56,10 +56,10 @@ async function fixPendingGuidesRole() {
 // Ejecutar el script
 fixPendingGuidesRole()
   .then(() => {
-    console.log("\n🎉 Script finalizado exitosamente");
+    console.log("\nScript finalizado exitosamente");
     process.exit(0);
   })
   .catch((error) => {
-    console.error("\n💥 Script falló:", error);
+    console.error("\nScript falló:", error);
     process.exit(1);
   });

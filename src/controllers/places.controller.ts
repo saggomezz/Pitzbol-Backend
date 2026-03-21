@@ -5,7 +5,7 @@ import { v2 as cloudinary } from 'cloudinary';
 
 // Configurar Cloudinary con validación
 if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-  console.warn('⚠️ Variables de Cloudinary no configuradas en .env');
+  console.warn('Variables de Cloudinary no configuradas en .env');
 }
 
 cloudinary.config({
@@ -80,7 +80,7 @@ export const createPlace = async (req: Request, res: Response) => {
     
     await db.collection('lugares').doc(placeId).set(nuevoLugar);
     
-    console.log(`✅ Lugar creado: ${nombre} (ID: ${placeId})`);
+    console.log(`Lugar creado: ${nombre} (ID: ${placeId})`);
     
     return res.status(201).json({
       message: 'Lugar creado correctamente',
@@ -100,7 +100,7 @@ export const createPlace = async (req: Request, res: Response) => {
  * Versión mejorada con búsquedas más precisas y mejor filtrado de resultados
  */
 export const geocodeAddress = async (req: Request, res: Response) => {
-  console.log('📍 geocodeAddress llamado con:', req.body);
+  console.log('geocodeAddress llamado con:', req.body);
   try {
     const { direccion } = req.body;
     
@@ -109,7 +109,7 @@ export const geocodeAddress = async (req: Request, res: Response) => {
     }
 
     const direccionOriginal = direccion.trim();
-    console.log('🔍 Buscando coordenadas para:', direccionOriginal);
+    console.log('Buscando coordenadas para:', direccionOriginal);
     
     // Función para hacer búsqueda con diferentes parámetros
     const buscarConParams = async (params: Record<string, string>, limit: number = 25) => {
@@ -250,7 +250,7 @@ export const geocodeAddress = async (req: Request, res: Response) => {
     };
 
     const componentes = extraerComponentes(direccionOriginal);
-    console.log('  📋 Componentes extraídos:', componentes);
+    console.log('  Componentes extraídos:', componentes);
 
     // Lista de búsquedas a intentar (de más específica a menos específica)
     const busquedas = [
@@ -316,20 +316,20 @@ export const geocodeAddress = async (req: Request, res: Response) => {
         }
         
         if (data && Array.isArray(data) && data.length > 0) {
-          console.log(`    📊 ${data.length} resultado(s) encontrado(s)`);
+          console.log(`    ${data.length} resultado(s) encontrado(s)`);
           todosLosResultados.push(...data);
         }
         
         // Pausa más larga para respetar rate limits
         await new Promise(resolve => setTimeout(resolve, 300));
       } catch (error: any) {
-        console.log(`    ❌ Error:`, error.message);
+        console.log(`    Error:`, error.message);
         continue;
       }
     }
 
     if (todosLosResultados.length === 0) {
-      console.log('  ❌ No se encontraron coordenadas en ninguna búsqueda');
+      console.log('  No se encontraron coordenadas en ninguna búsqueda');
       return res.status(200).json({ 
         message: 'No se encontraron coordenadas para esta dirección. Intenta ser más específico o ajusta la ubicación manualmente en el mapa.',
         success: false
@@ -341,7 +341,7 @@ export const geocodeAddress = async (req: Request, res: Response) => {
       index === self.findIndex(t => t.place_id === r.place_id)
     );
 
-    console.log(`  📊 Total de resultados únicos: ${unicos.length}`);
+    console.log(`  Total de resultados únicos: ${unicos.length}`);
 
     // Calcular puntuación mejorada para cada resultado y ordenar
     const resultadosConPuntuacion = unicos.map(r => ({
@@ -350,14 +350,14 @@ export const geocodeAddress = async (req: Request, res: Response) => {
     })).sort((a, b) => b.puntuacion - a.puntuacion);
 
     // Mostrar top 3 resultados para debugging
-    console.log(`  🏆 Top 3 resultados:`);
+    console.log(`  Top 3 resultados:`);
     resultadosConPuntuacion.slice(0, 3).forEach((r, i) => {
       console.log(`    ${i + 1}. Puntuación: ${r.puntuacion.toFixed(2)} - ${r.display_name}`);
     });
 
     // Seleccionar el mejor resultado
     const mejorResultado = resultadosConPuntuacion[0];
-    console.log(`  ✅ Mejor resultado seleccionado (puntuación: ${mejorResultado.puntuacion.toFixed(3)}):`, mejorResultado.display_name);
+    console.log(`  Mejor resultado seleccionado (puntuación: ${mejorResultado.puntuacion.toFixed(3)}):`, mejorResultado.display_name);
 
     const lat = parseFloat(mejorResultado.lat);
     const lon = parseFloat(mejorResultado.lon);
@@ -506,7 +506,7 @@ export const addPlacePhotos = async (req: any, res: Response) => {
     
     await placeRef.set(updateData, { merge: true });
     
-    console.log(`✅ ${newPhotos.length} foto(s) agregada(s) al lugar: ${nombre}`);
+    console.log(`${newPhotos.length} foto(s) agregada(s) al lugar: ${nombre}`);
     
     return res.status(200).json({
       message: `${newPhotos.length} foto(s) agregada(s) correctamente`,
@@ -657,7 +657,7 @@ export const deletePlace = async (req: Request, res: Response) => {
     const placeId = normalizePlaceName(nombre);
     await db.collection('lugares').doc(placeId).delete();
 
-    console.log(`🗑️ Lugar eliminado: ${nombre} (ID: ${placeId})`);
+    console.log(`Lugar eliminado: ${nombre} (ID: ${placeId})`);
     return res.status(200).json({ message: 'Lugar eliminado correctamente' });
   } catch (error: any) {
     console.error('Error eliminando lugar:', error);

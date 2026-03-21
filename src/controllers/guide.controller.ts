@@ -6,13 +6,13 @@ const FieldValue = admin.firestore.FieldValue;
 
 export const registerGuide = async (req: Request, res: Response) => {
     try {
-        console.log("📥 Datos recibidos en registerGuide:", JSON.stringify(req.body, null, 2));
+        console.log("Datos recibidos en registerGuide:", JSON.stringify(req.body, null, 2));
         
         const data = req.body;
         const { uid, nombre, apellido, email } = data;
 
         if (!uid) {
-            console.error("❌ Error: UID no proporcionado");
+            console.error("Error: UID no proporcionado");
             return res.status(400).json({ message: 'El UID es obligatorio.' });
         }
 
@@ -33,18 +33,18 @@ export const registerGuide = async (req: Request, res: Response) => {
                     const turistaData = turistaSnap.docs[0].data();
                     if (!telefono) telefono = turistaData.telefono || "";
                     if (!nacionalidad) nacionalidad = turistaData.nacionalidad || "";
-                    console.log("📋 Datos recuperados del turista - telefono:", telefono, "nacionalidad:", nacionalidad);
+                    console.log("Datos recuperados del turista - telefono:", telefono, "nacionalidad:", nacionalidad);
                 }
             } catch (err) {
-                console.log("ℹ️ No se encontraron datos de turista, usando solo los del request");
+                console.log("No se encontraron datos de turista, usando solo los del request");
             }
         }
 
         const safeApellido = apellido ? `_${apellido}` : "";
         const customId = `${nombre}${safeApellido}`.replace(/\s+/g, '_').toLowerCase();
 
-        console.log("🔑 UID recibido:", uid);
-        console.log("📝 Custom ID generado:", customId);
+        console.log("UID recibido:", uid);
+        console.log("Custom ID generado:", customId);
        
         const datosSeguros = {
             "01_nombre": nombre ?? "",
@@ -71,7 +71,7 @@ export const registerGuide = async (req: Request, res: Response) => {
             createdAt: new Date().toISOString()
         };
 
-        console.log("💾 Guardando en Firebase...");
+        console.log("Guardando en Firebase...");
         
         await db.collection('usuarios')
             .doc('guias')
@@ -79,7 +79,7 @@ export const registerGuide = async (req: Request, res: Response) => {
             .doc(customId)
             .set(datosSeguros);
 
-        console.log("✅ Documento guardado en pendientes:", customId);
+        console.log("Documento guardado en pendientes:", customId);
 
         // Intentar eliminar de turistas
         try {
@@ -88,12 +88,12 @@ export const registerGuide = async (req: Request, res: Response) => {
                 .collection("lista")
                 .doc(customId)
                 .delete();
-            console.log("🗑️ Eliminado de turistas:", customId);
+            console.log("Eliminado de turistas:", customId);
         } catch (deleteError) {
-            console.log("ℹ️ No se encontró en turistas o ya fue eliminado");
+            console.log("No se encontró en turistas o ya fue eliminado");
         }
 
-        console.log("✅ Registro de guía completado exitosamente");
+        console.log("Registro de guía completado exitosamente");
         
 
         // Notificar a todos los administradores
@@ -116,9 +116,9 @@ export const registerGuide = async (req: Request, res: Response) => {
                 }
             });
             await batch.commit();
-            console.log('✅ Notificación enviada a administradores');
+            console.log('Notificación enviada a administradores');
         } catch (notifError) {
-            console.warn('⚠️ Error al notificar a administradores:', notifError);
+            console.warn('Error al notificar a administradores:', notifError);
         }
 
         res.status(201).json({ 
@@ -127,7 +127,7 @@ export const registerGuide = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        console.error("❌ Error detallado en registerGuide:", error);
+        console.error("Error detallado en registerGuide:", error);
         console.error("Stack trace:", error.stack);
         res.status(500).json({ 
             message: 'Error interno al procesar la solicitud', 

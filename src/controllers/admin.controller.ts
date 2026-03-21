@@ -203,7 +203,7 @@ export const recibirNotificacion = async (req: any, res: any) => {
 
 export const getSolicitudesPendientes = async (req: any, res: any) => {
     try {
-        console.log("🔍 Consultando colección: usuarios/guias/pendientes");
+        console.log("Consultando colección: usuarios/guias/pendientes");
         
         const snapshot = await db.collection('usuarios')
             .doc('guias')
@@ -220,10 +220,10 @@ export const getSolicitudesPendientes = async (req: any, res: any) => {
             ...doc.data()
         }));
 
-        console.log(`✅ Se encontraron ${solicitudes.length} solicitudes pendientes`);
+        console.log(`Se encontraron ${solicitudes.length} solicitudes pendientes`);
         return res.status(200).json({ solicitudes });
     } catch (error: any) {
-        console.error("❌ Error de Firebase:", error);
+        console.error("Error de Firebase:", error);
         return res.status(500).json({ message: "Error interno", error: error.message });
     }
 };
@@ -232,7 +232,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
     const { uid, accion } = req.body;
 
     try {
-        console.log(`🔍 Buscando solicitud con uid: ${uid}, acción: ${accion}`);
+        console.log(`Buscando solicitud con uid: ${uid}, acción: ${accion}`);
 
         // Buscar el documento que contenga ese uid en la colección pendientes
         const pendientesSnapshot = await db.collection('usuarios')
@@ -243,7 +243,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
             .get();
 
         if (pendientesSnapshot.empty) {
-            console.error(`❌ No se encontró solicitud pendiente para uid: ${uid}`);
+            console.error(`No se encontró solicitud pendiente para uid: ${uid}`);
             return res.status(404).json({ 
                 success: false,
                 message: "La solicitud ya no existe o fue procesada previamente" 
@@ -260,7 +260,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
 
         const data = docPendiente.data();
 
-        console.log(`📄 Documento encontrado: ${docPendiente.id}`, data);
+        console.log(`Documento encontrado: ${docPendiente.id}`, data);
 
         if (accion === 'aprobar') {
             // Mover a guías/lista
@@ -268,7 +268,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
             const apellido = data?.["02_apellido"] || "Nombre";
             const customId = `${nombre}_${apellido}`.replace(/\s+/g, '_');
 
-            console.log(`✅ Aprobando guía con customId: ${customId}`);
+            console.log(`Aprobando guía con customId: ${customId}`);
 
             // Crear documento en guías/lista
             await db.collection('usuarios')
@@ -284,14 +284,14 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
                     approvedAt: new Date().toISOString()
                 });
 
-            console.log(`✅ Documento movido a guías/lista`);
+            console.log(`Documento movido a guías/lista`);
 
             // Actualizar custom claims en Auth
             try {
                 await auth.setCustomUserClaims(uid, { role: 'guia' });
-                console.log(`✅ Custom claims actualizados para uid: ${uid}`);
+                console.log(`Custom claims actualizados para uid: ${uid}`);
             } catch (authError) {
-                console.error(`⚠️ Error al actualizar custom claims: ${authError}`);
+                console.error(`Error al actualizar custom claims: ${authError}`);
             }
 
             // Actualizar en turistas/lista
@@ -305,7 +305,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
             if (!turistaQuery.empty) {
                 const userDoc = turistaQuery.docs[0];
                 if (userDoc && userDoc.exists) {
-                    console.log(`📝 Actualizando turista documento: ${userDoc.id}`);
+                    console.log(`Actualizando turista documento: ${userDoc.id}`);
                     
                     await userDoc.ref.update({ 
                         "03_rol": "guia",
@@ -314,10 +314,10 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
                         updatedAt: new Date().toISOString()
                     });
                     
-                    console.log(`✅ Turista actualizado a guía`);
+                    console.log(`Turista actualizado a guía`);
                 }
             } else {
-                console.warn(`⚠️ No se encontró usuario en turistas/lista con uid: ${uid}`);
+                console.warn(`No se encontró usuario en turistas/lista con uid: ${uid}`);
             }
 
             // Guardar notificación en Firestore
@@ -333,14 +333,14 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
                         leido: false,
                         enlace: '/perfil'
                     });
-                console.log(`📬 Notificación de aprobación guardada`);
+                console.log(`Notificación de aprobación guardada`);
             } catch (notifError) {
-                console.warn(`⚠️ Error al guardar notificación: ${notifError}`);
+                console.warn(`Error al guardar notificación: ${notifError}`);
             }
 
             // Eliminar de pendientes
             await docPendiente.ref.delete();
-            console.log(`🗑️ Solicitud eliminada de pendientes`);
+            console.log(`Solicitud eliminada de pendientes`);
 
             // Notificar al usuario de aprobación de negocio
             await sendNotificationToUser(uid, {
@@ -360,7 +360,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
             });
 
         } else if (accion === 'rechazar') {
-            console.log(`❌ Rechazando solicitud para uid: ${uid}`);
+            console.log(`Rechazando solicitud para uid: ${uid}`);
 
             // Actualizar en turistas/lista para marcar que fue rechazado
             const turistaQuery = await db.collection("usuarios")
@@ -373,7 +373,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
             if (!turistaQuery.empty) {
                 const docTurista = turistaQuery.docs[0];
                 if (docTurista && docTurista.exists) {
-                    console.log(`📝 Actualizando turista documento: ${docTurista.id}`);
+                    console.log(`Actualizando turista documento: ${docTurista.id}`);
                     
                     await docTurista.ref.update({ 
                         "03_rol": "turista",
@@ -382,10 +382,10 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
                         rejectedAt: new Date().toISOString()
                     });
                     
-                    console.log(`✅ Turista marcado como rechazado`);
+                    console.log(`Turista marcado como rechazado`);
                 }
             } else {
-                console.warn(`⚠️ No se encontró usuario en turistas/lista con uid: ${uid}`);
+                console.warn(`No se encontró usuario en turistas/lista con uid: ${uid}`);
             }
 
             // Guardar notificación en Firestore
@@ -401,14 +401,14 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
                         leido: false,
                         enlace: '/perfil'
                     });
-                console.log(`📬 Notificación de rechazo guardada`);
+                console.log(`Notificación de rechazo guardada`);
             } catch (notifError) {
-                console.warn(`⚠️ Error al guardar notificación: ${notifError}`);
+                console.warn(`Error al guardar notificación: ${notifError}`);
             }
 
             // Eliminar de pendientes
             await docPendiente.ref.delete();
-            console.log(`🗑️ Solicitud eliminada de pendientes`);
+            console.log(`Solicitud eliminada de pendientes`);
 
             // Notificar al usuario de rechazo de negocio
             await sendNotificationToUser(uid, {
@@ -434,7 +434,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        console.error("❌ Error en gestión admin:", error);
+        console.error("Error en gestión admin:", error);
         res.status(500).json({ 
             success: false,
             error: error.message 
@@ -446,7 +446,7 @@ export const verificarEstadoUsuario = async (req: Request, res: Response) => {
     const { uid } = req.params;
 
     try {
-        console.log(`🔍 Verificando estado del usuario: ${uid}`);
+        console.log(`Verificando estado del usuario: ${uid}`);
 
         // Buscar en turistas
         const turistaQuery = await db.collection("usuarios")
@@ -460,7 +460,7 @@ export const verificarEstadoUsuario = async (req: Request, res: Response) => {
             const doc = turistaQuery.docs[0];
             if (doc && doc.exists) {
                 const userData = doc.data();
-                console.log(`✅ Usuario encontrado en turistas:`, userData);
+                console.log(`Usuario encontrado en turistas:`, userData);
                 
                 return res.json({
                     success: true,
@@ -480,7 +480,7 @@ export const verificarEstadoUsuario = async (req: Request, res: Response) => {
         for (const doc of guiasSnapshot.docs) {
             const data = doc.data();
             if (data && data.uid === uid) {
-                console.log(`✅ Usuario encontrado en guías/lista:`, data);
+                console.log(`Usuario encontrado en guías/lista:`, data);
                 
                 return res.json({
                     success: true,
@@ -500,7 +500,7 @@ export const verificarEstadoUsuario = async (req: Request, res: Response) => {
         for (const doc of pendientesSnapshot.docs) {
             const data = doc.data();
             if (data && data.uid === uid) {
-                console.log(`✅ Usuario encontrado en guías/pendientes:`, data);
+                console.log(`Usuario encontrado en guías/pendientes:`, data);
                 
                 return res.json({
                     success: true,
@@ -511,14 +511,14 @@ export const verificarEstadoUsuario = async (req: Request, res: Response) => {
             }
         }
 
-        console.warn(`⚠️ Usuario no encontrado en ninguna colección: ${uid}`);
+        console.warn(`Usuario no encontrado en ninguna colección: ${uid}`);
         return res.status(404).json({ 
             success: false,
             message: "Usuario no encontrado" 
         });
 
     } catch (error: any) {
-        console.error("❌ Error al verificar estado:", error);
+        console.error("Error al verificar estado:", error);
         res.status(500).json({ 
             success: false,
             error: error.message 
@@ -536,7 +536,7 @@ export const marcarNotificacionComoLeida = async (req: Request, res: Response) =
             return res.status(400).json({ success: false, message: "UID e ID requeridos" });
         }
 
-        console.log(`📝 Marcando notificación como leída: ${id}`);
+        console.log(`Marcando notificación como leída: ${id}`);
 
         const docRef = db.collection('usuarios')
             .doc('notificaciones')
@@ -550,11 +550,11 @@ export const marcarNotificacionComoLeida = async (req: Request, res: Response) =
         }
 
         await docRef.update({ leido: true });
-        console.log(`✅ Notificación marcada como leída`);
+        console.log(`Notificación marcada como leída`);
         return res.json({ success: true, message: "Notificación marcada como leída" });
 
     } catch (error: any) {
-        console.error("❌ Error al marcar notificación:", error);
+        console.error("Error al marcar notificación:", error);
         res.status(500).json({ success: false, error: error.message });
     }
 };
@@ -569,7 +569,7 @@ export const eliminarNotificacion = async (req: Request, res: Response) => {
             return res.status(400).json({ success: false, message: "UID e ID requeridos" });
         }
 
-        console.log(`🗑️ Eliminando notificación: ${id}`);
+        console.log(`Eliminando notificación: ${id}`);
 
         const docRef = db.collection('usuarios')
             .doc('notificaciones')
@@ -583,11 +583,11 @@ export const eliminarNotificacion = async (req: Request, res: Response) => {
         }
 
         await docRef.delete();
-        console.log(`✅ Notificación eliminada`);
+        console.log(`Notificación eliminada`);
         return res.json({ success: true, message: "Notificación eliminada" });
 
     } catch (error: any) {
-        console.error("❌ Error al eliminar notificación:", error);
+        console.error("Error al eliminar notificación:", error);
         res.status(500).json({ success: false, error: error.message });
     }
 };
@@ -601,7 +601,7 @@ export const limpiarNotificacionesUsuario = async (req: Request, res: Response) 
             return res.status(400).json({ success: false, message: "UID requerido" });
         }
 
-        console.log(`🗑️ Limpiando todas las notificaciones del usuario: ${uid}`);
+        console.log(`Limpiando todas las notificaciones del usuario: ${uid}`);
 
         const notificacionesRef = db.collection('usuarios')
             .doc('notificaciones')
@@ -615,12 +615,12 @@ export const limpiarNotificacionesUsuario = async (req: Request, res: Response) 
         });
 
         await batch.commit();
-        console.log(`✅ Notificaciones del usuario limpiadas`);
+        console.log(`Notificaciones del usuario limpiadas`);
         
         return res.json({ success: true, message: "Todas las notificaciones han sido eliminadas" });
 
     } catch (error: any) {
-        console.error("❌ Error al limpiar notificaciones:", error);
+        console.error("Error al limpiar notificaciones:", error);
         res.status(500).json({ success: false, error: error.message });
     }
 };
@@ -634,7 +634,7 @@ export const obtenerNotificacionesUsuario = async (req: Request, res: Response) 
             return res.status(400).json({ success: false, message: "UID requerido" });
         }
 
-        console.log(`🔍 Obteniendo notificaciones para uid: ${uid}`);
+        console.log(`Obteniendo notificaciones para uid: ${uid}`);
 
         const notificacionesSnapshot = await db.collection('usuarios')
             .doc('notificaciones')
@@ -648,11 +648,11 @@ export const obtenerNotificacionesUsuario = async (req: Request, res: Response) 
             ...doc.data()
         }));
 
-        console.log(`✅ Se obtuvieron ${notificaciones.length} notificaciones`);
+        console.log(`Se obtuvieron ${notificaciones.length} notificaciones`);
         return res.json({ success: true, notificaciones });
 
     } catch (error: any) {
-        console.error("❌ Error al obtener notificaciones:", error);
+        console.error("Error al obtener notificaciones:", error);
         res.status(500).json({ 
             success: false,
             error: error.message 

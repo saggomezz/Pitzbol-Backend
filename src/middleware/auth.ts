@@ -23,7 +23,7 @@ export const authenticateToken = async (
     const token = authHeader && authHeader.split(' ')[1]; // "Bearer TOKEN"
 
     if (!token) {
-      console.warn('⚠️ Intento de acceso sin token');
+      console.warn('Intento de acceso sin token');
       return res.status(401).json({ 
         error: 'Token no proporcionado',
         message: 'Se requiere autenticación'
@@ -41,11 +41,11 @@ export const authenticateToken = async (
         role: decodedToken.role,
       };
 
-      console.log(`✅ Token validado para usuario: ${decodedToken.uid}`);
+      console.log(`Token validado para usuario: ${decodedToken.uid}`);
       next();
 
     } catch (tokenError: any) {
-      console.error('❌ Error al verificar token:', tokenError.message);
+      console.error('Error al verificar token:', tokenError.message);
       
       if (tokenError.name === 'TokenExpiredError') {
         return res.status(401).json({ 
@@ -61,7 +61,7 @@ export const authenticateToken = async (
     }
 
   } catch (error: any) {
-    console.error('❌ Error en middleware de autenticación:', error);
+    console.error('Error en middleware de autenticación:', error);
     return res.status(500).json({ 
       error: 'Error interno en autenticación'
     });
@@ -89,16 +89,16 @@ export const authenticateTokenOptional = async (
           email: decodedToken.email,
           role: decodedToken.role
         };
-        console.log(`✅ Usuario autenticado: ${decodedToken.uid}`);
+        console.log(`Usuario autenticado: ${decodedToken.uid}`);
       } catch (error) {
-        console.warn('⚠️ Token inválido pero el acceso es opcional');
+        console.warn('Token inválido pero el acceso es opcional');
       }
     }
 
     next();
 
   } catch (error: any) {
-    console.error('❌ Error en middleware opcional:', error);
+    console.error('Error en middleware opcional:', error);
     next(); // Continuar aunque haya error
   }
 };
@@ -119,7 +119,7 @@ export const requireRole = (allowedRoles: string[]) => {
       const userRole = user.role;
 
       if (!allowedRoles.includes(userRole)) {
-        console.warn(`⚠️ Usuario ${user.uid} sin permisos. Rol requerido: ${allowedRoles.join(', ')}, tiene: ${userRole}`);
+        console.warn(`Usuario ${user.uid} sin permisos. Rol requerido: ${allowedRoles.join(', ')}, tiene: ${userRole}`);
         return res.status(403).json({ 
           error: 'Permiso denegado',
           message: `Se requiere rol: ${allowedRoles.join(' o ')}`
@@ -129,7 +129,7 @@ export const requireRole = (allowedRoles: string[]) => {
       next();
 
     } catch (error: any) {
-      console.error('❌ Error en validación de rol:', error);
+      console.error('Error en validación de rol:', error);
       res.status(500).json({ error: 'Error interno en validación' });
     }
   };

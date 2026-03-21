@@ -7,7 +7,7 @@ import { saveCard, getUserCards, setDefaultCard, deleteCard } from '../services/
 
 // Configurar Cloudinary con validación
 if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-  console.warn('⚠️ Variables de Cloudinary no configuradas en .env');
+  console.warn('Variables de Cloudinary no configuradas en .env');
 }
 
 cloudinary.config({
@@ -37,7 +37,7 @@ const subirBase64ACloudinary = async (base64Image: string, uid: string): Promise
     
     return uploadResult.secure_url;
   } catch (error) {
-    console.error('❌ Error subiendo base64 a Cloudinary:', error);
+    console.error('Error subiendo base64 a Cloudinary:', error);
     throw error;
   }
 };
@@ -177,9 +177,9 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
     if (oldPublicId) {
       try {
         await cloudinary.uploader.destroy(oldPublicId);
-        console.log('✅ Foto anterior eliminada de Cloudinary:', oldPublicId);
+        console.log('Foto anterior eliminada de Cloudinary:', oldPublicId);
       } catch (error) {
-        console.error('⚠️ Error al eliminar foto anterior:', error);
+        console.error('Error al eliminar foto anterior:', error);
       }
     }
 
@@ -214,7 +214,7 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
       return res.status(401).json({ error: 'No autenticado' });
     }
 
-    console.log(`🔍 Buscando foto de perfil para uid: ${uid}`);
+    console.log(`Buscando foto de perfil para uid: ${uid}`);
 
     // Buscar primero en turistas
     const snapshot = await db.collection('usuarios')
@@ -227,28 +227,28 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
     if (!snapshot.empty) {
       const userDoc = snapshot.docs[0];
       const userData = userDoc ? userDoc.data() : null;
-      console.log(`✅ Usuario encontrado en turistas`);
+      console.log(`Usuario encontrado en turistas`);
       
       // Si no tiene fotoPerfil pero tiene 13_foto_rostro, subir a Cloudinary
       if (!userData?.fotoPerfil && userData?.['13_foto_rostro']) {
-        console.log('📤 Migrando 13_foto_rostro a Cloudinary...');
+        console.log('Migrando 13_foto_rostro a Cloudinary...');
         try {
           const cloudinaryUrl = await subirBase64ACloudinary(userData['13_foto_rostro'], uid);
-          
+
           // Actualizar Firebase con la nueva URL
           await userDoc!.ref.update({
             fotoPerfil: cloudinaryUrl,
             fotoPerfilSubidaEn: new Date().toISOString()
           });
-          
-          console.log('✅ Foto migrada a Cloudinary exitosamente');
-          
+
+          console.log('Foto migrada a Cloudinary exitosamente');
+
           return res.status(200).json({
             fotoPerfil: cloudinaryUrl,
             fotoPerfilSubidaEn: new Date().toISOString()
           });
         } catch (error) {
-          console.error('❌ Error migrando foto:', error);
+          console.error('Error migrando foto:', error);
           return res.status(500).json({ error: 'Error procesando foto de perfil' });
         }
       }
@@ -270,7 +270,7 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
     if (!adminSnap.empty) {
       const adminDoc = adminSnap.docs[0];
       const adminData = adminDoc ? adminDoc.data() : null;
-      console.log(`✅ Usuario encontrado en admins`);
+      console.log(`Usuario encontrado en admins`);
       return res.status(200).json({
         fotoPerfil: adminData?.fotoPerfil || null,
         fotoPerfilSubidaEn: adminData?.fotoPerfilSubidaEn || null
@@ -286,11 +286,11 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
     for (const doc of guiasSnapshot.docs) {
       const data = doc.data();
       if (data && data.uid === uid) {
-        console.log(`✅ Usuario encontrado en guías/lista`);
+        console.log(`Usuario encontrado en guías/lista`);
         
         // Si no tiene fotoPerfil pero tiene 13_foto_rostro, subir a Cloudinary
         if (!data.fotoPerfil && data['13_foto_rostro']) {
-          console.log('📤 Migrando 13_foto_rostro a Cloudinary...');
+          console.log('Migrando 13_foto_rostro a Cloudinary...');
           try {
             const cloudinaryUrl = await subirBase64ACloudinary(data['13_foto_rostro'], uid);
             
@@ -300,14 +300,14 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
               fotoPerfilSubidaEn: new Date().toISOString()
             });
             
-            console.log('✅ Foto migrada a Cloudinary exitosamente');
+            console.log('Foto migrada a Cloudinary exitosamente');
             
             return res.status(200).json({
               fotoPerfil: cloudinaryUrl,
               fotoPerfilSubidaEn: new Date().toISOString()
             });
           } catch (error) {
-            console.error('❌ Error migrando foto:', error);
+            console.error('Error migrando foto:', error);
             return res.status(500).json({ error: 'Error procesando foto de perfil' });
           }
         }
@@ -328,13 +328,13 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
     for (const doc of pendientesSnapshot.docs) {
       const data = doc.data();
       if (data && data.uid === uid) {
-        console.log(`✅ Usuario encontrado en guías/pendientes`);
-        console.log(`📸 Foto de perfil: ${data.fotoPerfil ? 'SÍ existe' : 'NO existe'}`);
-        console.log(`📸 Campos disponibles: ${Object.keys(data).join(', ')}`);
+        console.log(`Usuario encontrado en guías/pendientes`);
+        console.log(`Foto de perfil: ${data.fotoPerfil ? 'SÍ existe' : 'NO existe'}`);
+        console.log(`Campos disponibles: ${Object.keys(data).join(', ')}`);
         
         // Si no tiene fotoPerfil pero tiene 13_foto_rostro, subir a Cloudinary
         if (!data.fotoPerfil && data['13_foto_rostro']) {
-          console.log('📤 Migrando 13_foto_rostro a Cloudinary...');
+          console.log('Migrando 13_foto_rostro a Cloudinary...');
           try {
             const cloudinaryUrl = await subirBase64ACloudinary(data['13_foto_rostro'], uid);
             
@@ -344,14 +344,14 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
               fotoPerfilSubidaEn: new Date().toISOString()
             });
             
-            console.log('✅ Foto migrada a Cloudinary exitosamente');
+            console.log('Foto migrada a Cloudinary exitosamente');
             
             return res.status(200).json({
               fotoPerfil: cloudinaryUrl,
               fotoPerfilSubidaEn: new Date().toISOString()
             });
           } catch (error) {
-            console.error('❌ Error migrando foto:', error);
+            console.error('Error migrando foto:', error);
             return res.status(500).json({ error: 'Error procesando foto de perfil' });
           }
         }
@@ -363,7 +363,7 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
       }
     }
 
-    console.warn(`⚠️ Usuario no encontrado en ninguna colección: ${uid}`);
+    console.warn(`Usuario no encontrado en ninguna colección: ${uid}`);
     return res.status(404).json({ error: 'Usuario no encontrado' });
 
   } catch (error: any) {
@@ -388,7 +388,7 @@ export const actualizarPerfil = async (req: Request, res: Response) => {
     const uid = (req as any).user?.uid;
     const { descripcion } = req.body;
 
-    console.log("📥 Datos recibidos en el backend:", { uid, descripcion });
+    console.log("Datos recibidos en el backend:", { uid, descripcion });
 
     if (!uid) return res.status(401).json({ error: 'No autenticado' });
 
@@ -442,7 +442,7 @@ export const actualizarPerfil = async (req: Request, res: Response) => {
     });
 
   } catch (error: any) {
-    console.error('❌ Error fatal en actualizarPerfil:', error);
+    console.error('Error fatal en actualizarPerfil:', error);
     return res.status(500).json({ msg: 'Error interno del servidor', details: error.message });
   }
 };
@@ -457,24 +457,24 @@ export const obtenerTarjetas = async (req: any, res: Response) => {
   try {
     const uid = req.user?.uid;
 
-    console.log('📋 [obtenerTarjetas] Iniciando...');
+    console.log('[obtenerTarjetas] Iniciando...');
     console.log(`   - UID del token: ${uid}`);
     console.log(`   - req.user completo:`, req.user);
 
     if (!uid) {
-      console.error('❌ [obtenerTarjetas] UID no encontrado en token');
+      console.error('[obtenerTarjetas] UID no encontrado en token');
       return res.status(401).json({ error: 'No autenticado - UID no encontrado en token' });
     }
 
-    console.log(`✅ [obtenerTarjetas] UID validado: ${uid}`);
+    console.log(`[obtenerTarjetas] UID validado: ${uid}`);
 
     const cards = await getUserCards(uid);
     
-    console.log(`✅ [obtenerTarjetas] ${cards.length} tarjeta(s) encontrada(s) para UID: ${uid}`);
+    console.log(`[obtenerTarjetas] ${cards.length} tarjeta(s) encontrada(s) para UID: ${uid}`);
     
     res.json({ cards });
   } catch (error: any) {
-    console.error('❌ Error obteniendo tarjetas:', error);
+    console.error('Error obteniendo tarjetas:', error);
     res.status(500).json({ error: error.message || 'Error al obtener tarjetas' });
   }
 };
@@ -484,27 +484,27 @@ export const crearSetupIntent = async (req: any, res: Response) => {
   try {
     const uid = req.user?.uid;
     
-    console.log('🔐 [crearSetupIntent] Iniciando...');
+    console.log('[crearSetupIntent] Iniciando...');
     console.log(`   - UID del token: ${uid}`);
     console.log(`   - req.user completo:`, req.user);
 
     if (!uid) {
-      console.error('❌ [crearSetupIntent] UID no encontrado en token');
+      console.error('[crearSetupIntent] UID no encontrado en token');
       return res.status(401).json({ error: 'No autenticado - UID no encontrado en token' });
     }
 
-    console.log(`✅ [crearSetupIntent] UID validado: ${uid}`);
+    console.log(`[crearSetupIntent] UID validado: ${uid}`);
 
     const setupIntent = await stripe.setupIntents.create({
       payment_method_types: ['card'],
       metadata: { uid },
     });
 
-    console.log(`✅ [crearSetupIntent] Setup intent creado: ${setupIntent.id}`);
+    console.log(`[crearSetupIntent] Setup intent creado: ${setupIntent.id}`);
 
     res.json({ clientSecret: setupIntent.client_secret });
   } catch (error: any) {
-    console.error('❌ Error creando setup intent:', error);
+    console.error('Error creando setup intent:', error);
     res.status(500).json({ error: error.message || 'Error creando setup intent' });
   }
 };
@@ -515,34 +515,34 @@ export const guardarTarjeta = async (req: any, res: Response) => {
     const uid = req.user?.uid;
     const { paymentMethodId } = req.body;
 
-    console.log('💳 [guardarTarjeta] Iniciando...');
+    console.log('[guardarTarjeta] Iniciando...');
     console.log(`   - UID del token: ${uid}`);
     console.log(`   - Payment Method ID: ${paymentMethodId}`);
     console.log(`   - req.user completo:`, req.user);
 
     if (!uid) {
-      console.error('❌ [guardarTarjeta] UID no encontrado en token');
+      console.error('[guardarTarjeta] UID no encontrado en token');
       return res.status(401).json({ error: 'No autenticado - UID no encontrado en token' });
     }
 
     if (!paymentMethodId) {
-      console.error('❌ [guardarTarjeta] Payment method ID requerido');
+      console.error('[guardarTarjeta] Payment method ID requerido');
       return res.status(400).json({ error: 'Payment method ID requerido' });
     }
 
-    console.log(`✅ [guardarTarjeta] Validaciones pasadas. UID: ${uid}`);
+    console.log(`[guardarTarjeta] Validaciones pasadas. UID: ${uid}`);
 
     // Obtener detalles de Stripe
     const paymentMethod = await stripe.paymentMethods.retrieve(paymentMethodId);
 
     if (!paymentMethod.card) {
-      console.error('❌ [guardarTarjeta] Payment method no válido');
+      console.error('[guardarTarjeta] Payment method no válido');
       return res.status(400).json({ error: 'Payment method no válido' });
     }
 
     const card = paymentMethod.card;
 
-    console.log(`✅ [guardarTarjeta] Payment method validado. Brand: ${card.brand}, Last4: ${card.last4}`);
+    console.log(`[guardarTarjeta] Payment method validado. Brand: ${card.brand}, Last4: ${card.last4}`);
 
     // Guardar en Firestore
     const newCard = await saveCard(uid, {
@@ -553,7 +553,7 @@ export const guardarTarjeta = async (req: any, res: Response) => {
       expYear: card.exp_year || 0,
     });
 
-    console.log(`✅ [guardarTarjeta] Tarjeta guardada en Firestore. ID: ${newCard.id}, UID: ${uid}`);
+    console.log(`[guardarTarjeta] Tarjeta guardada en Firestore. ID: ${newCard.id}, UID: ${uid}`);
 
     res.json({
       success: true,
@@ -568,7 +568,7 @@ export const guardarTarjeta = async (req: any, res: Response) => {
       },
     });
   } catch (error: any) {
-    console.error('❌ Error guardando tarjeta:', error);
+    console.error('Error guardando tarjeta:', error);
     res.status(500).json({ error: error.message || 'Error guardando tarjeta' });
   }
 };
@@ -594,7 +594,7 @@ export const eliminarTarjeta = async (req: any, res: Response) => {
       message: 'Tarjeta eliminada',
     });
   } catch (error: any) {
-    console.error('❌ Error eliminando tarjeta:', error);
+    console.error('Error eliminando tarjeta:', error);
     res.status(500).json({ error: error.message || 'Error eliminando tarjeta' });
   }
 };
@@ -620,7 +620,7 @@ export const establecerPredeterminada = async (req: any, res: Response) => {
       message: 'Tarjeta establecida como predeterminada',
     });
   } catch (error: any) {
-    console.error('❌ Error estableciendo predeterminada:', error);
+    console.error('Error estableciendo predeterminada:', error);
     res.status(500).json({ error: error.message || 'Error estableciendo predeterminada' });
   }
 };

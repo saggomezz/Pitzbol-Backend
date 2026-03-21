@@ -78,9 +78,9 @@ export const register = async (req: Request, res: Response) => {
           leido: false,
           enlace: '/futbol'
         });
-      console.log(`📬 Notificación de bienvenida guardada para uid: ${userRecord.uid}`);
+      console.log(`Notificación de bienvenida guardada para uid: ${userRecord.uid}`);
     } catch (notifError) {
-      console.warn(`⚠️ Error al guardar notificación de bienvenida: ${notifError}`);
+      console.warn(`Error al guardar notificación de bienvenida: ${notifError}`);
     }
 
     res.status(201).json({
@@ -108,14 +108,14 @@ export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
     
-    console.log('📧 Intento de login para email:', email);
-    console.log('🔑 Password length:', password?.length, 'chars');
+    console.log('Intento de login para email:', email);
+    console.log('Password length:', password?.length, 'chars');
 
     const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_WEB_API_KEY}`;
     const response = await axios.post(url, { email, password, returnSecureToken: true });
     const { localId } = response.data;
     
-    console.log('✅ Firebase autenticó correctamente, UID:', localId);
+    console.log('Firebase autenticó correctamente, UID:', localId);
     
     let userData: any = null;
     let userRole: string = "";
@@ -177,7 +177,7 @@ export const login = async (req: Request, res: Response) => {
     });
 
     // Logging seguro (sin revelar datos sensibles)
-    console.log(`✅ Login exitoso para usuario: ${localId}`);
+    console.log(`Login exitoso para usuario: ${localId}`);
 
     res.json({
       success: true,
@@ -209,9 +209,9 @@ export const login = async (req: Request, res: Response) => {
     const firebaseError = error.response?.data?.error;
     const code = firebaseError?.message;
 
-    console.error("🔥 ERROR EN LOGIN:", code || error.message);
-    console.error("📋 Request email:", req.body.email);
-    console.error("📋 Firebase response:", JSON.stringify(error.response?.data, null, 2));
+    console.error("ERROR EN LOGIN:", code || error.message);
+    console.error("Request email:", req.body.email);
+    console.error("Firebase response:", JSON.stringify(error.response?.data, null, 2));
 
     if (code === "INVALID_LOGIN_CREDENTIALS" || code === "EMAIL_NOT_FOUND" || code === "INVALID_PASSWORD") {
       return res.status(401).json({ msg: "Credenciales inválidas" });
@@ -223,7 +223,7 @@ export const login = async (req: Request, res: Response) => {
 
 // Recuperar contraseña
 export const recoverPassword = async (req: Request, res: Response) => {
-  console.log("🚀 Petición de recuperación recibida para:", req.body.email);
+  console.log("Petición de recuperación recibida para:", req.body.email);
   
   try {
     const { email } = req.body;
@@ -401,7 +401,7 @@ export const solicitarGuia = async (req: any, res: Response) => {
       return res.status(401).json({ msg: "Usuario no autenticado" });
     }
 
-    console.log(`📋 Solicitud de guía para uid: ${uid}`);
+    console.log(`Solicitud de guía para uid: ${uid}`);
 
     // Buscar el usuario en turistas para obtener sus datos
     const turistaSnapshot = await db.collection("usuarios")
@@ -476,13 +476,13 @@ export const solicitarGuia = async (req: any, res: Response) => {
           }
         });
         await batch.commit();
-        console.log('✅ Notificación enviada a administradores');
+        console.log('Notificación enviada a administradores');
       }
     } catch (notifError) {
-      console.warn('⚠️ Error al notificar a administradores:', notifError);
+      console.warn('Error al notificar a administradores:', notifError);
     }
 
-    console.log(`✅ Solicitud de guía creada para uid: ${uid}`);
+    console.log(`Solicitud de guía creada para uid: ${uid}`);
 
     res.status(201).json({
       msg: "Solicitud de guía enviada correctamente",
