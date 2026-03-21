@@ -13,6 +13,7 @@ import paymentRoutes from "./routes/payment.routes";
 import perfilRoutes from './routes/perfil.routes';
 import placesRoutes from './routes/places.routes';
 import supportRoutes from './routes/support.routes';
+import itinerariosRoutes from './routes/itinerarios.routes';
 dotenv.config();
 
 
@@ -47,6 +48,7 @@ app.use('/api/perfil', perfilRoutes);
 app.use('/api', historialRoutes);
 app.use('/api/lugares', placesRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/itinerarios', itinerariosRoutes);
 app.use("/api", aiRoutes);
 
 // Manejo de rutas no encontradas
