@@ -31,40 +31,88 @@ export const obtenerItinerarios = async (req: AuthRequest, res: Response) => {
   }
 };
 
-export const guardarEntrada = async (req: AuthRequest, res: Response) => {
+export const obtenerNotas = async (req: AuthRequest, res: Response) => {
   try {
     const uid = req.user?.uid;
     if (!uid) return res.status(401).json({ error: 'No autenticado' });
 
-    const { tipo, fecha, meta, stops, texto } = req.body;
-    if (!tipo || !fecha) return res.status(400).json({ error: 'Faltan campos requeridos' });
-
     const userRef = await getUserDocRef(uid);
     if (!userRef) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-    const data: any = { tipo, fecha, creadoEn: new Date().toISOString() };
-    if (tipo === 'itinerario') { data.meta = meta; data.stops = stops || []; }
-    if (tipo === 'nota') { data.texto = texto; }
-
-    const ref = await userRef.collection('itinerarios').add(data);
-    res.json({ id: ref.id, ...data });
+    const snap = await userRef.collection('notas').orderBy('fecha').get();
+    const docs = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    res.json(docs);
   } catch (err) {
-    res.status(500).json({ error: 'Error al guardar' });
+    res.status(500).json({ error: 'Error al obtener notas' });
   }
 };
 
-export const eliminarEntrada = async (req: AuthRequest, res: Response) => {
+export const guardarItinerario = async (req: AuthRequest, res: Response) => {
   try {
     const uid = req.user?.uid;
     if (!uid) return res.status(401).json({ error: 'No autenticado' });
 
-    const { docId } = req.params;
+    const { fecha, meta, stops } = req.body;
+    if (!fecha) return res.status(400).json({ error: 'Falta la fecha' });
+
     const userRef = await getUserDocRef(uid);
     if (!userRef) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-    await userRef.collection('itinerarios').doc(docId).delete();
+    const id = `${fecha}_${Date.now()}`;
+    const data = { fecha, meta, stops: stops || [], creadoEn: new Date().toISOString() };
+    await userRef.collection('itinerarios').doc(id).set(data);
+    res.json({ id, ...data });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al guardar itinerario' });
+  }
+};
+
+export const guardarNota = async (req: AuthRequest, res: Response) => {
+  try {
+    const uid = req.user?.uid;
+    if (!uid) return res.status(401).json({ error: 'No autenticado' });
+
+    const { fecha, texto } = req.body;
+    if (!fecha || !texto) return res.status(400).json({ error: 'Faltan campos requeridos' });
+
+    const userRef = await getUserDocRef(uid);
+    if (!userRef) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    const id = `${fecha}_${Date.now()}`;
+    const data = { fecha, texto, creadoEn: new Date().toISOString() };
+    await userRef.collection('notas').doc(id).set(data);
+    res.json({ id, ...data });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al guardar nota' });
+  }
+};
+
+export const eliminarItinerario = async (req: AuthRequest, res: Response) => {
+  try {
+    const uid = req.user?.uid;
+    if (!uid) return res.status(401).json({ error: 'No autenticado' });
+
+    const userRef = await getUserDocRef(uid);
+    if (!userRef) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    await userRef.collection('itinerarios').doc(req.params.docId).delete();
     res.json({ ok: true });
   } catch (err) {
-    res.status(500).json({ error: 'Error al eliminar' });
+    res.status(500).json({ error: 'Error al eliminar itinerario' });
+  }
+};
+
+export const eliminarNota = async (req: AuthRequest, res: Response) => {
+  try {
+    const uid = req.user?.uid;
+    if (!uid) return res.status(401).json({ error: 'No autenticado' });
+
+    const userRef = await getUserDocRef(uid);
+    if (!userRef) return res.status(404).json({ error: 'Usuario no encontrado' });
+
+    await userRef.collection('notas').doc(req.params.docId).delete();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(500).json({ error: 'Error al eliminar nota' });
   }
 };
