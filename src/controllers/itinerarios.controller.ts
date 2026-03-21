@@ -58,9 +58,10 @@ export const guardarItinerario = async (req: AuthRequest, res: Response) => {
     const userRef = await getUserDocRef(uid);
     if (!userRef) return res.status(404).json({ error: 'Usuario no encontrado' });
 
+    const id = `${fecha}_${Date.now()}`;
     const data = { fecha, meta, stops: stops || [], creadoEn: new Date().toISOString() };
-    const ref = await userRef.collection('itinerarios').add(data);
-    res.json({ id: ref.id, ...data });
+    await userRef.collection('itinerarios').doc(id).set(data);
+    res.json({ id, ...data });
   } catch (err) {
     res.status(500).json({ error: 'Error al guardar itinerario' });
   }
@@ -77,9 +78,10 @@ export const guardarNota = async (req: AuthRequest, res: Response) => {
     const userRef = await getUserDocRef(uid);
     if (!userRef) return res.status(404).json({ error: 'Usuario no encontrado' });
 
+    const id = `${fecha}_${Date.now()}`;
     const data = { fecha, texto, creadoEn: new Date().toISOString() };
-    const ref = await userRef.collection('notas').add(data);
-    res.json({ id: ref.id, ...data });
+    await userRef.collection('notas').doc(id).set(data);
+    res.json({ id, ...data });
   } catch (err) {
     res.status(500).json({ error: 'Error al guardar nota' });
   }
