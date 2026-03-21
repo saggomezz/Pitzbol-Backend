@@ -22,6 +22,7 @@ import ratingRoutes from './routes/rating.routes';
 import placeRatingRoutes from './routes/place-rating.routes';
 import availabilityRoutes from './routes/availability.routes';
 import walletRoutes from './routes/wallet.routes';
+import itinerariosRoutes from './routes/itinerarios.routes';
 import aiRoutes from "./routes/ai.routes";
 import { ChatService } from './services/chat.service';
 import { setSocketServer } from './socket';
@@ -91,6 +92,7 @@ app.use('/api/ratings', ratingRoutes);
 app.use('/api/place-ratings', placeRatingRoutes);
 app.use('/api/availability', availabilityRoutes);
 app.use('/api/wallet', walletRoutes);
+app.use('/api/itinerarios', itinerariosRoutes);
 app.use('/api', aiRoutes);
 
 app.use('/api', (req, res) => {
