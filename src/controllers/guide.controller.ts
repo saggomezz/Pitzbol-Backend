@@ -197,6 +197,7 @@ export const updateGuideProfile = async (req: Request, res: Response) => {
                         "updatedAt": new Date().toISOString()
                     };
 
+                    // Sincronizar campos según tipo de usuario
                     if (item.field === "07_especialidades") {
                         // Guías: sincronizar campo alias
                         updateData["especialidades"] = categorias;
@@ -222,5 +223,255 @@ export const updateGuideProfile = async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error("Error en updateGuideProfile:", error);
         return res.status(500).json({ message: "Error interno al actualizar" });
+    }
+};
+
+export const getVerifiedGuides = async (req: Request, res: Response) => {
+    try {
+        console.log("📋 Obteniendo guías verificados...");
+
+        const guidesSnapshot = await db.collection('usuarios')
+            .doc('guias')
+            .collection('lista')
+            .get();
+
+        if (guidesSnapshot.empty) {
+            console.log("ℹ️ No hay guías verificados registrados");
+            return res.status(200).json({ guides: [] });
+        }
+
+        const guides = guidesSnapshot.docs.map(doc => {
+            const data = doc.data() as any;
+            const nombre = (data["01_nombre"] as string) || data.nombre || "";
+            const apellido = (data["02_apellido"] as string) || data.apellido || "";
+            const nombreCompleto = `${nombre} ${apellido}`.trim();
+            
+            // Log para debug
+            console.log(`🔍 Guía ${doc.id}:`, {
+                "01_nombre": data["01_nombre"],
+                "02_apellido": data["02_apellido"],
+                "nombre": data.nombre,
+                "apellido": data.apellido,
+                "nombreCompleto": nombreCompleto
+            });
+            
+            const guideData = {
+                uid: data.uid,
+                nombre: nombreCompleto,
+                fotoPerfil: data["14_foto_perfil"]?.url || data.fotoPerfil || "",
+                descripcion: data["15_descripcion"] || data.descripcion || "",
+                idiomas: data["09_idiomas"] || data.idiomas || [],
+                especialidades: data["07_especialidades"] || data.especialidades || [],
+                tarifa: data["17_tarifa_mxn"] || data.tarifa || 0,
+                ubicacion: data.ubicacion || "Guadalajara, Jalisco",
+                email: data["04_correo"] || data.email || "",
+                telefono: data["06_telefono"] || data.telefono || "",
+                calificacion: data.calificacion || 0,
+                numeroResenas: data.numeroResenas || 0
+            };
+            
+            return guideData;
+        });
+
+        console.log(`✅ Se encontraron ${guides.length} guías verificados`);
+        
+        // Log detallado del primer guía
+        if (guides.length > 0) {
+            const firstGuide = guides[0]!;
+            console.log("📌 Ejemplo de guía devuelto:", {
+                uid: firstGuide.uid,
+                nombre: firstGuide.nombre,
+                descripcion: firstGuide.descripcion?.substring(0, 50) + "...",
+                idiomas: firstGuide.idiomas,
+                especialidades: firstGuide.especialidades
+            });
+        }
+        
+        return res.status(200).json({ 
+            guides,
+            total: guides.length 
+        });
+
+    } catch (error: any) {
+        console.error("❌ Error al obtener guías verificados:", error);
+        return res.status(500).json({ 
+            message: 'Error interno al obtener guías',
+            error: error.message 
+        });
+    }
+};
+
+export const getGuideRequest = async (req: Request, res: Response) => {
+    try {
+        // Obtener el UID del usuario autenticado del middleware
+        const uid = (req as any).user?.uid;
+        
+        if (!uid) {
+            return res.status(400).json({ 
+                success: false,
+                message: 'No se pudo obtener el UID del usuario autenticado' 
+            });
+        }
+
+        console.log("📋 Obteniendo solicitud de guía para UID:", uid);
+
+        // Buscar en la colección de pendientes
+        const pendientesSnapshot = await db.collection('usuarios')
+            .doc('guias')
+            .collection('pendientes')
+            .where('uid', '==', uid)
+            .limit(1)
+            .get();
+
+        if (!pendientesSnapshot.empty) {
+            const doc = pendientesSnapshot.docs[0]!;
+            const data = doc.data() as any;
+            
+            console.log("✅ Solicitud pendiente encontrada para UID:", uid);
+            
+            const facePhotoUrl =
+                data["13_foto_rostro"]?.url ||
+                data["13_foto_rostro"]?.secure_url ||
+                data["13_foto_rostro"] ||
+                data.facePhoto ||
+                data.fotoRostro ||
+                "";
+
+            return res.status(200).json({
+                success: true,
+                status: "pendiente",
+                uid: data.uid,
+                nombre: data["01_nombre"] || "",
+                email: data["04_correo"] || "",
+                rfc: data["08_rfc"] || "",
+                codigoPostal: data["10_cp"] || "",
+                categorias: data["07_especialidades"] || [],
+                validacion_biometrica: data["18_validacion_biometrica"] || {},
+                facePhoto: facePhotoUrl,
+                createdAt: data.createdAt || "",
+                updatedAt: data.createdAt || ""
+            });
+        }
+
+        // Buscar en la colección de aprobados
+        const aprobadosSnapshot = await db.collection('usuarios')
+            .doc('guias')
+            .collection('lista')
+            .where('uid', '==', uid)
+            .limit(1)
+            .get();
+
+        if (!aprobadosSnapshot.empty) {
+            const doc = aprobadosSnapshot.docs[0]!;
+            const data = doc.data() as any;
+            
+            console.log("✅ Guía aprobado encontrado para UID:", uid);
+            
+            const facePhotoUrl =
+                data["13_foto_rostro"]?.url ||
+                data["13_foto_rostro"]?.secure_url ||
+                data["13_foto_rostro"] ||
+                data.facePhoto ||
+                data.fotoRostro ||
+                "";
+
+            return res.status(200).json({
+                success: true,
+                status: "aprobado",
+                uid: data.uid,
+                nombre: data["01_nombre"] || "",
+                email: data["04_correo"] || "",
+                rfc: data["08_rfc"] || "",
+                codigoPostal: data["10_cp"] || "",
+                categorias: data["07_especialidades"] || [],
+                validacion_biometrica: data["18_validacion_biometrica"] || {},
+                facePhoto: facePhotoUrl,
+                createdAt: data.createdAt || "",
+                updatedAt: data.createdAt || ""
+            });
+        }
+
+        // Si no se encontró en ninguna colección
+        console.log("ℹ️ No se encontró solicitud para UID:", uid);
+        return res.status(404).json({ 
+            success: false,
+            message: 'No se encontró solicitud de guía para este usuario' 
+        });
+
+    } catch (error: any) {
+        console.error("❌ Error al obtener solicitud de guía:", error);
+        return res.status(500).json({ 
+            success: false,
+            message: 'Error interno al obtener solicitud',
+            error: error.message 
+        });
+    }
+};
+
+export const getGuidePublicProfile = async (req: Request, res: Response) => {
+    try {
+        const { uid } = req.params;
+        
+        if (!uid) {
+            return res.status(400).json({ 
+                success: false,
+                message: 'UID es requerido' 
+            });
+        }
+
+        console.log("📋 Obteniendo perfil público del guía:", uid);
+
+        // Buscar el guía en la colección de verificados
+        const guidesSnapshot = await db.collection('usuarios')
+            .doc('guias')
+            .collection('lista')
+            .where('uid', '==', uid)
+            .limit(1)
+            .get();
+
+        if (guidesSnapshot.empty) {
+            console.log("ℹ️ No se encontró el guía con UID:", uid);
+            return res.status(404).json({ 
+                success: false,
+                message: 'Guía no encontrado' 
+            });
+        }
+
+        const guideDoc = guidesSnapshot.docs[0]!;
+        const data = guideDoc.data() as any;
+
+        const guideProfile = {
+            uid: data.uid,
+            nombre: `${data["01_nombre"] || data.nombre || ""} ${data["02_apellido"] || data.apellido || ""}`.trim(),
+            fotoPerfil: data["14_foto_perfil"]?.url || data.fotoPerfil || "",
+            descripcion: data["15_descripcion"] || data.descripcion || "",
+            biografia: data["19_biografia"] || data.biografia || data["15_descripcion"] || data.descripcion || "",
+            idiomas: data["09_idiomas"] || data.idiomas || [],
+            especialidades: data["07_especialidades"] || data.especialidades || [],
+            tarifa: data["17_tarifa_mxn"] || data.tarifa || 0,
+            tarifaCompleta: data["18_tarifa_dia_completo"] || data.tarifaCompleta || null,
+            ubicacion: data.ubicacion || "Guadalajara, Jalisco",
+            experiencia: data.experiencia || null,
+            certificaciones: data.certificaciones || [],
+            disponibilidad: data.disponibilidad || null,
+            toursPorDia: data.toursPorDia || null,
+            calificacion: data.calificacion || 4.5,
+            resenas: data.numeroResenas || 0,
+        };
+
+        console.log(`✅ Perfil del guía encontrado:`, guideProfile.nombre);
+        
+        return res.status(200).json({ 
+            success: true,
+            guide: guideProfile
+        });
+
+    } catch (error: any) {
+        console.error("❌ Error al obtener perfil público del guía:", error);
+        return res.status(500).json({ 
+            success: false,
+            message: 'Error interno al obtener perfil del guía',
+            error: error.message 
+        });
     }
 };

@@ -30,6 +30,14 @@ router.get(
   requireAdmin,
   adminController.obtenerNegociosArchivados
 );
+
+// PROTEGIDO - Obtener historial de movimientos administrativos de negocios
+router.get(
+  '/negocios/movimientos',
+  authMiddleware,
+  requireAdmin,
+  adminController.obtenerMovimientosNegocios
+);
 // PROTEGIDO - Editar negocio manualmente
 router.patch(
   '/negocios/:negocioId/editar',
@@ -44,12 +52,45 @@ router.post(
   requireAdmin,
   adminController.gestionarNegocioPendiente
 );
+
+// PROTEGIDO - Forzar movimiento de imágenes del negocio en Cloudinary
+router.post(
+  '/negocios/:negocioId/mover-imagenes',
+  authMiddleware,
+  requireAdmin,
+  adminController.forzarMoverImagenesNegocio
+);
+
 // PROTEGIDO - Archivar (eliminar) un negocio
 router.post(
   '/negocios/:negocioId/archivar',
   authMiddleware,
   requireAdmin,
   adminController.archivarNegocio
+);
+
+// PROTEGIDO - Regresar negocio activo a pendientes
+router.post(
+  '/negocios/:negocioId/regresar-pendientes',
+  authMiddleware,
+  requireAdmin,
+  adminController.regresarAPendientes
+);
+
+// PROTEGIDO - Desarchivar negocio
+router.post(
+  '/negocios/:negocioId/desarchivar',
+  authMiddleware,
+  requireAdmin,
+  adminController.desarchivarNegocio
+);
+
+// PROTEGIDO - Eliminar permanentemente negocio archivado
+router.delete(
+  '/negocios/:negocioId/eliminar-permanente',
+  authMiddleware,
+  requireAdmin,
+  adminController.eliminarNegocioPermanente
 );
 
 // Recibir notificación desde frontend y guardarla para el usuario
@@ -75,6 +116,30 @@ router.post(
   authMiddleware,
   requireAdmin,
   adminController.gestionarSolicitudGuia
+);
+
+// PROTEGIDO - Obtener guías y negociantes para gestión
+router.get(
+  '/usuarios-gestionables',
+  authMiddleware,
+  requireAdmin,
+  adminController.obtenerUsuariosGestionables
+);
+
+// PROTEGIDO - Obtener detalle completo de un usuario
+router.get(
+  '/usuarios/:uid/detalle',
+  authMiddleware,
+  requireAdmin,
+  adminController.obtenerDetalleUsuarioAdmin
+);
+
+// PROTEGIDO - Eliminar usuario guía o negociante
+router.delete(
+  '/usuarios/:uid',
+  authMiddleware,
+  requireAdmin,
+  adminController.eliminarUsuarioGestionable
 );
 
 // PROTEGIDO - Verificar estado de un usuario (puede ser el mismo usuario)

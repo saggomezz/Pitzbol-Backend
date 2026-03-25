@@ -70,3 +70,46 @@ export const authMiddleware = (
     return res.status(401).json({ msg: "Token inválido o expirado" });
   }
 };
+
+/**
+ * Middleware de autenticación opcional.
+ * Si hay token, lo valida y adjunta req.user.
+ * Si no hay token o el token es inválido/expirado, continúa sin req.user (no rechaza).
+ */
+export const optionalAuthMiddleware = (
+  req: AuthRequest,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    let token: string | undefined;
+
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const parts = authHeader.split(" ");
+      if (parts.length === 2) token = parts[1];
+    }
+    if (!token && req.cookies?.authToken) {
+      token = req.cookies.authToken;
+    }
+
+    if (!token || !JWT_SECRET) return next();
+
+    try {
+      const decoded = jwt.verify(token, JWT_SECRET) as JwtPayload;
+      req.user = {
+        uid: decoded.uid as string,
+        email: decoded.email as string,
+        role: decoded.role as string,
+      };
+      console.log(`   ✅ [optionalAuth] Usuario autenticado: ${req.user.uid}`);
+    } catch {
+      // Token inválido o expirado — continuar sin usuario
+      console.log(`   ℹ️ [optionalAuth] Token inválido o ausente, continuando anónimo`);
+    }
+
+    next();
+  } catch (error: any) {
+    next(); // Nunca bloqueamos la petición en auth opcional
+  }
+};

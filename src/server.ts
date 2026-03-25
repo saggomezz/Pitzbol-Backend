@@ -1,40 +1,77 @@
-import cookieParser from 'cookie-parser';
-import cors from 'cors';
+﻿import cors from 'cors';
 import dotenv from "dotenv";
+dotenv.config();
 import express from 'express';
-import adminRoutes from './routes/admin.routes';
-import aiRoutes from "./routes/ai.routes";
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import cookieParser from 'cookie-parser';
 import authRoutes from './routes/auth.routes';
-import businessRoutes from "./routes/business.routes";
 import guideRoutes from './routes/guide.routes';
-import historialRoutes from './routes/historial.routes';
+import businessRoutes from "./routes/business.routes";
 import ocrRoutes from './routes/ocr.routes';
+import adminRoutes from './routes/admin.routes';
 import paymentRoutes from "./routes/payment.routes";
 import perfilRoutes from './routes/perfil.routes';
+import historialRoutes from './routes/historial.routes';
 import placesRoutes from './routes/places.routes';
 import supportRoutes from './routes/support.routes';
+import favoritesRoutes from './routes/favorites.routes';
+import chatRoutes from './routes/chat.routes';
+import bookingRoutes from './routes/booking.routes';
+import ratingRoutes from './routes/rating.routes';
+import placeRatingRoutes from './routes/place-rating.routes';
+import availabilityRoutes from './routes/availability.routes';
+import walletRoutes from './routes/wallet.routes';
 import itinerariosRoutes from './routes/itinerarios.routes';
-dotenv.config();
+import aiRoutes from "./routes/ai.routes";
+import { ChatService } from './services/chat.service';
+import { setSocketServer } from './socket';
 
-
-dotenv.config();
 const app = express();
+const httpServer = createServer(app);
+const io = new Server(httpServer, {
+  cors: {
+    origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001', 'http://69.30.204.56:3000'],
+    methods: ["GET", "POST"],
+    credentials: true,
+    allowedHeaders: ["Content-Type", "Authorization"]
+  }
+});
+setSocketServer(io);
+
 const PORT = Number(process.env.PORT) || 3001;
 
+const allowedOrigins = [
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+  'http://69.30.204.56:3000',
+  'http://69.30.204.56:3003',
+];
+
 app.use(cors({
-  origin: ["http://localhost:3000", "http://69.30.204.56:3000"],
+  origin: function (origin, callback) {
+    if (!origin) return callback(null, true);
+
+    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   methods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true
+  allowedHeaders: ["Content-Type", "Authorization", "Cache-Control", "Pragma"],
+  credentials: true,
+  optionsSuccessStatus: 200
 }));
 
 app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 
-// (Middleware)
 app.use((req, res, next) => {
-  console.log(`Petición recibida: [${req.method}] ${req.url}`);
+  console.log(`Peticion recibida: [${req.method}] ${req.url}`);
   next();
 });
 
@@ -48,10 +85,16 @@ app.use('/api/perfil', perfilRoutes);
 app.use('/api', historialRoutes);
 app.use('/api/lugares', placesRoutes);
 app.use('/api/support', supportRoutes);
+app.use('/api/favorites', favoritesRoutes);
+app.use('/api/chat', chatRoutes);
+app.use('/api/bookings', bookingRoutes);
+app.use('/api/ratings', ratingRoutes);
+app.use('/api/place-ratings', placeRatingRoutes);
+app.use('/api/availability', availabilityRoutes);
+app.use('/api/wallet', walletRoutes);
 app.use('/api/itinerarios', itinerariosRoutes);
-app.use("/api", aiRoutes);
+app.use('/api', aiRoutes);
 
-// Manejo de rutas no encontradas
 app.use('/api', (req, res) => {
   console.warn(`Ruta no encontrada: [${req.method}] ${req.url}`);
   res.status(404).json({
@@ -61,7 +104,6 @@ app.use('/api', (req, res) => {
   });
 });
 
-// Manejo global de errores
 app.use((err: any, req: any, res: any, next: any) => {
   console.error('Error en el servidor:', err);
   res.status(err.status || 500).json({
@@ -71,17 +113,79 @@ app.use((err: any, req: any, res: any, next: any) => {
   });
 });
 
+io.on('connection', (socket) => {
+  console.log('Usuario conectado:', socket.id);
 
+  const userId = socket.handshake.auth.userId;
+  const userType = socket.handshake.auth.userType;
+
+  if (userId) {
+    socket.join(`user:${userId}`);
+    console.log(`Usuario ${userId} (${userType}) unido a su sala personal`);
+  }
+
+  socket.on('join-chat', (chatId: string) => {
+    socket.join(chatId);
+    console.log(`Usuario ${socket.id} se unio al chat ${chatId}`);
+  });
+
+  socket.on('leave-chat', (chatId: string) => {
+    socket.leave(chatId);
+    console.log(`Usuario ${socket.id} salio del chat ${chatId}`);
+  });
+
+  socket.on('send-message', async (data: {
+    chatId: string;
+    senderId: string;
+    senderName: string;
+    senderType: 'tourist' | 'guide';
+    content: string;
+  }) => {
+    try {
+      const message = await ChatService.saveMessage({
+        chatId: data.chatId,
+        senderId: data.senderId,
+        senderName: data.senderName,
+        senderType: data.senderType,
+        content: data.content,
+        timestamp: new Date(),
+        read: false,
+      });
+
+      io.to(data.chatId).emit('new-message', message);
+    } catch (error) {
+      console.error('Error al guardar mensaje:', error);
+      socket.emit('message-error', { error: 'Error al enviar mensaje' });
+    }
+  });
+
+  socket.on('typing', (data: { chatId: string; userName: string }) => {
+    socket.to(data.chatId).emit('user-typing', data);
+  });
+
+  socket.on('stop-typing', (data: { chatId: string }) => {
+    socket.to(data.chatId).emit('user-stop-typing', data);
+  });
+
+  socket.on('mark-as-read', (data: { chatId: string; userId: string }) => {
+    io.to(data.chatId).emit('messages-read', data);
+    console.log(`Mensajes del chat ${data.chatId} marcados como leidos por ${data.userId}`);
+  });
+
+  socket.on('disconnect', () => {
+    console.log('Usuario desconectado:', socket.id);
+  });
+});
 
 app.get('/', (req, res) => {
-    res.send(`
-        <h1>El Backend sí funcionaa</h1>
-        <p>El servidor está corriendo correctamente</p>
-        <p>Usa los endpoints en <code>/api/auth/login</code> o <code>/api/auth/register</code></p>
-    `);
+  res.send(`
+    <h1>El Backend si funcionaa</h1>
+    <p>El servidor esta corriendo correctamente</p>
+    <p>Usa los endpoints en <code>/api/auth/login</code> o <code>/api/auth/register</code></p>
+  `);
 });
 
-app.listen(PORT, "0.0.0.0", () => {
+httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor corriendo en puerto ${PORT}`);
+  console.log(`Socket.IO corriendo en puerto ${PORT}`);
 });
-

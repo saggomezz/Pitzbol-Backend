@@ -108,14 +108,21 @@ export const login = async (req: Request, res: Response) => {
   try {
     const { email, password } = req.body;
     
-    console.log('Intento de login para email:', email);
-    console.log('Password length:', password?.length, 'chars');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.log('INTENTO DE LOGIN');
+    console.log('Email:', email);
+    console.log('Password length:', password?.length, 'caracteres');
+    console.log('Firebase API Key configurada:', FIREBASE_WEB_API_KEY ? 'Sí' : 'NO');
+    console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_WEB_API_KEY}`;
+    
+    console.log('Intentando autenticar con Firebase...');
     const response = await axios.post(url, { email, password, returnSecureToken: true });
     const { localId } = response.data;
     
-    console.log('Firebase autenticó correctamente, UID:', localId);
+    console.log('Firebase autenticó correctamente');
+    console.log('UID:', localId);
     
     let userData: any = null;
     let userRole: string = "";
@@ -153,6 +160,13 @@ export const login = async (req: Request, res: Response) => {
         }
     }
 
+    if (!userData) {
+      return res.status(404).json({
+        msg: "No se encontró el perfil del usuario en Firestore.",
+        details: "El usuario existe en Firebase Auth pero no tiene documento en la base de datos.",
+      });
+    }
+
     // Normalizar campos para cualquier colección (turistas / guias lista / guias pendientes / admins / negocios)
     const nombre = userData?.nombre || userData?.["01_nombre"] || "";
     const apellido = userData?.apellido || userData?.["02_apellido"] || "";
@@ -185,22 +199,22 @@ export const login = async (req: Request, res: Response) => {
       user: {
         uid: localId,
         email,
-        nombre: userData.nombre || userData["01_nombre"] || "",
-        apellido: userData.apellido || userData["02_apellido"] || "",
-        telefono: userData.telefono || userData["06_telefono"] || "No registrado",
-        nacionalidad: userData.nacionalidad || userData["05_nacionalidad"] || "No registrado",
+        nombre,
+        apellido,
+        telefono,
+        nacionalidad,
         fotoPerfil: userData.fotoPerfil || userData["14_foto_perfil"]?.url || "",
         descripcion: userData.descripcion || userData["15_descripcion"] || "",
-        guide_status: userData.guide_status || userData["16_status"] || "ninguno",
+        guide_status: userData.guide_status || userData["16_status"] || guideStatus,
         tarifa: userData.tarifa_mxn || userData["17_tarifa_mxn"] || 0,
         "01_nombre": userData["01_nombre"],
         "06_telefono": userData["06_telefono"],
         "15_descripcion": userData["15_descripcion"],
         "14_foto_perfil": userData["14_foto_perfil"],
         role: userRole,
-        ...(userRole === 'turista'
-          ? { "07_intereses": especialidadesUnificadas }
-          : { "07_especialidades": especialidadesUnificadas, especialidades: especialidadesUnificadas }),
+        "07_intereses": userRole === 'turista' ? especialidadesUnificadas : [],
+        "07_especialidades": userRole !== 'turista' ? especialidadesUnificadas : [],
+        especialidades: especialidadesUnificadas,
       },
     });;
   }   
@@ -209,15 +223,55 @@ export const login = async (req: Request, res: Response) => {
     const firebaseError = error.response?.data?.error;
     const code = firebaseError?.message;
 
-    console.error("ERROR EN LOGIN:", code || error.message);
-    console.error("Request email:", req.body.email);
-    console.error("Firebase response:", JSON.stringify(error.response?.data, null, 2));
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.error('ERROR EN LOGIN');
+    console.error('Email intentado:', req.body.email);
+    console.error('Código de error Firebase:', code || 'Sin código');
+    console.error('Mensaje de error:', error.message);
+    console.error('Respuesta completa de Firebase:', JSON.stringify(error.response?.data, null, 2));
+    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
-    if (code === "INVALID_LOGIN_CREDENTIALS" || code === "EMAIL_NOT_FOUND" || code === "INVALID_PASSWORD") {
-      return res.status(401).json({ msg: "Credenciales inválidas" });
+    // Mensajes de error más descriptivos
+    if (code === "INVALID_LOGIN_CREDENTIALS") {
+      return res.status(401).json({ 
+        msg: "Correo o contraseña incorrectos. Por favor verifica tus credenciales.",
+        error_code: "INVALID_CREDENTIALS"
+      });
+    }
+    
+    if (code === "EMAIL_NOT_FOUND") {
+      return res.status(401).json({ 
+        msg: "No existe una cuenta con este correo electrónico.",
+        error_code: "EMAIL_NOT_FOUND"
+      });
+    }
+    
+    if (code === "INVALID_PASSWORD") {
+      return res.status(401).json({ 
+        msg: "Contraseña incorrecta.",
+        error_code: "INVALID_PASSWORD"
+      });
+    }
+    
+    if (code === "USER_DISABLED") {
+      return res.status(403).json({ 
+        msg: "Esta cuenta ha sido deshabilitada.",
+        error_code: "USER_DISABLED"
+      });
+    }
+    
+    if (code === "TOO_MANY_ATTEMPTS_TRY_LATER") {
+      return res.status(429).json({ 
+        msg: "Demasiados intentos fallidos. Por favor intenta más tarde.",
+        error_code: "TOO_MANY_ATTEMPTS"
+      });
     }
 
-    return res.status(500).json({ msg: "Error interno en el servidor", error: code || error.message });
+    return res.status(500).json({ 
+      msg: "Error interno en el servidor", 
+      error: code || error.message,
+      details: "Revisa los logs del servidor para más información"
+    });
   }
 };
 
@@ -391,6 +445,61 @@ export const updateProfile = async (req: any, res: Response) => {
   }
 };
 
+// Refrescar token JWT expirado
+export const refreshToken = async (req: Request, res: Response) => {
+  try {
+    let token: string | undefined;
+
+    const authHeader = req.headers.authorization;
+    if (authHeader && authHeader.startsWith("Bearer ")) {
+      const parts = authHeader.split(" ");
+      if (parts.length === 2) token = parts[1];
+    }
+    if (!token && req.cookies?.authToken) {
+      token = req.cookies.authToken;
+    }
+
+    if (!token) {
+      return res.status(401).json({ msg: "Token no proporcionado" });
+    }
+
+    // Verificar firma pero ignorar expiración
+    const decoded = jwt.verify(token, JWT_SECRET!, { ignoreExpiration: true }) as jwt.JwtPayload;
+
+    if (!decoded.uid || !decoded.email || !decoded.role) {
+      return res.status(401).json({ msg: "Token inválido" });
+    }
+
+    // Verificar que el usuario sigue existiendo en Firebase Auth
+    try {
+      await auth.getUser(decoded.uid);
+    } catch {
+      return res.status(401).json({ msg: "Usuario no encontrado" });
+    }
+
+    // Emitir nuevo token
+    const newToken = jwt.sign(
+      { uid: decoded.uid, email: decoded.email, role: decoded.role },
+      JWT_SECRET!,
+      { expiresIn: "7d" }
+    );
+
+    res.cookie('authToken', newToken, {
+      httpOnly: true,
+      sameSite: 'lax',
+      maxAge: 7 * 24 * 60 * 60 * 1000,
+      secure: process.env.NODE_ENV === 'production'
+    });
+
+    console.log(`Token refrescado para usuario: ${decoded.uid}`);
+
+    return res.json({ success: true, token: newToken });
+  } catch (error: any) {
+    console.error("Error al refrescar token:", error.message);
+    return res.status(401).json({ msg: "No se pudo refrescar el token. Inicia sesión nuevamente." });
+  }
+};
+
 // Solicitar convertirse en guía
 export const solicitarGuia = async (req: any, res: Response) => {
   try {
@@ -493,31 +602,5 @@ export const solicitarGuia = async (req: any, res: Response) => {
   } catch (error: any) {
     console.error("Error en solicitarGuia:", error);
     res.status(500).json({ msg: "Error interno del servidor", error: error.message });
-  }
-};
-
-// GET /api/auth/itinerarios?uid=xxx&role=turista
-export const getItinerariosUsuario = async (req: Request, res: Response) => {
-  try {
-    const { uid, role } = req.query;
-    if (!uid || typeof uid !== 'string') {
-      return res.status(400).json({ error: 'uid requerido' });
-    }
-    const roleMap: Record<string, string> = { turista: 'turistas', guia: 'guias', admin: 'admins', negociante: 'negocios' };
-    const roleCollection = roleMap[role as string] || 'turistas';
-
-    const snapshot = await db
-      .collection('usuarios').doc(roleCollection).collection('lista')
-      .where('uid', '==', uid).limit(1).get();
-
-    if (snapshot.empty) return res.json([]);
-
-    const itinSnap = await snapshot.docs[0].ref
-      .collection('itinerarios').orderBy('creadoEn', 'desc').get();
-
-    return res.json(itinSnap.docs.map(d => ({ id: d.id, ...d.data() })));
-  } catch (error: any) {
-    console.error('Error en getItinerariosUsuario:', error);
-    return res.status(500).json({ error: error.message });
   }
 };

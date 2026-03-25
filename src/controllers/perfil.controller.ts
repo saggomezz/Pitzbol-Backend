@@ -4,6 +4,7 @@ import sharp from 'sharp';
 import { v2 as cloudinary } from 'cloudinary';
 import stripe from '../config/stripe';
 import { saveCard, getUserCards, setDefaultCard, deleteCard } from '../services/wallet.service';
+import { uploadImageStreamToCloudinary } from '../utils/cloudinaryHelper';
 
 // Configurar Cloudinary con validación
 if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
@@ -21,12 +22,12 @@ const ALLOWED_MIME_TYPES = ['image/jpeg', 'image/png', 'image/webp'];
 const MAX_IMAGE_DIMENSIONS = { width: 4000, height: 4000 };
 const MIN_IMAGE_DIMENSIONS = { width: 200, height: 200 };
 
-// Función auxiliar para subir base64 a Cloudinary
+// Función auxiliar para subir base64 a Cloudinary (para migración)
 const subirBase64ACloudinary = async (base64Image: string, uid: string): Promise<string> => {
   try {
     const uploadResult = await cloudinary.uploader.upload(base64Image, {
-      folder: `pitzbol/profile_photos/${uid}`,
-      public_id: `${uid}_${Date.now()}`,
+      folder: `pitzbol/usuarios/${uid}/perfil`,
+      public_id: `${uid}_perfil_${Date.now()}`,
       resource_type: 'auto',
       format: 'webp',
       transformation: [
@@ -99,98 +100,133 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
       .webp({ quality: 80 })
       .toBuffer();
 
-    // SUBIR A CLOUDINARY (sin mostrar URL pública en respuesta)
-    const uploadResult = await new Promise((resolve, reject) => {
-      const stream = cloudinary.uploader.upload_stream(
-        {
-          folder: `pitzbol/profile_photos/${uid}`,
-          public_id: `${uid}_${Date.now()}`,
-          resource_type: 'auto',
-          format: 'webp'
-        },
-        (error, result) => {
-          if (error) reject(error);
-          else resolve(result);
-        }
-      );
+    // SUBIR A CLOUDINARY CON LA ESTRUCTURA CORRECTA: pitzbol/usuarios/{uid}/perfil
+    console.log('Subiendo foto de perfil a Cloudinary con estructura correcta...');
+    const fotoPerfil = await uploadImageStreamToCloudinary(optimizedBuffer, uid, 'perfil');
+    console.log('Foto de perfil subida:', fotoPerfil);
 
-      stream.end(optimizedBuffer);
-    });
+    // ACTUALIZAR EN FIRESTORE - Buscar en TODAS las colecciones
+    const userDocRefs: any[] = [];
+    let ubicacionesActualizadas: string[] = [];
+    let oldPublicId: string | null = null;
 
-    const uploadData = uploadResult as any;
-    const fotoPerfil = uploadData.secure_url;
-
-    // ACTUALIZAR EN FIRESTORE
-    // Primero buscar en turistas
-    let userDocRef: any = null;
-    let snapshot = await db.collection('usuarios')
+    // Buscar en turistas
+    const snapshot = await db.collection('usuarios')
       .doc('turistas')
       .collection('lista')
       .where('uid', '==', uid)
       .limit(1)
       .get();
 
-    if (!snapshot.empty && snapshot.docs.length > 0) {
-      userDocRef = snapshot.docs[0]!.ref;
-    } else {
-      // Si no está en turistas, buscar en guías lista
-      const guiasSnapshot = await db.collection('usuarios')
-        .doc('guias')
-        .collection('lista')
-        .get();
-
-      for (const doc of guiasSnapshot.docs) {
-        const data = doc.data();
-        if (data && data.uid === uid) {
-          userDocRef = doc.ref;
-          break;
-        }
-      }
-
-      // Si no está en guías aprobados, buscar en guías pendientes
-      if (!userDocRef) {
-        const pendientesSnapshot = await db.collection('usuarios')
-          .doc('guias')
-          .collection('pendientes')
-          .get();
-
-        for (const doc of pendientesSnapshot.docs) {
-          const data = doc.data();
-          if (data && data.uid === uid) {
-            userDocRef = doc.ref;
-            break;
-          }
+    if (!snapshot.empty && snapshot.docs[0]) {
+      userDocRefs.push(snapshot.docs[0].ref);
+      ubicacionesActualizadas.push('turistas/lista');
+      const userData = snapshot.docs[0].data();
+      // Obtener el public_id de la foto anterior para eliminarla
+      if (!oldPublicId) {
+        if (userData?.fotoPerfilCloudinary) {
+          oldPublicId = userData.fotoPerfilCloudinary;
+        } else if (userData?.["14_foto_perfil"]?.cloudinary_id) {
+          oldPublicId = userData["14_foto_perfil"].cloudinary_id;
         }
       }
     }
 
-    if (!userDocRef) {
+    // Buscar en guías lista (IMPORTANTE: Para que se actualice en tours)
+    const guiasSnapshot = await db.collection('usuarios')
+      .doc('guias')
+      .collection('lista')
+      .where('uid', '==', uid)
+      .limit(1)
+      .get();
+
+    if (!guiasSnapshot.empty && guiasSnapshot.docs[0]) {
+      userDocRefs.push(guiasSnapshot.docs[0].ref);
+      ubicacionesActualizadas.push('guias/lista');
+      const userData = guiasSnapshot.docs[0].data();
+      if (!oldPublicId) {
+        if (userData?.fotoPerfilCloudinary) {
+          oldPublicId = userData.fotoPerfilCloudinary;
+        } else if (userData?.["14_foto_perfil"]?.cloudinary_id) {
+          oldPublicId = userData["14_foto_perfil"].cloudinary_id;
+        }
+      }
+    }
+
+    // Buscar en guías pendientes
+    const pendientesSnapshot = await db.collection('usuarios')
+      .doc('guias')
+      .collection('pendientes')
+      .where('uid', '==', uid)
+      .limit(1)
+      .get();
+
+    if (!pendientesSnapshot.empty && pendientesSnapshot.docs[0]) {
+      userDocRefs.push(pendientesSnapshot.docs[0].ref);
+      ubicacionesActualizadas.push('guias/pendientes');
+      const userData = pendientesSnapshot.docs[0].data();
+      if (!oldPublicId) {
+        if (userData?.fotoPerfilCloudinary) {
+          oldPublicId = userData.fotoPerfilCloudinary;
+        } else if (userData?.["14_foto_perfil"]?.cloudinary_id) {
+          oldPublicId = userData["14_foto_perfil"].cloudinary_id;
+        }
+      }
+    }
+
+    // Buscar en admins
+    const adminsSnapshot = await db.collection('usuarios')
+      .doc('admins')
+      .collection('lista')
+      .where('uid', '==', uid)
+      .limit(1)
+      .get();
+
+    if (!adminsSnapshot.empty && adminsSnapshot.docs[0]) {
+      userDocRefs.push(adminsSnapshot.docs[0].ref);
+      ubicacionesActualizadas.push('admins/lista');
+      const userData = adminsSnapshot.docs[0].data();
+      if (!oldPublicId) {
+        if (userData?.fotoPerfilCloudinary) {
+          oldPublicId = userData.fotoPerfilCloudinary;
+        } else if (userData?.["14_foto_perfil"]?.cloudinary_id) {
+          oldPublicId = userData["14_foto_perfil"].cloudinary_id;
+        }
+      }
+    }
+
+    if (userDocRefs.length === 0) {
       return res.status(404).json({ error: 'Usuario no encontrado' });
     }
 
-    // Obtener datos actuales del usuario
-    const userSnapshot = await userDocRef.get();
-    const userData = userSnapshot.data();
-
     // Eliminar foto anterior de Cloudinary si existe
-    const oldPublicId = userData?.fotoPerfilCloudinary;
     if (oldPublicId) {
       try {
+        console.log('Eliminando foto anterior de Cloudinary:', oldPublicId);
         await cloudinary.uploader.destroy(oldPublicId);
-        console.log('Foto anterior eliminada de Cloudinary:', oldPublicId);
+        console.log('Foto anterior eliminada exitosamente');
       } catch (error) {
         console.error('Error al eliminar foto anterior:', error);
       }
     }
 
-    // Actualizar documento con nueva foto
-    await userDocRef.update({
-      fotoPerfil: fotoPerfil,
-      fotoPerfilSubidaEn: new Date().toISOString(),
-      fotoPerfilCloudinary: uploadData.public_id
-    });
+    // Extraer public_id de la URL de Cloudinary para la nueva foto
+    // URL formato: https://res.cloudinary.com/{cloud_name}/image/upload/v{version}/{folder}/{public_id}.{format}
+    const publicIdFull = `pitzbol/usuarios/${uid}/perfil/${uid}_perfil_${Date.now()}`;
 
-    console.log('Foto de perfil actualizada para uid:', uid);
+    // Actualizar TODAS las referencias encontradas
+    const fotoData = {
+      fotoPerfil: fotoPerfil,
+      "14_foto_perfil": { url: fotoPerfil, cloudinary_id: publicIdFull, subida_en: new Date().toISOString() },
+      fotoPerfilSubidaEn: new Date().toISOString(),
+      fotoPerfilCloudinary: publicIdFull
+    };
+
+    console.log(`Actualizando foto en ${userDocRefs.length} ubicación(es): ${ubicacionesActualizadas.join(', ')}`);
+    const updatePromises = userDocRefs.map(ref => ref.update(fotoData));
+    await Promise.all(updatePromises);
+
+    console.log(`Foto de perfil actualizada en: ${ubicacionesActualizadas.join(', ')}`);
 
     return res.status(200).json({
       message: 'Foto de perfil actualizada exitosamente',
@@ -229,32 +265,11 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
       const userData = userDoc ? userDoc.data() : null;
       console.log(`Usuario encontrado en turistas`);
       
-      // Si no tiene fotoPerfil pero tiene 13_foto_rostro, subir a Cloudinary
-      if (!userData?.fotoPerfil && userData?.['13_foto_rostro']) {
-        console.log('Migrando 13_foto_rostro a Cloudinary...');
-        try {
-          const cloudinaryUrl = await subirBase64ACloudinary(userData['13_foto_rostro'], uid);
-
-          // Actualizar Firebase con la nueva URL
-          await userDoc!.ref.update({
-            fotoPerfil: cloudinaryUrl,
-            fotoPerfilSubidaEn: new Date().toISOString()
-          });
-
-          console.log('Foto migrada a Cloudinary exitosamente');
-
-          return res.status(200).json({
-            fotoPerfil: cloudinaryUrl,
-            fotoPerfilSubidaEn: new Date().toISOString()
-          });
-        } catch (error) {
-          console.error('Error migrando foto:', error);
-          return res.status(500).json({ error: 'Error procesando foto de perfil' });
-        }
-      }
+      // IMPORTANTE: La foto de validación facial (13_foto_rostro) NUNCA se usa como foto de perfil
+      // Son dos cosas completamente diferentes y separadas
       
       return res.status(200).json({
-        fotoPerfil: userData?.fotoPerfil || null,
+        fotoPerfil: userData?.fotoPerfil || userData?.["14_foto_perfil"]?.url || null,
         fotoPerfilSubidaEn: userData?.fotoPerfilSubidaEn || null
       });
     }
@@ -288,32 +303,10 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
       if (data && data.uid === uid) {
         console.log(`Usuario encontrado en guías/lista`);
         
-        // Si no tiene fotoPerfil pero tiene 13_foto_rostro, subir a Cloudinary
-        if (!data.fotoPerfil && data['13_foto_rostro']) {
-          console.log('Migrando 13_foto_rostro a Cloudinary...');
-          try {
-            const cloudinaryUrl = await subirBase64ACloudinary(data['13_foto_rostro'], uid);
-            
-            // Actualizar Firebase con la nueva URL
-            await doc.ref.update({
-              fotoPerfil: cloudinaryUrl,
-              fotoPerfilSubidaEn: new Date().toISOString()
-            });
-            
-            console.log('Foto migrada a Cloudinary exitosamente');
-            
-            return res.status(200).json({
-              fotoPerfil: cloudinaryUrl,
-              fotoPerfilSubidaEn: new Date().toISOString()
-            });
-          } catch (error) {
-            console.error('Error migrando foto:', error);
-            return res.status(500).json({ error: 'Error procesando foto de perfil' });
-          }
-        }
-        
+        // IMPORTANTE: La foto de validación facial (13_foto_rostro) NUNCA se usa como foto de perfil
+        // Devolver solo la foto de perfil si existe, caso contrario null
         return res.status(200).json({
-          fotoPerfil: data.fotoPerfil || null,
+          fotoPerfil: data.fotoPerfil || data["14_foto_perfil"]?.url || null,
           fotoPerfilSubidaEn: data.fotoPerfilSubidaEn || null
         });
       }
@@ -330,34 +323,11 @@ export const obtenerFotoPerfil = async (req: Request, res: Response) => {
       if (data && data.uid === uid) {
         console.log(`Usuario encontrado en guías/pendientes`);
         console.log(`Foto de perfil: ${data.fotoPerfil ? 'SÍ existe' : 'NO existe'}`);
-        console.log(`Campos disponibles: ${Object.keys(data).join(', ')}`);
         
-        // Si no tiene fotoPerfil pero tiene 13_foto_rostro, subir a Cloudinary
-        if (!data.fotoPerfil && data['13_foto_rostro']) {
-          console.log('Migrando 13_foto_rostro a Cloudinary...');
-          try {
-            const cloudinaryUrl = await subirBase64ACloudinary(data['13_foto_rostro'], uid);
-            
-            // Actualizar Firebase con la nueva URL
-            await doc.ref.update({
-              fotoPerfil: cloudinaryUrl,
-              fotoPerfilSubidaEn: new Date().toISOString()
-            });
-            
-            console.log('Foto migrada a Cloudinary exitosamente');
-            
-            return res.status(200).json({
-              fotoPerfil: cloudinaryUrl,
-              fotoPerfilSubidaEn: new Date().toISOString()
-            });
-          } catch (error) {
-            console.error('Error migrando foto:', error);
-            return res.status(500).json({ error: 'Error procesando foto de perfil' });
-          }
-        }
-        
+        // IMPORTANTE: La foto de validación facial (13_foto_rostro) NUNCA se usa como foto de perfil
+        // Devolver solo la foto de perfil si existe, caso contrario null
         return res.status(200).json({
-          fotoPerfil: data.fotoPerfil || null,
+          fotoPerfil: data.fotoPerfil || data["14_foto_perfil"]?.url || null,
           fotoPerfilSubidaEn: data.fotoPerfilSubidaEn || null
         });
       }
@@ -385,60 +355,99 @@ export const eliminarFotoPerfilAnterior = async (publicId: string) => {
 
 export const actualizarPerfil = async (req: Request, res: Response) => {
   try {
+    console.log("actualizarPerfil llamado");
     const uid = (req as any).user?.uid;
-    const { descripcion } = req.body;
+    const { descripcion, idiomas, especialidades, nombre, apellido } = req.body;
 
-    console.log("Datos recibidos en el backend:", { uid, descripcion });
+    console.log("Datos recibidos en el backend:", { uid, descripcion, idiomas, especialidades, nombre, apellido });
 
     if (!uid) return res.status(401).json({ error: 'No autenticado' });
 
-
-    let userDocRef: any = null;
-
-    // Buscar en turistas
-    const snapT = await db.collection('usuarios').doc('turistas').collection('lista').where('uid', '==', uid).limit(1).get();
-    if (!snapT.empty) {
-      userDocRef = snapT.docs[0]?.ref;
-    }
-
-    // Buscar en admins
-    if (!userDocRef) {
-      const snapA = await db.collection('usuarios').doc('admins').collection('lista').where('uid', '==', uid).limit(1).get();
-      if (!snapA.empty) {
-        userDocRef = snapA.docs[0]?.ref;
-      }
-    }
-
-    // Buscar en guías lista
-    if (!userDocRef) {
-      const snapGL = await db.collection('usuarios').doc('guias').collection('lista').where('uid', '==', uid).limit(1).get();
-      if (!snapGL.empty) {
-        userDocRef = snapGL.docs[0]?.ref;
-      }
-    }
-
-    // Buscar en guías pendientes
-    if (!userDocRef) {
-      const snapGP = await db.collection('usuarios').doc('guias').collection('pendientes').where('uid', '==', uid).limit(1).get();
-      if (!snapGP.empty) {
-        userDocRef = snapGP.docs[0]?.ref;
-      }
-    }
-
-    if (!userDocRef) {
-      return res.status(404).json({ error: 'Usuario no encontrado en Firebase' });
-    }
-
-    const camposAActualizar = {
-      descripcion: descripcion || "",
+    const camposAActualizar: any = {
       ultimaActualizacion: new Date().toISOString()
     };
 
-    await userDocRef.update(camposAActualizar);
+    // Solo actualizar campos que fueron enviados
+    if (descripcion !== undefined) {
+      camposAActualizar.descripcion = descripcion;
+      camposAActualizar["15_descripcion"] = descripcion;
+    }
+
+    if (idiomas !== undefined) {
+      camposAActualizar.idiomas = idiomas;
+      camposAActualizar["09_idiomas"] = idiomas;
+    }
+
+    if (especialidades !== undefined) {
+      camposAActualizar.especialidades = especialidades;
+      camposAActualizar["07_especialidades"] = especialidades;
+    }
+
+    if (nombre !== undefined) {
+      camposAActualizar.nombre = nombre;
+      camposAActualizar["01_nombre"] = nombre;
+    }
+
+    if (apellido !== undefined) {
+      camposAActualizar.apellido = apellido;
+      camposAActualizar["02_apellido"] = apellido;
+    }
+
+    // Array para almacenar todas las referencias encontradas
+    const userDocRefs: any[] = [];
+    let ubicacionesActualizadas: string[] = [];
+
+    // Buscar en turistas
+    const snapT = await db.collection('usuarios').doc('turistas').collection('lista').where('uid', '==', uid).limit(1).get();
+    if (!snapT.empty && snapT.docs[0]) {
+      userDocRefs.push(snapT.docs[0].ref);
+      ubicacionesActualizadas.push('turistas/lista');
+    }
+
+    // Buscar en admins
+    const snapA = await db.collection('usuarios').doc('admins').collection('lista').where('uid', '==', uid).limit(1).get();
+    if (!snapA.empty && snapA.docs[0]) {
+      userDocRefs.push(snapA.docs[0].ref);
+      ubicacionesActualizadas.push('admins/lista');
+    }
+
+    // Buscar en guías lista (IMPORTANTE: Para que se actualice en tours)
+    const snapGL = await db.collection('usuarios').doc('guias').collection('lista').where('uid', '==', uid).limit(1).get();
+    if (!snapGL.empty && snapGL.docs[0]) {
+      userDocRefs.push(snapGL.docs[0].ref);
+      ubicacionesActualizadas.push('guias/lista');
+    }
+
+    // Buscar en guías pendientes
+    const snapGP = await db.collection('usuarios').doc('guias').collection('pendientes').where('uid', '==', uid).limit(1).get();
+    if (!snapGP.empty && snapGP.docs[0]) {
+      userDocRefs.push(snapGP.docs[0].ref);
+      ubicacionesActualizadas.push('guias/pendientes');
+    }
+
+    if (userDocRefs.length === 0) {
+      return res.status(404).json({ error: 'Usuario no encontrado en Firebase' });
+    }
+
+    // Actualizar TODAS las referencias encontradas
+    console.log(`Actualizando perfil en ${userDocRefs.length} ubicación(es): ${ubicacionesActualizadas.join(', ')}`);
+    console.log(`Campos a actualizar:`, {
+      nombre: camposAActualizar.nombre,
+      apellido: camposAActualizar.apellido,
+      descripcion: camposAActualizar.descripcion?.substring(0, 30),
+      idiomas: camposAActualizar.idiomas,
+      especialidades: camposAActualizar.especialidades
+    });
+    
+    const updatePromises = userDocRefs.map(ref => ref.update(camposAActualizar));
+    await Promise.all(updatePromises);
+
+    console.log(`Perfil actualizado exitosamente en: ${ubicacionesActualizadas.join(', ')}`);
 
     return res.status(200).json({
       msg: 'Perfil actualizado exitosamente',
-      descripcion: descripcion || ""
+      ubicacionesActualizadas,
+      ...camposAActualizar
     });
 
   } catch (error: any) {
@@ -447,8 +456,215 @@ export const actualizarPerfil = async (req: Request, res: Response) => {
   }
 };
 
+const publicProfileCollections = [
+  { role: 'guia', ref: db.collection('usuarios').doc('guias').collection('lista'), path: 'usuarios/guias/lista' },
+  { role: 'turista', ref: db.collection('usuarios').doc('turistas').collection('lista'), path: 'usuarios/turistas/lista' },
+  { role: 'admin', ref: db.collection('usuarios').doc('admins').collection('lista'), path: 'usuarios/admins/lista' },
+  { role: 'guia-pendiente', ref: db.collection('usuarios').doc('guias').collection('pendientes'), path: 'usuarios/guias/pendientes' },
+  { role: 'negociante', ref: db.collection('usuarios').doc('negocios').collection('lista'), path: 'usuarios/negocios/lista' },
+];
 
-/**
+const buildPublicProfile = (userData: any, role: string, fallbackUid: string) => {
+  const nombre = userData?.["01_nombre"] || userData?.nombre || '';
+  const apellido = userData?.["02_apellido"] || userData?.apellido || '';
+
+  return {
+    uid: userData?.uid || fallbackUid,
+    role,
+    nombre,
+    apellido,
+    nombreCompleto: `${nombre} ${apellido}`.trim(),
+    fotoPerfil: userData?.["14_foto_perfil"]?.url || userData?.fotoPerfil || '',
+    descripcion: userData?.["15_descripcion"] || userData?.descripcion || '',
+    biografia: userData?.["19_biografia"] || userData?.biografia || userData?.["15_descripcion"] || userData?.descripcion || '',
+    email: userData?.["04_correo"] || userData?.email || '',
+    telefono: userData?.["06_telefono"] || userData?.telefono || '',
+    nacionalidad: userData?.["05_nacionalidad"] || userData?.nacionalidad || '',
+    idiomas: userData?.["09_idiomas"] || userData?.idiomas || [],
+    especialidades: userData?.["07_especialidades"] || userData?.especialidades || [],
+    ubicacion: userData?.ubicacion || '',
+    experiencia: userData?.experiencia || '',
+    certificaciones: userData?.certificaciones || [],
+    disponibilidad: userData?.disponibilidad || null,
+    toursPorDia: userData?.toursPorDia || null,
+    tarifa: userData?.["17_tarifa_mxn"] || userData?.tarifa || null,
+    tarifaCompleta: userData?.["18_tarifa_dia_completo"] || userData?.tarifaCompleta || null,
+    calificacion: userData?.calificacion || null,
+    resenas: userData?.numeroResenas || userData?.resenas || null,
+  };
+};
+
+const findPublicProfileByIdentifier = async (identifier: string) => {
+  for (const collection of publicProfileCollections) {
+    console.log(`[obtenerPerfilPublico] Buscando en ${collection.path} por uid...`);
+    const byUid = await collection.ref.where('uid', '==', identifier).limit(1).get();
+    if (!byUid.empty) {
+      const userData = byUid.docs[0]?.data() || {};
+      return buildPublicProfile(userData, collection.role, identifier);
+    }
+
+    console.log(`[obtenerPerfilPublico] Buscando en ${collection.path} por docId...`);
+    const byDocId = await collection.ref.doc(identifier).get();
+    if (byDocId.exists) {
+      const userData = byDocId.data() || {};
+      return buildPublicProfile(userData, collection.role, identifier);
+    }
+  }
+
+  return null;
+};
+
+const extractOwnerIdentifierFromBusiness = (data: any): string | null => {
+  if (typeof data?.ownerUid === 'string' && data.ownerUid.trim()) return data.ownerUid.trim();
+  if (typeof data?.business?.owner === 'string' && data.business.owner.trim()) return data.business.owner.trim();
+  if (typeof data?.owner?.uid === 'string' && data.owner.uid.trim()) return data.owner.uid.trim();
+  if (typeof data?.owner === 'string' && data.owner.trim()) return data.owner.trim();
+  return null;
+};
+
+const extractOwnerEmailFromBusiness = (data: any): string | null => {
+  const emailFromRoot = typeof data?.email === 'string' ? data.email.trim() : '';
+  if (emailFromRoot) return emailFromRoot;
+
+  const emailFromBusiness = typeof data?.business?.email === 'string' ? data.business.email.trim() : '';
+  if (emailFromBusiness) return emailFromBusiness;
+
+  return null;
+};
+
+const findPublicProfileByEmail = async (email: string) => {
+  for (const collection of publicProfileCollections) {
+    console.log(`[obtenerPerfilPublico] Buscando en ${collection.path} por correo...`);
+
+    const byLegacyEmail = await collection.ref.where('04_correo', '==', email).limit(1).get();
+    if (!byLegacyEmail.empty) {
+      const userData = byLegacyEmail.docs[0]?.data() || {};
+      return buildPublicProfile(userData, collection.role, byLegacyEmail.docs[0]?.id || email);
+    }
+
+    const byEmail = await collection.ref.where('email', '==', email).limit(1).get();
+    if (!byEmail.empty) {
+      const userData = byEmail.docs[0]?.data() || {};
+      return buildPublicProfile(userData, collection.role, byEmail.docs[0]?.id || email);
+    }
+  }
+
+  return null;
+};
+
+const resolveOwnerEmailFromBusiness = async (identifier: string): Promise<string | null> => {
+  const pendingById = await db.collection('negocios').doc('Pendientes').collection('items').doc(identifier).get();
+  if (pendingById.exists) {
+    const email = extractOwnerEmailFromBusiness(pendingById.data());
+    if (email) return email;
+  }
+
+  const approvedById = await db.collection('negocios').doc('Business').collection('items').doc(identifier).get();
+  if (approvedById.exists) {
+    const email = extractOwnerEmailFromBusiness(approvedById.data());
+    if (email) return email;
+  }
+
+  const archivedById = await db.collection('negocios_archivados').doc(identifier).get();
+  if (archivedById.exists) {
+    const email = extractOwnerEmailFromBusiness(archivedById.data());
+    if (email) return email;
+  }
+
+  const pendingByUid = await db.collection('negocios').doc('Pendientes').collection('items').where('uid', '==', identifier).limit(1).get();
+  if (!pendingByUid.empty) {
+    const email = extractOwnerEmailFromBusiness(pendingByUid.docs[0]?.data());
+    if (email) return email;
+  }
+
+  const approvedByUid = await db.collection('negocios').doc('Business').collection('items').where('uid', '==', identifier).limit(1).get();
+  if (!approvedByUid.empty) {
+    const email = extractOwnerEmailFromBusiness(approvedByUid.docs[0]?.data());
+    if (email) return email;
+  }
+
+  const archivedByUid = await db.collection('negocios_archivados').where('uid', '==', identifier).limit(1).get();
+  if (!archivedByUid.empty) {
+    const email = extractOwnerEmailFromBusiness(archivedByUid.docs[0]?.data());
+    if (email) return email;
+  }
+
+  return null;
+};
+
+const resolveOwnerIdentifierFromBusiness = async (identifier: string): Promise<string | null> => {
+  const pendingById = await db.collection('negocios').doc('Pendientes').collection('items').doc(identifier).get();
+  if (pendingById.exists) return extractOwnerIdentifierFromBusiness(pendingById.data());
+
+  const approvedById = await db.collection('negocios').doc('Business').collection('items').doc(identifier).get();
+  if (approvedById.exists) return extractOwnerIdentifierFromBusiness(approvedById.data());
+
+  const archivedById = await db.collection('negocios_archivados').doc(identifier).get();
+  if (archivedById.exists) return extractOwnerIdentifierFromBusiness(archivedById.data());
+
+  const pendingByUid = await db.collection('negocios').doc('Pendientes').collection('items').where('uid', '==', identifier).limit(1).get();
+  if (!pendingByUid.empty) return extractOwnerIdentifierFromBusiness(pendingByUid.docs[0]?.data());
+
+  const approvedByUid = await db.collection('negocios').doc('Business').collection('items').where('uid', '==', identifier).limit(1).get();
+  if (!approvedByUid.empty) return extractOwnerIdentifierFromBusiness(approvedByUid.docs[0]?.data());
+
+  const archivedByUid = await db.collection('negocios_archivados').where('uid', '==', identifier).limit(1).get();
+  if (!archivedByUid.empty) return extractOwnerIdentifierFromBusiness(archivedByUid.docs[0]?.data());
+
+  return null;
+};
+
+export const obtenerPerfilPublico = async (req: Request, res: Response) => {
+  try {
+    const { uid } = req.params;
+
+    console.log(`[obtenerPerfilPublico] Buscando perfil para identificador: ${uid}`);
+
+    if (!uid) {
+      console.error('[obtenerPerfilPublico] Identificador no proporcionado');
+      return res.status(400).json({ success: false, message: 'UID es requerido' });
+    }
+
+    const profile = await findPublicProfileByIdentifier(uid);
+    if (profile) {
+      console.log(`[obtenerPerfilPublico] Perfil encontrado directo`, { uid: profile.uid, role: profile.role });
+      return res.status(200).json({ success: true, profile });
+    }
+
+    const ownerIdentifier = await resolveOwnerIdentifierFromBusiness(uid);
+    if (ownerIdentifier) {
+      console.log(`[obtenerPerfilPublico] Fallback por negocio, ownerIdentifier: ${ownerIdentifier}`);
+      const ownerProfile = await findPublicProfileByIdentifier(ownerIdentifier);
+      if (ownerProfile) {
+        console.log(`[obtenerPerfilPublico] Perfil encontrado por fallback de negocio`, { uid: ownerProfile.uid, role: ownerProfile.role });
+        return res.status(200).json({ success: true, profile: ownerProfile });
+      }
+    }
+
+    const ownerEmail = await resolveOwnerEmailFromBusiness(uid);
+    if (ownerEmail) {
+      console.log(`[obtenerPerfilPublico] Fallback por email de negocio: ${ownerEmail}`);
+      const ownerProfileByEmail = await findPublicProfileByEmail(ownerEmail);
+      if (ownerProfileByEmail) {
+        console.log(`[obtenerPerfilPublico] Perfil encontrado por fallback de email`, { uid: ownerProfileByEmail.uid, role: ownerProfileByEmail.role });
+        return res.status(200).json({ success: true, profile: ownerProfileByEmail });
+      }
+    }
+
+    console.error(`[obtenerPerfilPublico] Usuario con identificador ${uid} no encontrado`);
+    return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
+  } catch (error: any) {
+    console.error('Error al obtener perfil público:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error interno al obtener perfil público',
+      error: error.message,
+    });
+  }
+};
+
+
+    /**
  * WALLET CONTROLLERS
  */
 
@@ -622,5 +838,114 @@ export const establecerPredeterminada = async (req: any, res: Response) => {
   } catch (error: any) {
     console.error('Error estableciendo predeterminada:', error);
     res.status(500).json({ error: error.message || 'Error estableciendo predeterminada' });
+  }
+};
+
+export const obtenerToursGuia = async (req: Request, res: Response) => {
+  try {
+    const { uid } = req.params;
+    
+    if (!uid) {
+      console.error('[obtenerToursGuia] UID no proporcionado');
+      return res.status(400).json({ success: false, message: 'UID es requerido' });
+    }
+
+    console.log(`[obtenerToursGuia] Buscando tours para guía UID: ${uid}`);
+
+    const bookingsSnapshot = await db.collection('bookings').where('guideId', '==', uid).get();
+    
+    if (bookingsSnapshot.empty) {
+      console.log(`[obtenerToursGuia] No hay tours para el guía ${uid}`);
+      return res.status(200).json({
+        success: true,
+        tours: []
+      });
+    }
+
+    const tours = bookingsSnapshot.docs.map(doc => ({
+      id: doc.id,
+      ...doc.data()
+    }));
+
+    console.log(`[obtenerToursGuia] Se encontraron ${tours.length} tours`);
+    return res.status(200).json({
+      success: true,
+      tours
+    });
+  } catch (error: any) {
+    console.error('Error al obtener tours del guía:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al obtener tours',
+      error: error.message
+    });
+  }
+};
+
+export const obtenerNegociosUsuario = async (req: Request, res: Response) => {
+  try {
+    const { uid } = req.params;
+    
+    if (!uid) {
+      console.error('[obtenerNegociosUsuario] UID no proporcionado');
+      return res.status(400).json({ success: false, message: 'UID es requerido' });
+    }
+
+    console.log(`[obtenerNegociosUsuario] Buscando negocios para UID: ${uid}`);
+
+    const negocios: any[] = [];
+
+    const pendientesSnapshot = await db.collection('negocios')
+      .doc('Pendientes')
+      .collection('items')
+      .where('ownerUid', '==', uid)
+      .get();
+
+    pendientesSnapshot.docs.forEach(doc => {
+      negocios.push({
+        id: doc.id,
+        status: 'PENDING',
+        ...doc.data()
+      });
+    });
+
+    const businessSnapshot = await db.collection('negocios')
+      .doc('Business')
+      .collection('items')
+      .where('ownerUid', '==', uid)
+      .get();
+
+    businessSnapshot.docs.forEach(doc => {
+      negocios.push({
+        id: doc.id,
+        status: 'APPROVED',
+        ...doc.data()
+      });
+    });
+
+    const archivedSnapshot = await db.collection('negocios_archivados')
+      .where('ownerUid', '==', uid)
+      .get();
+
+    archivedSnapshot.docs.forEach(doc => {
+      negocios.push({
+        id: doc.id,
+        status: 'ARCHIVED',
+        ...doc.data()
+      });
+    });
+
+    console.log(`[obtenerNegociosUsuario] Se encontraron ${negocios.length} negocios`);
+    return res.status(200).json({
+      success: true,
+      negocios
+    });
+  } catch (error: any) {
+    console.error('Error al obtener negocios del usuario:', error);
+    return res.status(500).json({
+      success: false,
+      message: 'Error al obtener negocios',
+      error: error.message
+    });
   }
 };
