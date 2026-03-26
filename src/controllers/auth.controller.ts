@@ -119,7 +119,11 @@ export const login = async (req: Request, res: Response) => {
     
     console.log('Intentando autenticar con Firebase...');
     const response = await axios.post(url, { email, password, returnSecureToken: true }, {
-      headers: { 'Referer': 'http://69.30.204.56', 'X-Referer': 'http://69.30.204.56' }
+      headers: {
+        'Content-Type': 'application/json',
+        'Origin': 'https://pitzbol.firebaseapp.com',
+        'Referer': 'https://pitzbol.firebaseapp.com/'
+      }
     });
     const { localId } = response.data;
     
