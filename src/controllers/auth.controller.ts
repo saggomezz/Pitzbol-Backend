@@ -118,13 +118,7 @@ export const login = async (req: Request, res: Response) => {
     const url = `https://identitytoolkit.googleapis.com/v1/accounts:signInWithPassword?key=${FIREBASE_WEB_API_KEY}`;
     
     console.log('Intentando autenticar con Firebase...');
-    const response = await axios.post(url, { email, password, returnSecureToken: true }, {
-      headers: {
-        'Content-Type': 'application/json',
-        'Origin': 'https://pitzbol.firebaseapp.com',
-        'Referer': 'https://pitzbol.firebaseapp.com/'
-      }
-    });
+    const response = await axios.post(url, { email, password, returnSecureToken: true });
     const { localId } = response.data;
     
     console.log('Firebase autenticó correctamente');
