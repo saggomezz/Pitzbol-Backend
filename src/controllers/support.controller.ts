@@ -413,3 +413,89 @@ export const deleteCallRequest = async (req: Request, res: Response) => {
     });
   }
 };
+
+/**
+ * Responder a un mensaje de soporte por email
+ * POST /api/support/contact-forms/:id/reply
+ */
+export const replyToContactForm = async (req: Request, res: Response) => {
+  try {
+    const { id } = req.params as { id: string };
+    const { replyMessage } = req.body;
+
+    if (!id || !replyMessage) {
+      return res.status(400).json({ success: false, msg: "ID y mensaje de respuesta requeridos" });
+    }
+
+    // Obtener el formulario original
+    const docRef = db.collection("support_contactForms").doc(id);
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      return res.status(404).json({ success: false, msg: "Formulario no encontrado" });
+    }
+
+    const formData = doc.data()!;
+    const timestamp = new Date().toISOString();
+
+    // Enviar email de respuesta al usuario
+    try {
+      const transporter = getEmailTransporter();
+      const emailContent = `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+          <div style="background: linear-gradient(135deg, #1A4D2E, #0D601E); padding: 30px; border-radius: 16px 16px 0 0; text-align: center;">
+            <h1 style="color: white; margin: 0; font-size: 24px;">Pitzbol - Soporte</h1>
+          </div>
+          <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 16px 16px;">
+            <p style="color: #374151;">Hola <strong>${formData.name}</strong>,</p>
+            <p style="color: #374151;">Gracias por contactarnos. Aquí está nuestra respuesta a tu mensaje sobre: <strong>${formData.subject}</strong></p>
+            <div style="background: #f0fdf4; border-left: 4px solid #0D601E; padding: 16px; margin: 20px 0; border-radius: 0 8px 8px 0;">
+              <p style="color: #1A4D2E; margin: 0; white-space: pre-wrap;">${replyMessage.replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>")}</p>
+            </div>
+            <p style="color: #6b7280; font-size: 14px;">Si necesitas más ayuda, no dudes en contactarnos nuevamente.</p>
+            <p style="color: #374151;">Saludos,<br><strong>Equipo Pitzbol</strong></p>
+          </div>
+        </div>
+      `;
+
+      await transporter.sendMail({
+        from: process.env.GMAIL_USER,
+        to: formData.email,
+        subject: `[Pitzbol] Re: ${formData.subject}`,
+        html: emailContent,
+      });
+      console.log(`📧 Respuesta enviada a ${formData.email}`);
+    } catch (emailError: any) {
+      console.error("❌ Error al enviar email de respuesta:", emailError.message);
+      return res.status(500).json({ success: false, msg: "Error al enviar el email de respuesta" });
+    }
+
+    // Actualizar el formulario con la respuesta
+    const replies = formData.replies || [];
+    replies.push({
+      message: replyMessage,
+      timestamp,
+      sentBy: "admin",
+    });
+
+    await docRef.update({
+      replies,
+      status: "respondido",
+      lastReplyAt: timestamp,
+    });
+
+    console.log(`✅ Respuesta enviada para formulario: ${id}`);
+
+    res.status(200).json({
+      success: true,
+      msg: "Respuesta enviada exitosamente",
+    });
+  } catch (error: any) {
+    console.error("❌ Error al responder formulario:", error);
+    res.status(500).json({
+      success: false,
+      msg: "Error al enviar la respuesta",
+      error: error.message,
+    });
+  }
+};

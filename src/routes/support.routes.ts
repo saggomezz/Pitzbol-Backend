@@ -8,6 +8,7 @@ import {
   markSupportNotificationAsRead,
   deleteContactForm,
   deleteCallRequest,
+  replyToContactForm,
 } from "../controllers/support.controller";
 import { authMiddleware } from "../middlewares/auth.middleware";
 import { requireAdmin } from "../middlewares/admin.middleware";
@@ -62,6 +63,13 @@ router.patch("/notifications/:id", authMiddleware, markSupportNotificationAsRead
  * Requiere autenticación y rol admin
  */
 router.delete("/contact-forms/:id", authMiddleware, requireAdmin, deleteContactForm);
+
+/**
+ * POST /api/support/contact-forms/:id/reply
+ * Responder a un formulario de contacto por email (solo admin)
+ * Requiere autenticación y rol admin
+ */
+router.post("/contact-forms/:id/reply", authMiddleware, requireAdmin, replyToContactForm);
 
 /**
  * DELETE /api/support/call-requests/:id

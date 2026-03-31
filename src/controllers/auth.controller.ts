@@ -138,7 +138,13 @@ export const login = async (req: Request, res: Response) => {
             const doc = snap.docs[0];
             if (doc && doc.exists) {
                 userData = doc.data();
-                userRole = cat === "turistas" ? "turista" : cat === "admins" ? "admin" : "negociante";
+                // Respetar el rol guardado en el documento (ej: turista aprobado como guía)
+                const storedRole = userData?.role || userData?.["03_rol"];
+                if (storedRole === "guia" || storedRole === "admin" || storedRole === "negociante") {
+                    userRole = storedRole;
+                } else {
+                    userRole = cat === "turistas" ? "turista" : cat === "admins" ? "admin" : "negociante";
+                }
                 break; 
             }
         }

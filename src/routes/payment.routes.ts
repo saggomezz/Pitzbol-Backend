@@ -31,9 +31,9 @@ router.get('/history/:userId', authMiddleware, getUserPayments);
 // Webhook de Stripe (no requiere autenticacion)
 router.post('/webhook', handleStripeWebhook);
 
-// ENDPOINTS LEGACY (mantener por compatibilidad)
+// ENDPOINT SIMPLE para pagos sin reserva (testing / pagos directos)
 router.post(
-  "/create-payment-intent",
+  "/create-simple-payment",
   async (req: Request, res: Response): Promise<void> => {
     try {
       const { amount, currency = "mxn", customerId, paymentMethodId, bookingId } = req.body as {
