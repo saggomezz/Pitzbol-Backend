@@ -61,6 +61,14 @@ router.post(
   adminController.forzarMoverImagenesNegocio
 );
 
+// PROTEGIDO - Forzar actualización de notificaciones relacionadas a un negocio
+router.post(
+  '/negocios/:negocioId/actualizar-notificaciones',
+  authMiddleware,
+  requireAdmin,
+  adminController.actualizarNotificacionesNegocio
+);
+
 // PROTEGIDO - Archivar (eliminar) un negocio
 router.post(
   '/negocios/:negocioId/archivar',
