@@ -7,9 +7,10 @@ export const setSocketServer = (io: Server) => {
 };
 
 export const emitNotificationToUser = (userId: string, payload: any) => {
-  if (!ioInstance) {
-    return;
+  if (!ioInstance) return;
+  try {
+    ioInstance.to(`user:${userId}`).emit('new-notification', payload);
+  } catch (_err) {
+    // swallow emit errors silently; listeners may reconnect and fetch updated notifications from backend
   }
-
-  ioInstance.to(`user:${userId}`).emit('new-notification', payload);
 };
