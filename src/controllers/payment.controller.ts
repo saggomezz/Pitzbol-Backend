@@ -7,7 +7,7 @@ export const createPaymentIntent = async (req: Request, res: Response) => {
   try {
     const { bookingId, userId, amount, currency, paymentMethodId, saveCard } = req.body;
 
-    if (!bookingId || !userId || !amount) {
+    if (!bookingId || !userId || amount === undefined || amount === null) {
       return res.status(400).json({
         success: false,
         message: 'bookingId, userId y amount son requeridos',

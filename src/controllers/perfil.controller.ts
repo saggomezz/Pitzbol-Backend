@@ -711,7 +711,27 @@ export const crearSetupIntent = async (req: any, res: Response) => {
 
     console.log(`✅ [crearSetupIntent] UID validado: ${uid}`);
 
+    // Obtener o crear Stripe Customer
+    const walletRef = db.collection('wallets').doc(uid);
+    const walletDoc = await walletRef.get();
+    let stripeCustomerId = walletDoc.data()?.stripeCustomerId;
+
+    if (!stripeCustomerId) {
+      const customer = await stripe.customers.create({
+        metadata: { uid },
+      });
+      stripeCustomerId = customer.id;
+      await walletRef.set({
+        stripeCustomerId,
+        userId: uid,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }, { merge: true });
+      console.log(`✅ [crearSetupIntent] Stripe Customer creado: ${stripeCustomerId}`);
+    }
+
     const setupIntent = await stripe.setupIntents.create({
+      customer: stripeCustomerId,
       payment_method_types: ['card'],
       metadata: { uid },
     });
@@ -759,6 +779,33 @@ export const guardarTarjeta = async (req: any, res: Response) => {
     const card = paymentMethod.card;
 
     console.log(`✅ [guardarTarjeta] Payment method validado. Brand: ${card.brand}, Last4: ${card.last4}`);
+
+    // Obtener Stripe Customer y adjuntar PaymentMethod
+    const walletRef = db.collection('wallets').doc(uid);
+    const walletDoc = await walletRef.get();
+    let stripeCustomerId = walletDoc.data()?.stripeCustomerId;
+
+    if (!stripeCustomerId) {
+      const customer = await stripe.customers.create({
+        metadata: { uid },
+      });
+      stripeCustomerId = customer.id;
+      await walletRef.set({
+        stripeCustomerId,
+        userId: uid,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      }, { merge: true });
+      console.log(`✅ [guardarTarjeta] Stripe Customer creado: ${stripeCustomerId}`);
+    }
+
+    // Adjuntar PaymentMethod al Customer si no lo está ya
+    if (!paymentMethod.customer) {
+      await stripe.paymentMethods.attach(paymentMethodId, {
+        customer: stripeCustomerId,
+      });
+      console.log(`✅ [guardarTarjeta] PaymentMethod adjuntado al Customer: ${stripeCustomerId}`);
+    }
 
     // Guardar en Firestore
     const newCard = await saveCard(uid, {

@@ -118,6 +118,22 @@ router.get(
   adminController.getSolicitudesPendientes
 );
 
+// PROTEGIDO - Obtener guías aprobados (para panel de gestión)
+router.get(
+  '/guias/aprobados',
+  authMiddleware,
+  requireAdmin,
+  adminController.getGuiasAprobados
+);
+
+// PROTEGIDO - Obtener guías pendientes (para panel de gestión)
+router.get(
+  '/guias/pendientes',
+  authMiddleware,
+  requireAdmin,
+  adminController.getGuiasPendientes
+);
+
 // PROTEGIDO - Aprobar o rechazar solicitud de guía
 router.post(
   '/gestionar-guia',

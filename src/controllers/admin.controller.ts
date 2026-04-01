@@ -991,6 +991,60 @@ export const getSolicitudesPendientes = async (req: any, res: any) => {
     }
 };
 
+const mapGuiaDoc = (doc: FirebaseFirestore.DocumentSnapshot) => {
+    const d = doc.data() || {};
+    return {
+        id: doc.id,
+        uid: d.uid || doc.id,
+        nombre: d["01_nombre"] || d.nombre || "",
+        apellido: d["02_apellido"] || d.apellido || "",
+        correo: d["04_correo"] || d.email || "",
+        telefono: d["06_telefono"] || d.telefono || "",
+        nacionalidad: d["05_nacionalidad"] || "",
+        especialidades: d["07_especialidades"] || [],
+        rfc: d["08_rfc"] || "",
+        idiomas: d["09_idiomas"] || [],
+        codigoPostal: d["10_cp"] || "",
+        fotoFrente: d["11_foto_frente"] || "",
+        fotoReverso: d["12_foto_reverso"] || "",
+        fotoRostro: d["13_foto_rostro"] || "",
+        fotoPerfil: d["14_foto_perfil"]?.url || "",
+        descripcion: d["15_descripcion"] || "",
+        status: d["16_status"] || d.status || "pendiente",
+        tarifaMxn: d["17_tarifa_mxn"] || 0,
+        tarifaDiaCompleto: d["18_tarifa_dia_completo"] || null,
+        validacionBiometrica: d["18_validacion_biometrica"] || null,
+        biografia: d["19_biografia"] || "",
+        calificacion: d.calificacion || 0,
+        resenas: d.numeroResenas || 0,
+        tours: [],
+        createdAt: d.createdAt || "",
+        approvedAt: d.approvedAt || "",
+    };
+};
+
+export const getGuiasAprobados = async (req: any, res: any) => {
+    try {
+        const snapshot = await db.collection('usuarios').doc('guias').collection('lista').get();
+        const guias = snapshot.docs.map(mapGuiaDoc);
+        return res.status(200).json({ success: true, guias });
+    } catch (error: any) {
+        console.error("❌ Error al obtener guías aprobados:", error);
+        return res.status(500).json({ success: false, message: "Error interno", error: error.message });
+    }
+};
+
+export const getGuiasPendientes = async (req: any, res: any) => {
+    try {
+        const snapshot = await db.collection('usuarios').doc('guias').collection('pendientes').get();
+        const guias = snapshot.docs.map(doc => ({ ...mapGuiaDoc(doc), status: "pendiente" }));
+        return res.status(200).json({ success: true, guias });
+    } catch (error: any) {
+        console.error("❌ Error al obtener guías pendientes:", error);
+        return res.status(500).json({ success: false, message: "Error interno", error: error.message });
+    }
+};
+
 export const obtenerUsuariosGestionables = async (req: Request, res: Response) => {
     try {
         const [guiasSnapshot, negociantesSnapshot, negociosBusinessSnapshot] = await Promise.all([
