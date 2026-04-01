@@ -2,6 +2,7 @@ import axios from "axios";
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { auth, db } from "../config/firebase";
+import { sendNotificationToAdmins } from "../services/notification.service";
 import nodemailer from 'nodemailer';
 import { FieldValue } from "@google-cloud/firestore";
 
@@ -562,31 +563,20 @@ export const solicitarGuia = async (req: any, res: Response) => {
     });
 
 
-    // Notificar a todos los administradores SOLO si la solicitud está pendiente
+    // Notificar a todos los administradores (usa servicio centralizado para persistir + emitir)
     try {
-      if (true) { // Siempre es pendiente en este flujo
-        const adminsSnapshot = await db.collection('usuarios').doc('admins').collection('lista').get();
-        const notificacion = {
-          tipo: 'solicitud_guia_pendiente',
-          titulo: 'Nueva solicitud de guía pendiente',
-          mensaje: `El usuario ${turistaData.nombre} ${turistaData.apellido} ha enviado una solicitud para ser guía.`,
-          fecha: new Date().toISOString(),
-          leido: false,
-          enlace: `/admin/solicitud-guia/${docId}`,
-          solicitudId: docId,
-          uidSolicitante: uid
-        };
-        const batch = db.batch();
-        adminsSnapshot.forEach(adminDoc => {
-          const adminUid = adminDoc.data().uid;
-          if (adminUid) {
-            const notifRef = db.collection('usuarios').doc('notificaciones').collection(adminUid).doc();
-            batch.set(notifRef, notificacion);
-          }
-        });
-        await batch.commit();
-        console.log('✅ Notificación enviada a administradores');
-      }
+      const notificacion = {
+        tipo: 'solicitud_guia_pendiente',
+        titulo: 'Nueva solicitud de guía pendiente',
+        mensaje: `El usuario ${turistaData.nombre} ${turistaData.apellido} ha enviado una solicitud para ser guía.`,
+        fecha: new Date().toISOString(),
+        leido: false,
+        enlace: `/admin/solicitud-guia/${docId}`,
+        solicitudId: docId,
+        uidSolicitante: uid
+      };
+      await sendNotificationToAdmins(notificacion);
+      console.log('✅ Notificación enviada a administradores');
     } catch (notifError) {
       console.warn('⚠️ Error al notificar a administradores:', notifError);
     }
