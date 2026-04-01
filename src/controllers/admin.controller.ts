@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { db, auth } from '../config/firebase';
-import { sendNotificationToUser } from '../services/notification.service';
+import { sendNotificationToUser, updateBusinessNameInNotifications } from '../services/notification.service';
 import { reorganizeBusinessImages, deleteBusinessFromCloudinary } from '../utils/cloudinaryHelper';
 
 const firstNonEmpty = (...values: any[]): string => {
@@ -369,21 +369,66 @@ export const editarNegocio = async (req: Request, res: Response) => {
         for (const campo of camposEditables) {
             if (data[campo] !== undefined) updateData[campo] = data[campo];
         }
+        // Si se actualiza el `name`, reflejar también en el objeto `business.name`
+        // para mantener consistencia con cómo el frontend consume los datos.
+        if (updateData.name) {
+            try {
+                const existingBusiness = negocioData?.business || negocioData || {};
+                if (typeof existingBusiness === 'object') {
+                    updateData.business = {
+                        ...(existingBusiness || {}),
+                        name: updateData.name,
+                    };
+                }
+            } catch (err) {
+                console.warn('[editarNegocio] No se pudo propagar business.name', err);
+            }
+        }
+        // Build a safe snapshot of changes to avoid cycles (don't include history itself)
+        const changesSnapshot: any = {};
+        for (const key of Object.keys(updateData)) {
+            if (key === 'history') continue;
+            changesSnapshot[key] = updateData[key];
+        }
         updateData.history = [
             ...(negocioData?.history || []),
-            { action: "editado_admin", date: new Date().toISOString(), by: adminUid, changes: updateData }
+            { action: "editado_admin", date: new Date().toISOString(), by: adminUid, changes: changesSnapshot }
         ];
         await negocioRef.update(updateData);
-        
-        // Notificar al dueño
-        if (negocioData?.owner) {
-            await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
+
+        // Determinar nuevo nombre y ownerUid actualizados
+        const updatedSnap = await negocioRef.get();
+        const updatedDoc = updatedSnap.exists ? updatedSnap.data() : negocioData;
+        const updatedBusiness = updatedDoc?.business || {};
+        const nuevoNombre = updateData.name || updatedBusiness?.name || updatedDoc?.name || "Negocio sin nombre";
+        const ownerUid = firstNonEmpty(negocioData?.owner, negocioData?.ownerUid, updatedBusiness?.owner, updatedDoc?.owner);
+
+        // Actualizar notificaciones existentes (owner y admins) para reflejar el nuevo nombre
+        try {
+            const previousNames: string[] = [];
+            const prev1 = negocioData?.business?.name || negocioData?.name || '';
+            if (prev1 && typeof prev1 === 'string') previousNames.push(prev1);
+            // also include any name present in updatedBusiness before applying updateData
+            if (updatedBusiness && updatedBusiness?.name && updatedBusiness?.name !== prev1) {
+                previousNames.push(updatedBusiness.name);
+            }
+            // dedupe
+            const uniquePrevNames = Array.from(new Set(previousNames.filter(n => !!n)));
+            await updateBusinessNameInNotifications(negocioId, nuevoNombre, ownerUid || undefined, uniquePrevNames);
+        } catch (err) {
+            console.warn('[editarNegocio] Error actualizando notificaciones con nuevo nombre', err);
+        }
+
+        // Notificar al dueño (mensaje con nombre actualizado)
+        if (ownerUid) {
+            await db.collection('usuarios').doc('notificaciones').collection(ownerUid).add({
                 tipo: 'negocio_editado',
                 titulo: 'Negocio editado por el admin',
-                mensaje: `Tu negocio "${negocioData.name}" ha sido editado por el administrador. Revisa los cambios realizados en tu panel.`,
+                mensaje: `Tu negocio "${nuevoNombre}" ha sido editado por el administrador. Revisa los cambios realizados en tu panel.`,
                 fecha: new Date().toISOString(),
                 leido: false,
-                enlace: '/negocio/estatus'
+                enlace: '/negocio/estatus',
+                negocioId
             });
         }
         return res.json({ success: true, message: "Negocio editado y notificado" });
@@ -469,6 +514,15 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
             
             // Delete from Pendientes
             await negocioRef.delete();
+
+            // Asegurar que las notificaciones existentes reflejen el nombre final en caso de que haya cambiado al aprobar
+            try {
+                const nuevoNombreAprobado = updatedData?.business?.name || updatedData?.name || (negocioData?.business?.name || negocioData?.name || '');
+                const prevName = negocioData?.business?.name || negocioData?.name || undefined;
+                await updateBusinessNameInNotifications(negocioId, nuevoNombreAprobado, ownerUid || undefined, prevName ? [prevName] : undefined);
+            } catch (err) {
+                console.warn('[gestionarNegocioPendiente] Error actualizando notificaciones tras aprobación', err);
+            }
 
             await registrarMovimientoNegocioAdmin({
                 negocioId,
@@ -657,15 +711,17 @@ export const archivarNegocio = async (req: Request, res: Response) => {
         console.log(`[archivarNegocio] ✅ Negocio ${negocioId} archivado (estaba en ${location})`);
         
         // Notify owner
-        if (negocioData?.owner) {
+        const ownerUidArch = firstNonEmpty(negocioData?.owner, negocioData?.ownerUid, negocioData?.business?.owner);
+        if (ownerUidArch) {
             const motivoMsg = motivoFinal ? ` Motivo: ${motivoFinal}` : "";
-            await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
+            await sendNotificationToUser(ownerUidArch, {
                 tipo: 'negocio_archivado',
                 titulo: 'Negocio eliminado',
                 mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido eliminado por el administrador.${motivoMsg}`,
                 fecha: new Date().toISOString(),
                 leido: false,
-                enlace: '/negocio/estatus'
+                enlace: '/negocio/estatus',
+                negocioId
             });
         }
         return res.json({ success: true, message: "Negocio archivado y notificado" });
@@ -736,14 +792,16 @@ export const regresarAPendientes = async (req: Request, res: Response) => {
         console.log(`[regresarAPendientes] ✅ Negocio ${negocioId} movido de Activos a Pendientes`);
         
         // Notify owner
-        if (negocioData?.owner) {
-            await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
+        const ownerUidPend = firstNonEmpty(negocioData?.owner, negocioData?.ownerUid, negocioData?.business?.owner);
+        if (ownerUidPend) {
+            await sendNotificationToUser(ownerUidPend, {
                 tipo: 'negocio_pendiente',
                 titulo: 'Negocio en revisión',
                 mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido regresado a revisión por el administrador.`,
                 fecha: new Date().toISOString(),
                 leido: false,
-                enlace: '/negocio/estatus'
+                enlace: '/negocio/estatus',
+                negocioId,
             });
         }
         
@@ -809,14 +867,16 @@ export const desarchivarNegocio = async (req: Request, res: Response) => {
         console.log(`[desarchivarNegocio] ✅ Negocio ${negocioId} desarchivado y movido a Pendientes`);
         
         // Notify owner
-        if (negocioData?.owner) {
-            await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
+        const ownerUidDes = firstNonEmpty(negocioData?.owner, negocioData?.ownerUid, negocioData?.business?.owner);
+        if (ownerUidDes) {
+            await sendNotificationToUser(ownerUidDes, {
                 tipo: 'negocio_desarchivado',
                 titulo: 'Negocio desarchivado',
                 mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido desarchivado y está en revisión nuevamente.`,
                 fecha: new Date().toISOString(),
                 leido: false,
-                enlace: '/negocio/estatus'
+                enlace: '/negocio/estatus',
+                negocioId,
             });
         }
         
@@ -1597,5 +1657,37 @@ export const forzarMoverImagenesNegocio = async (req: Request, res: Response) =>
     } catch (error: any) {
         console.error("[forzarMoverImagenesNegocio] Error:", error);
         return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+// Endpoint auxiliar: Forzar actualización de notificaciones relacionadas a un negocio
+export const actualizarNotificacionesNegocio = async (req: Request, res: Response) => {
+    let { negocioId } = req.params;
+    if (Array.isArray(negocioId)) negocioId = negocioId[0];
+    if (!negocioId) return res.status(400).json({ success: false, message: 'negocioId requerido' });
+
+    try {
+        // Intentar obtener nombre del negocio si no se proporciona en body
+        const providedName = req.body?.newName;
+        let nameToUse = providedName;
+
+        if (!nameToUse) {
+            const found = await findBusiness(negocioId);
+            if (found && found.data) {
+                nameToUse = found.data?.business?.name || found.data?.name || '';
+            }
+        }
+
+        if (!nameToUse) {
+            return res.status(400).json({ success: false, message: 'No se pudo determinar el nombre del negocio. Proporciona newName en el body.' });
+        }
+
+        const ownerUid = req.body?.ownerUid || undefined;
+        await updateBusinessNameInNotifications(negocioId, nameToUse, ownerUid);
+
+        return res.json({ success: true, message: 'Notificaciones actualizadas' });
+    } catch (err: any) {
+        console.error('[actualizarNotificacionesNegocio] Error:', err);
+        return res.status(500).json({ success: false, error: err?.message || String(err) });
     }
 };
