@@ -336,7 +336,8 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
       mensaje: `Se ha recibido una nueva solicitud de negocio: ${businessName}`,
       fecha: new Date().toISOString(),
       leido: false,
-      enlace: `/admin/negocios/${uid}`
+      enlace: `/admin/negocios/${uid}`,
+      negocioId: uid,
     });
 
     // Notificar al usuario si tiene ownerUid
@@ -348,7 +349,8 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
         mensaje: `Tu negocio "${businessName}" fue enviado a revision.`,
         fecha: new Date().toISOString(),
         leido: false,
-        enlace: `/negocio/mis-solicitudes/${uid}`
+        enlace: `/negocio/mis-solicitudes/${uid}`,
+        negocioId: uid,
       };
       console.log(`[registerBusinessWithImages] Contenido de notificación:`, JSON.stringify(notificacion, null, 2));
       await sendNotificationToUser(ownerUid, notificacion);
@@ -432,7 +434,8 @@ export const registerBusiness = async (req: RequestWithUser, res: Response) => {
         mensaje: `Se ha recibido una nueva solicitud de negocio: ${businessName}`,
         fecha: new Date().toISOString(),
         leido: false,
-        enlace: `/admin/negocios/${uid}`
+        enlace: `/admin/negocios/${uid}`,
+        negocioId: uid,
       });
 
       // Notificar al usuario dueño de la solicitud
@@ -442,7 +445,8 @@ export const registerBusiness = async (req: RequestWithUser, res: Response) => {
         mensaje: `Tu negocio "${businessName}" fue enviado a revision.`,
         fecha: new Date().toISOString(),
         leido: false,
-        enlace: `/negocio/mis-solicitudes/${uid}`
+        enlace: `/negocio/mis-solicitudes/${uid}`,
+        negocioId: uid,
       });
 
       return res.status(201).json({
