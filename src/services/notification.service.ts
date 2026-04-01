@@ -103,6 +103,8 @@ export async function updateBusinessNameInNotifications(negocioId: string, newNa
         const updatedSnap = await docRef.get();
         const updatedData = updatedSnap.exists ? updatedSnap.data() : { mensaje: newMessage };
         try { emitNotificationToUser(userId, { id: docRef.id, ...updatedData }); } catch (_) { /* ignore */ }
+      } catch (emitErr) {
+        console.error('[updateBusinessNameInNotifications] Error reading updated notif', emitErr);
       }
     } catch (err) {
       console.error('[updateBusinessNameInNotifications] Error updating notif', err);
