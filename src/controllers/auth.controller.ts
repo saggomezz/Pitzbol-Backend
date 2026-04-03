@@ -179,7 +179,7 @@ export const login = async (req: Request, res: Response) => {
     const token = jwt.sign(
       { uid: localId, email, role: userRole },
       JWT_SECRET!,
-      { expiresIn: "7d" }
+      { expiresIn: "30d" }
     );
 
     // Establecer HTTP-only cookie
@@ -481,7 +481,7 @@ export const refreshToken = async (req: Request, res: Response) => {
     const newToken = jwt.sign(
       { uid: decoded.uid, email: decoded.email, role: decoded.role },
       JWT_SECRET!,
-      { expiresIn: "7d" }
+      { expiresIn: "30d" }
     );
 
     res.cookie('authToken', newToken, {

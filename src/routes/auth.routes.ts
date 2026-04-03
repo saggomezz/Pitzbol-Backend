@@ -5,6 +5,7 @@ import {
   recoverPassword,
   updateProfile,
   solicitarGuia,
+  refreshToken,
 } from "../controllers/auth.controller";
 import { authMiddleware } from "../middlewares/auth.middleware";
 import { validateRegisterInput, validateLoginInput, validatePasswordRecoveryInput, validateProfileUpdate } from "../middlewares/validation.middleware";
@@ -57,6 +58,9 @@ router.post(
     res.json({ msg: "Sesión cerrada correctamente" });
   }
 );
+
+// POST /api/auth/refresh-token - Renovar token expirado
+router.post("/refresh-token", refreshToken);
 
 // POST /api/auth/solicitar-guia - Solicitar convertirse en guía
 router.post(
