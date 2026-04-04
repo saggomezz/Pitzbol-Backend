@@ -2,7 +2,7 @@ import axios from "axios";
 import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { auth, db } from "../config/firebase";
-import { sendNotificationToAdmins } from "../services/notification.service";
+import { sendNotificationToAdmins, sendNotificationToUser } from "../services/notification.service";
 import nodemailer from 'nodemailer';
 import { FieldValue } from "@google-cloud/firestore";
 
@@ -68,17 +68,14 @@ export const register = async (req: Request, res: Response) => {
 
     // Guardar notificación de bienvenida en Firestore
     try {
-      await db.collection('usuarios')
-        .doc('notificaciones')
-        .collection(userRecord.uid)
-        .add({
-          tipo: 'info',
-          titulo: '¡Bienvenido a Pitzbol! 🎉',
-          mensaje: 'Tu registro ha sido exitoso. Ahora puedes explorar nuestras guías turísticas y experiencias únicas.',
-          fecha: new Date().toISOString(),
-          leido: false,
-          enlace: '/futbol'
-        });
+      await sendNotificationToUser(userRecord.uid, {
+        tipo: 'info',
+        titulo: '¡Bienvenido a Pitzbol! 🎉',
+        mensaje: 'Tu registro ha sido exitoso. Ahora puedes explorar nuestras guías turísticas y experiencias únicas.',
+        fecha: new Date().toISOString(),
+        leido: false,
+        enlace: '/futbol'
+      });
       console.log(`📬 Notificación de bienvenida guardada para uid: ${userRecord.uid}`);
     } catch (notifError) {
       console.warn(`⚠️ Error al guardar notificación de bienvenida: ${notifError}`);
