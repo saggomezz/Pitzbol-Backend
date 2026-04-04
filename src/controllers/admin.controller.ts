@@ -1,7 +1,8 @@
 import { Request, Response } from 'express';
 import { db, auth } from '../config/firebase';
-import { sendNotificationToUser } from '../services/notification.service';
+import { sendNotificationToUser, updateBusinessNameInNotifications } from '../services/notification.service';
 import { reorganizeBusinessImages, deleteBusinessFromCloudinary } from '../utils/cloudinaryHelper';
+import { emitBusinessStatusChange } from '../socket';
 
 const firstNonEmpty = (...values: any[]): string => {
     for (const value of values) {
@@ -193,8 +194,7 @@ const registrarMovimientoNegocioAdmin = async (payload: {
         const nombreNegocio = firstNonEmpty(business?.name, negocioData?.name, "Negocio sin nombre");
         const ownerUid = firstNonEmpty(negocioData?.ownerUid, negocioData?.owner, business?.ownerUid, business?.owner);
         const ownerEmail = firstNonEmpty(negocioData?.ownerEmail, negocioData?.email, business?.email);
-
-        await db.collection("negocios_movimientos").add({
+        const movementDoc = {
             negocioId: payload.negocioId,
             accion: payload.accion,
             adminUid: payload.adminUid,
@@ -206,7 +206,14 @@ const registrarMovimientoNegocioAdmin = async (payload: {
             mensaje: payload.mensaje || null,
             fecha: new Date().toISOString(),
             tipo: "negocio_movimiento",
-        });
+        };
+
+        // Nueva estructura modular: negocios/movimientos/items/{id}
+        await db
+            .collection("negocios")
+            .doc("movimientos")
+            .collection("items")
+            .add(movementDoc);
     } catch (error) {
         console.error("[registrarMovimientoNegocioAdmin] Error:", error);
     }
@@ -214,13 +221,28 @@ const registrarMovimientoNegocioAdmin = async (payload: {
 
 export const obtenerMovimientosNegocios = async (req: Request, res: Response) => {
     try {
-        const snap = await db
-            .collection("negocios_movimientos")
-            .orderBy("fecha", "desc")
-            .limit(500)
-            .get();
+        const [nestedSnap, legacySnap] = await Promise.all([
+            db
+                .collection("negocios")
+                .doc("movimientos")
+                .collection("items")
+                .orderBy("fecha", "desc")
+                .limit(500)
+                .get(),
+            db
+                .collection("negocios_movimientos")
+                .orderBy("fecha", "desc")
+                .limit(500)
+                .get(),
+        ]);
 
-        const movimientos = snap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const nestedMovimientos = nestedSnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+        const legacyMovimientos = legacySnap.docs.map((doc) => ({ id: doc.id, ...doc.data() }));
+
+        const movimientos = [...nestedMovimientos, ...legacyMovimientos]
+            .sort((a: any, b: any) => new Date(b?.fecha || 0).getTime() - new Date(a?.fecha || 0).getTime())
+            .slice(0, 500);
+
         return res.json({ success: true, movimientos });
     } catch (error: any) {
         console.error("[obtenerMovimientosNegocios] Error:", error);
@@ -228,12 +250,55 @@ export const obtenerMovimientosNegocios = async (req: Request, res: Response) =>
     }
 };
 
-// Obtener negocios archivados (solo admin)
+export const eliminarMovimientoNegocio = async (req: Request, res: Response) => {
+    try {
+        const movimientoIdRaw = req.params.movimientoId;
+        const movimientoId = typeof movimientoIdRaw === 'string' ? movimientoIdRaw.trim() : '';
+        if (!movimientoId) {
+            return res.status(400).json({ success: false, message: 'movimientoId requerido' });
+        }
+
+        // Frontend may send prefixed IDs like "movlog-<id>".
+        const normalizedId = movimientoId.startsWith('movlog-') ? movimientoId.slice('movlog-'.length) : movimientoId;
+
+        const nestedRef = db.collection('negocios').doc('movimientos').collection('items').doc(normalizedId);
+        const legacyRef = db.collection('negocios_movimientos').doc(normalizedId);
+
+        const [nestedSnap, legacySnap] = await Promise.all([nestedRef.get(), legacyRef.get()]);
+
+        let deleted = false;
+        if (nestedSnap.exists) {
+            await nestedRef.delete();
+            deleted = true;
+        }
+        if (legacySnap.exists) {
+            await legacyRef.delete();
+            deleted = true;
+        }
+
+        if (!deleted) {
+            return res.status(404).json({ success: false, message: 'Movimiento no encontrado' });
+        }
+
+        return res.json({ success: true, message: 'Movimiento eliminado' });
+    } catch (error: any) {
+        console.error('[eliminarMovimientoNegocio] Error:', error);
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+// Obtener negocios archivados Y rechazados (solo admin)
 export const obtenerNegociosArchivados = async (req: Request, res: Response) => {
     try {
         // Buscar todos los negocios en la colección 'negocios/Archivados/items'
         const negociosSnap = await db.collection("negocios").doc("Archivados").collection("items").get();
-        const negocios = await Promise.all(negociosSnap.docs.map(async (doc) => {
+        // Buscar negocios rechazados
+        const rechazadosSnap = await db.collection("negocios").doc("Rechazados").collection("items").get();
+        
+        // Combinar ambas colecciones
+        const allDocs = [...negociosSnap.docs, ...rechazadosSnap.docs];
+        
+        const negocios: Array<Record<string, any>> = await Promise.all(allDocs.map(async (doc) => {
             const data = doc.data();
             const { ownerName, ownerPhoto } = await resolveOwnerInfo(data);
             
@@ -244,6 +309,52 @@ export const obtenerNegociosArchivados = async (req: Request, res: Response) => 
                 ownerPhoto: ownerPhoto
             };
         }));
+        // Ordenar por fecha de archivo/rechazo más reciente primero
+        negocios.sort((a, b) => {
+            const dateA = new Date(a.archivedAt || a.rejectedAt || 0).getTime();
+            const dateB = new Date(b.archivedAt || b.rejectedAt || 0).getTime();
+            return dateB - dateA;
+        });
+        
+        return res.json({ success: true, negocios });
+    } catch (error: any) {
+        return res.status(500).json({ success: false, error: error.message });
+    }
+};
+
+export const obtenerNegociosRechazados = async (req: Request, res: Response) => {
+    try {
+        const rechazadosSnap = await db.collection("negocios").doc("Rechazados").collection("items").get();
+        const rechazadosLegacySnap = await db.collection("negocios").doc("Archivados").collection("items").get();
+
+        const fromLegacy = rechazadosLegacySnap.docs.filter((doc) => {
+            const data = doc.data() || {};
+            return Boolean(data?.rejectedAt) || data?.status === "rechazado";
+        });
+
+        const merged = [...rechazadosSnap.docs, ...fromLegacy];
+        const seen = new Set<string>();
+
+        const negocios = await Promise.all(
+            merged
+                .filter((doc) => {
+                    if (seen.has(doc.id)) return false;
+                    seen.add(doc.id);
+                    return true;
+                })
+                .map(async (doc) => {
+                    const data = doc.data();
+                    const { ownerName, ownerPhoto } = await resolveOwnerInfo(data);
+                    return {
+                        id: doc.id,
+                        ...data,
+                        status: "rechazado",
+                        ownerName,
+                        ownerPhoto,
+                    };
+                })
+        );
+
         return res.json({ success: true, negocios });
     } catch (error: any) {
         return res.status(500).json({ success: false });
@@ -327,8 +438,8 @@ export const obtenerNegocios = async (req: Request, res: Response) => {
         return res.status(500).json({ success: false });
     }
 };
-// Helper function to find a business in either Activos or Pendientes collection
-const findBusiness = async (negocioId: string): Promise<{ ref: FirebaseFirestore.DocumentReference, data: any, location: 'Activos' | 'Pendientes' } | null> => {
+// Helper function to find a business in Activos, Pendientes, Archivados or Rechazados
+const findBusiness = async (negocioId: string): Promise<{ ref: FirebaseFirestore.DocumentReference, data: any, location: 'Activos' | 'Pendientes' | 'Archivados' | 'Rechazados' } | null> => {
     // First try Activos
     const activosRef = db.collection("negocios").doc("Activos").collection("items").doc(negocioId);
     const activosSnap = await activosRef.get();
@@ -341,6 +452,18 @@ const findBusiness = async (negocioId: string): Promise<{ ref: FirebaseFirestore
     const pendientesSnap = await pendientesRef.get();
     if (pendientesSnap.exists) {
         return { ref: pendientesRef as any, data: pendientesSnap.data(), location: 'Pendientes' };
+    }
+
+    const archivedRef = db.collection("negocios").doc("Archivados").collection("items").doc(negocioId);
+    const archivedSnap = await archivedRef.get();
+    if (archivedSnap.exists) {
+        return { ref: archivedRef as any, data: archivedSnap.data(), location: 'Archivados' };
+    }
+
+    const rejectedRef = db.collection("negocios").doc("Rechazados").collection("items").doc(negocioId);
+    const rejectedSnap = await rejectedRef.get();
+    if (rejectedSnap.exists) {
+        return { ref: rejectedRef as any, data: rejectedSnap.data(), location: 'Rechazados' };
     }
     
     return null;
@@ -368,21 +491,66 @@ export const editarNegocio = async (req: Request, res: Response) => {
         for (const campo of camposEditables) {
             if (data[campo] !== undefined) updateData[campo] = data[campo];
         }
+        // Si se actualiza el `name`, reflejar también en el objeto `business.name`
+        // para mantener consistencia con cómo el frontend consume los datos.
+        if (updateData.name) {
+            try {
+                const existingBusiness = negocioData?.business || negocioData || {};
+                if (typeof existingBusiness === 'object') {
+                    updateData.business = {
+                        ...(existingBusiness || {}),
+                        name: updateData.name,
+                    };
+                }
+            } catch (err) {
+                console.warn('[editarNegocio] No se pudo propagar business.name', err);
+            }
+        }
+        // Build a safe snapshot of changes to avoid cycles (don't include history itself)
+        const changesSnapshot: any = {};
+        for (const key of Object.keys(updateData)) {
+            if (key === 'history') continue;
+            changesSnapshot[key] = updateData[key];
+        }
         updateData.history = [
             ...(negocioData?.history || []),
-            { action: "editado_admin", date: new Date().toISOString(), by: adminUid, changes: updateData }
+            { action: "editado_admin", date: new Date().toISOString(), by: adminUid, changes: changesSnapshot }
         ];
         await negocioRef.update(updateData);
-        
-        // Notificar al dueño
-        if (negocioData?.owner) {
-            await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
+
+        // Determinar nuevo nombre y ownerUid actualizados
+        const updatedSnap = await negocioRef.get();
+        const updatedDoc = updatedSnap.exists ? updatedSnap.data() : negocioData;
+        const updatedBusiness = updatedDoc?.business || {};
+        const nuevoNombre = updateData.name || updatedBusiness?.name || updatedDoc?.name || "Negocio sin nombre";
+        const ownerUid = firstNonEmpty(negocioData?.owner, negocioData?.ownerUid, updatedBusiness?.owner, updatedDoc?.owner);
+
+        // Actualizar notificaciones existentes (owner y admins) para reflejar el nuevo nombre
+        try {
+            const previousNames: string[] = [];
+            const prev1 = negocioData?.business?.name || negocioData?.name || '';
+            if (prev1 && typeof prev1 === 'string') previousNames.push(prev1);
+            // also include any name present in updatedBusiness before applying updateData
+            if (updatedBusiness && updatedBusiness?.name && updatedBusiness?.name !== prev1) {
+                previousNames.push(updatedBusiness.name);
+            }
+            // dedupe
+            const uniquePrevNames = Array.from(new Set(previousNames.filter(n => !!n)));
+            await updateBusinessNameInNotifications(negocioId, nuevoNombre, ownerUid || undefined, uniquePrevNames);
+        } catch (err) {
+            console.warn('[editarNegocio] Error actualizando notificaciones con nuevo nombre', err);
+        }
+
+        // Notificar al dueño (mensaje con nombre actualizado)
+        if (ownerUid) {
+            await sendNotificationToUser(ownerUid, {
                 tipo: 'negocio_editado',
                 titulo: 'Negocio editado por el admin',
-                mensaje: `Tu negocio "${negocioData.name}" ha sido editado por el administrador. Revisa los cambios realizados en tu panel.`,
+                mensaje: `Tu negocio "${nuevoNombre}" ha sido editado por el administrador. Revisa los cambios realizados en tu panel.`,
                 fecha: new Date().toISOString(),
                 leido: false,
-                enlace: '/negocio/estatus'
+                enlace: '/negocio/estatus',
+                negocioId
             });
         }
         return res.json({ success: true, message: "Negocio editado y notificado" });
@@ -392,31 +560,45 @@ export const editarNegocio = async (req: Request, res: Response) => {
     }
 };
 
-// Helper function to update Cloudinary URLs from pendientes to activos
+// Helper function to normalize legacy Cloudinary URLs to the flat negocios/{id} structure
 const updateCloudinaryUrls = (data: any): any => {
     const updateData = { ...data };
+    const normalizeBusinessUrl = (value: string) => {
+        const uploadMatch = value.match(/^(.*\/upload\/(?:v\d+\/)?)(.*)$/);
+        if (!uploadMatch) return value;
+
+        const prefix = uploadMatch[1];
+        const rest = uploadMatch[2] || "";
+        const normalizedRest = rest
+            .replace(/^pitzbol\/negocios\/(pendientes|activos|archivados)\//, "pitzbol/negocios/")
+            .replace(/^negocios\/(pendientes|activos|archivados)\//, "pitzbol/negocios/")
+            .replace(/^negocios\//, "pitzbol/negocios/")
+            .replace(/^(pendientes|activos|archivados)\//, "");
+
+        return `${prefix}${normalizedRest}`;
+    };
     
     // Update logo URL if it exists
     if (updateData?.logo && typeof updateData.logo === 'string') {
-        updateData.logo = updateData.logo.replace('/pendientes/', '/activos/');
+        updateData.logo = normalizeBusinessUrl(updateData.logo);
     }
     
     // Update business logo if it exists
     if (updateData?.business?.logo && typeof updateData.business.logo === 'string') {
-        updateData.business.logo = updateData.business.logo.replace('/pendientes/', '/activos/');
+        updateData.business.logo = normalizeBusinessUrl(updateData.business.logo);
     }
     
     // Update images array if it exists
     if (Array.isArray(updateData?.images)) {
         updateData.images = updateData.images.map((img: string) => 
-            typeof img === 'string' ? img.replace('/pendientes/', '/activos/') : img
+            typeof img === 'string' ? normalizeBusinessUrl(img) : img
         );
     }
     
     // Update business images if it exists
     if (Array.isArray(updateData?.business?.images)) {
         updateData.business.images = updateData.business.images.map((img: string) => 
-            typeof img === 'string' ? img.replace('/pendientes/', '/activos/') : img
+            typeof img === 'string' ? normalizeBusinessUrl(img) : img
         );
     }
     
@@ -470,6 +652,15 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
             // Delete from Pendientes
             await negocioRef.delete();
 
+            // Asegurar que las notificaciones existentes reflejen el nombre final en caso de que haya cambiado al aprobar
+            try {
+                const nuevoNombreAprobado = updatedData?.business?.name || updatedData?.name || (negocioData?.business?.name || negocioData?.name || '');
+                const prevName = negocioData?.business?.name || negocioData?.name || undefined;
+                await updateBusinessNameInNotifications(negocioId, nuevoNombreAprobado, ownerUid || undefined, prevName ? [prevName] : undefined);
+            } catch (err) {
+                console.warn('[gestionarNegocioPendiente] Error actualizando notificaciones tras aprobación', err);
+            }
+
             await registrarMovimientoNegocioAdmin({
                 negocioId,
                 accion: "aprobado",
@@ -491,6 +682,11 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
                     leido: false,
                     enlace: `/negocio/mis-solicitudes/${negocioId}`,
                     negocioId,
+                });
+                
+                // Emit explicit business status change event
+                emitBusinessStatusChange(ownerUid, negocioId, 'aprobado', {
+                    businessName: negocioData?.business?.name || negocioData?.name,
                 });
             }
             return res.json({
@@ -516,29 +712,25 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
             
             const rejectedAt = new Date().toISOString();
             const rechazoMotivo = typeof motivoRechazo === "string" ? motivoRechazo.trim() : "";
-            const archivedData = {
+            const rejectedData = {
                 ...negocioData,
                 ownerUid: ownerUid || negocioData?.ownerUid || null, // Asegurar que ownerUid quede guardado
                 ownerEmail: ownerEmailFromDoc,                         // Guardar email del dueño para búsquedas
-                status: "archivado",
-                archivedReason: rechazoMotivo || "Solicitud rechazada por administrador",
-                archivedAt: rejectedAt,
-                archivedBy: adminUid,
+                status: "rechazado",
                 rejectedAt,
                 rejectedBy: adminUid,
                 rejectionReason: rechazoMotivo || null,
                 updatedAt: rejectedAt,
                 history: [
                     ...(negocioData?.history || []),
-                    { action: "rechazado", date: rejectedAt, by: adminUid, reason: rechazoMotivo || null },
-                    { action: "archivado", date: rejectedAt, by: adminUid, reason: rechazoMotivo || "Solicitud rechazada por administrador" }
+                    { action: "rechazado", date: rejectedAt, by: adminUid, reason: rechazoMotivo || null }
                 ]
             };
 
-            console.log(`[gestionarNegocioPendiente] 📁 Guardando en negocios/Archivados/items...`);
-            // Move from Pendientes to Archivados
-            await db.collection("negocios").doc("Archivados").collection("items").doc(negocioId).set(archivedData);
-            console.log(`[gestionarNegocioPendiente] ✅ Guardado en negocios/Archivados/items`);
+            console.log(`[gestionarNegocioPendiente] 📁 Guardando en negocios/Rechazados/items...`);
+            // Move from Pendientes to Rechazados
+            await db.collection("negocios").doc("Rechazados").collection("items").doc(negocioId).set(rejectedData);
+            console.log(`[gestionarNegocioPendiente] ✅ Guardado en negocios/Rechazados/items`);
 
             console.log(`[gestionarNegocioPendiente] 🗑️ Eliminando de Pendientes...`);
             // Delete from Pendientes
@@ -549,23 +741,13 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
                 negocioId,
                 accion: "rechazado",
                 adminUid,
-                negocioData: archivedData,
+                negocioData: rejectedData,
                 source: "pendientes",
                 reason: rechazoMotivo || null,
                 mensaje: `Negocio ${negocioId} rechazado por admin`,
             });
 
-            await registrarMovimientoNegocioAdmin({
-                negocioId,
-                accion: "archivado",
-                adminUid,
-                negocioData: archivedData,
-                source: "archivados",
-                reason: rechazoMotivo || "Solicitud rechazada por administrador",
-                mensaje: `Negocio ${negocioId} archivado tras rechazo`,
-            });
-
-            console.log(`[gestionarNegocioPendiente] ✅ Negocio ${negocioId} rechazado y movido a Archivados`);
+            console.log(`[gestionarNegocioPendiente] ✅ Negocio ${negocioId} rechazado y movido a Rechazados`);
             
             // Notify owner
             if (ownerUid) {
@@ -583,8 +765,14 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
                     rejectionReason: rechazoMotivo || undefined,
                     rejectedAt,
                 });
+                
+                // Emit explicit business status change event
+                emitBusinessStatusChange(ownerUid, negocioId, 'rechazado', {
+                    businessName: negocioData?.business?.name || negocioData?.name,
+                    rejectionReason: rechazoMotivo || undefined,
+                });
             }
-            return res.json({ success: true, message: "Negocio rechazado y movido a Archivados" });
+            return res.json({ success: true, message: "Negocio rechazado y movido a Rechazados" });
         } else {
             return res.status(400).json({ success: false, message: "Acción no válida" });
         }
@@ -656,15 +844,23 @@ export const archivarNegocio = async (req: Request, res: Response) => {
         console.log(`[archivarNegocio] ✅ Negocio ${negocioId} archivado (estaba en ${location})`);
         
         // Notify owner
-        if (negocioData?.owner) {
+        const ownerUidArch = firstNonEmpty(negocioData?.owner, negocioData?.ownerUid, negocioData?.business?.owner);
+        if (ownerUidArch) {
             const motivoMsg = motivoFinal ? ` Motivo: ${motivoFinal}` : "";
-            await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
+            await sendNotificationToUser(ownerUidArch, {
                 tipo: 'negocio_archivado',
                 titulo: 'Negocio eliminado',
                 mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido eliminado por el administrador.${motivoMsg}`,
                 fecha: new Date().toISOString(),
                 leido: false,
-                enlace: '/negocio/estatus'
+                enlace: '/negocio/estatus',
+                negocioId
+            });
+            
+            // Emit explicit business status change event
+            emitBusinessStatusChange(ownerUidArch, negocioId, 'archivado', {
+                businessName: negocioData?.business?.name || negocioData?.name,
+                reason: motivoFinal,
             });
         }
         return res.json({ success: true, message: "Negocio archivado y notificado" });
@@ -735,14 +931,21 @@ export const regresarAPendientes = async (req: Request, res: Response) => {
         console.log(`[regresarAPendientes] ✅ Negocio ${negocioId} movido de Activos a Pendientes`);
         
         // Notify owner
-        if (negocioData?.owner) {
-            await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
+        const ownerUidPend = firstNonEmpty(negocioData?.owner, negocioData?.ownerUid, negocioData?.business?.owner);
+        if (ownerUidPend) {
+            await sendNotificationToUser(ownerUidPend, {
                 tipo: 'negocio_pendiente',
                 titulo: 'Negocio en revisión',
                 mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido regresado a revisión por el administrador.`,
                 fecha: new Date().toISOString(),
                 leido: false,
-                enlace: '/negocio/estatus'
+                enlace: '/negocio/estatus',
+                negocioId,
+            });
+            
+            // Emit explicit business status change event
+            emitBusinessStatusChange(ownerUidPend, negocioId, 'pendiente', {
+                businessName: negocioData?.business?.name || negocioData?.name,
             });
         }
         
@@ -764,15 +967,12 @@ export const desarchivarNegocio = async (req: Request, res: Response) => {
     }
     
     try {
-        // Get business from archived
-        const archivedRef = db.collection("negocios").doc("Archivados").collection("items").doc(negocioId);
-        const archivedSnap = await archivedRef.get();
-        
-        if (!archivedSnap.exists) {
-            return res.status(404).json({ success: false, message: "Negocio no encontrado en archivados" });
+        const businessResult = await findBusiness(negocioId);
+        if (!businessResult || (businessResult.location !== 'Archivados' && businessResult.location !== 'Rechazados')) {
+            return res.status(404).json({ success: false, message: "Negocio no encontrado en archivados o rechazados" });
         }
-        
-        const negocioData = archivedSnap.data();
+
+        const { ref: sourceRef, data: negocioData, location } = businessResult;
         
         // Prepare data for pendientes
         const pendientesData: any = {
@@ -789,33 +989,43 @@ export const desarchivarNegocio = async (req: Request, res: Response) => {
         delete pendientesData.archivedReason;
         delete pendientesData.archivedAt;
         delete pendientesData.archivedBy;
+        delete pendientesData.rejectionReason;
+        delete pendientesData.rejectedAt;
+        delete pendientesData.rejectedBy;
         
         // Move to Pendientes
         await db.collection("negocios").doc("Pendientes").collection("items").doc(negocioId).set(pendientesData);
         
-        // Delete from archived
-        await archivedRef.delete();
+        // Delete from original collection
+        await sourceRef.delete();
 
         await registrarMovimientoNegocioAdmin({
             negocioId,
             accion: "desarchivado",
             adminUid,
             negocioData: pendientesData,
-            source: "archivados",
+            source: location.toLowerCase(),
             mensaje: `Negocio ${negocioId} desarchivado y enviado a pendientes`,
         });
         
         console.log(`[desarchivarNegocio] ✅ Negocio ${negocioId} desarchivado y movido a Pendientes`);
         
         // Notify owner
-        if (negocioData?.owner) {
-            await db.collection('usuarios').doc('notificaciones').collection(negocioData.owner).add({
+        const ownerUidDes = firstNonEmpty(negocioData?.owner, negocioData?.ownerUid, negocioData?.business?.owner);
+        if (ownerUidDes) {
+            await sendNotificationToUser(ownerUidDes, {
                 tipo: 'negocio_desarchivado',
                 titulo: 'Negocio desarchivado',
                 mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido desarchivado y está en revisión nuevamente.`,
                 fecha: new Date().toISOString(),
                 leido: false,
-                enlace: '/negocio/estatus'
+                enlace: '/negocio/estatus',
+                negocioId,
+            });
+            
+            // Emit explicit business status change event
+            emitBusinessStatusChange(ownerUidDes, negocioId, 'pendiente', {
+                businessName: negocioData?.business?.name || negocioData?.name,
             });
         }
         
@@ -837,51 +1047,47 @@ export const eliminarNegocioPermanente = async (req: Request, res: Response) => 
     }
     
     try {
-        // Get business from archived
-        const archivedRef = db.collection("negocios").doc("Archivados").collection("items").doc(negocioId);
-        const archivedSnap = await archivedRef.get();
-        
-        if (!archivedSnap.exists) {
-            return res.status(404).json({ success: false, message: "Negocio no encontrado en archivados" });
+        const businessResult = await findBusiness(negocioId);
+        if (!businessResult || (businessResult.location !== 'Archivados' && businessResult.location !== 'Rechazados')) {
+            return res.status(404).json({ success: false, message: "Negocio no encontrado en archivados o rechazados" });
         }
-        
-        const negocioData = archivedSnap.data();
+
+        const { ref: sourceRef, data: negocioData, location } = businessResult;
         
         console.log(`[eliminarNegocioPermanente] 🗑️ Iniciando eliminación permanente de negocio ${negocioId}`);
         
-        // Eliminar todas las imágenes de Cloudinary
-        let cloudinaryResult;
-        try {
-            cloudinaryResult = await deleteBusinessFromCloudinary(negocioId);
-            console.log(`[eliminarNegocioPermanente] ✅ Cloudinary: ${cloudinaryResult.deleted} eliminados, ${cloudinaryResult.failed} fallidos`);
-            
-            if (cloudinaryResult.failed > 0) {
-                console.warn(`[eliminarNegocioPermanente] ⚠️ Algunos archivos de Cloudinary no se pudieron eliminar:`, cloudinaryResult.errors);
-            }
-        } catch (cloudinaryError) {
-            console.error(`[eliminarNegocioPermanente] Error eliminando de Cloudinary:`, cloudinaryError);
-            // Continue with Firestore deletion even if Cloudinary fails partially
-        }
-        
         // Delete from Firestore
-        await archivedRef.delete();
+        await sourceRef.delete();
 
         await registrarMovimientoNegocioAdmin({
             negocioId,
             accion: "eliminado_permanente",
             adminUid,
             negocioData,
-            source: "archivados",
+            source: location.toLowerCase(),
             reason: negocioData?.archivedReason || negocioData?.rejectionReason || null,
             mensaje: `Negocio ${negocioId} eliminado permanentemente de Firestore`,
         });
+
+        // Limpiar Cloudinary en segundo plano para no bloquear el resto de eliminaciones del panel
+        void (async () => {
+            try {
+                const cloudinaryResult = await deleteBusinessFromCloudinary(negocioId);
+                console.log(`[eliminarNegocioPermanente] ✅ Cloudinary: ${cloudinaryResult.deleted} eliminados, ${cloudinaryResult.failed} fallidos`);
+                if (cloudinaryResult.failed > 0) {
+                    console.warn(`[eliminarNegocioPermanente] ⚠️ Algunos archivos de Cloudinary no se pudieron eliminar:`, cloudinaryResult.errors);
+                }
+            } catch (cloudinaryError) {
+                console.error(`[eliminarNegocioPermanente] Error eliminando de Cloudinary:`, cloudinaryError);
+            }
+        })();
         
         console.log(`[eliminarNegocioPermanente] ✅ Negocio ${negocioId} eliminado permanentemente de Firestore`);
         
         return res.json({ 
             success: true, 
-            message: "Negocio eliminado permanentemente",
-            cloudinary: cloudinaryResult || { deleted: 0, failed: 0, errors: [] }
+            message: "Negocio eliminado permanentemente. La limpieza de Cloudinary continúa en segundo plano.",
+            cloudinary: { pending: true }
         });
     } catch (error: any) {
         console.error("[eliminarNegocioPermanente] Error:", error);
@@ -896,7 +1102,31 @@ export const recibirNotificacion = async (req: any, res: any) => {
     if (!userId) userId = "";
     const notificacion = req.body;
     try {
-        await sendNotificationToUser(String(userId), notificacion);
+        const tipo = (notificacion?.tipo || '').toString();
+        const targetRaw = String(userId || '').trim();
+
+        const adminTypes = new Set([
+            'nueva_solicitud_negocio',
+            'solicitud_guia_pendiente',
+            'soporte_nuevo',
+            'contacto',
+        ]);
+
+        let targetBucket = targetRaw;
+
+        if (!targetBucket) {
+            targetBucket = 'admin';
+        } else if (adminTypes.has(tipo) || /^admin$/i.test(targetBucket) || /testadminuid/i.test(targetBucket)) {
+            targetBucket = 'admin';
+        } else {
+            // Si el userId pertenece a un admin real, enrutar al bucket admin
+            const adminDoc = await db.collection('usuarios').doc('admins').collection('lista').doc(targetBucket).get();
+            if (adminDoc.exists) {
+                targetBucket = 'admin';
+            }
+        }
+
+        await sendNotificationToUser(targetBucket, notificacion);
         return res.json({ success: true });
     } catch (error: any) {
         return res.status(500).json({ success: false });
@@ -1095,8 +1325,14 @@ export const eliminarUsuarioGestionable = async (req: Request, res: Response) =>
         await eliminarDocs(negociosBusinessUid);
         await eliminarDocs(negociosBusinessOwner);
 
-        const notificacionesSnapshot = await db.collection('usuarios').doc('notificaciones').collection(uid as string).get();
-        await eliminarDocs(notificacionesSnapshot);
+        const [newNotifs, legacyNotifs] = await Promise.all([
+            getNotifItemsCol(uid as string).get(),
+            getLegacyNotifCol(uid as string).get(),
+        ]);
+        const legacyNestedNotifs = await getLegacyNestedNotifCol(uid as string).get();
+        await eliminarDocs(newNotifs);
+        await eliminarDocs(legacyNestedNotifs);
+        await eliminarDocs(legacyNotifs);
 
         try {
             await auth.deleteUser(uid as string);
@@ -1481,22 +1717,29 @@ export const marcarNotificacionComoLeida = async (req: Request, res: Response) =
             return res.status(400).json({ success: false, message: "UID e ID requeridos" });
         }
 
-        console.log(`📝 Marcando notificación como leída: ${id}`);
+        const notifId = typeof id === 'string' ? id : '';
+        const userUid = typeof uid === 'string' ? uid : '';
 
-        const docRef = db.collection('usuarios')
-            .doc('notificaciones')
-            .collection(uid)
-            .doc(id);
-        
-        const docSnapshot = await docRef.get();
-        
-        if (!docSnapshot.exists) {
+        const bucketId = resolveNotificationBucket(req, userUid);
+        console.log(`📝 Marcando notificación como leída: ${notifId} en bucket ${bucketId}`);
+
+        const docRefs = getNotifCollections(bucketId).map((col) => col.doc(notifId));
+        const snaps = await Promise.all(docRefs.map((ref) => ref.get()));
+
+        if (!snaps.some((snap) => snap.exists)) {
             // Notificación solo en localStorage (no en Firestore), ignorar silenciosamente
             console.log(`ℹ️ Notificación ${id} no encontrada en Firestore (puede ser local)`);
             return res.json({ success: true, message: "Notificación no encontrada en Firestore" });
         }
 
-        await docRef.update({ leido: true });
+        await Promise.all(
+            docRefs.map(async (ref, idx) => {
+                const snap = snaps[idx];
+                if (snap?.exists) {
+                    await ref.update({ leido: true });
+                }
+            })
+        );
         console.log(`✅ Notificación marcada como leída`);
         return res.json({ success: true, message: "Notificación marcada como leída" });
 
@@ -1511,25 +1754,41 @@ export const eliminarNotificacion = async (req: Request, res: Response) => {
     if (Array.isArray(id)) id = id[0];
     if (Array.isArray(uid)) uid = uid[0];
 
+    if (!uid) {
+        const bodyUid = (req.body?.uid || req.query?.uid || '').toString();
+        uid = bodyUid || uid;
+    }
+
     try {
-        if (!uid || !id) {
+        if (!id) {
+            return res.status(400).json({ success: false, message: "ID requerido" });
+        }
+
+        if (!uid) {
             return res.status(400).json({ success: false, message: "UID e ID requeridos" });
         }
 
-        console.log(`🗑️ Eliminando notificación: ${id}`);
+        const notifId = typeof id === 'string' ? id : '';
+        const userUid = typeof uid === 'string' ? uid : '';
 
-        const docRef = db.collection('usuarios')
-            .doc('notificaciones')
-            .collection(uid)
-            .doc(id);
-        
-        const docSnapshot = await docRef.get();
-        
-        if (!docSnapshot.exists) {
+        const bucketId = resolveNotificationBucket(req, userUid);
+        console.log(`🗑️ Eliminando notificación: ${notifId} en bucket ${bucketId}`);
+
+        const docRefs = getNotifCollections(bucketId).map((col) => col.doc(notifId));
+        const snaps = await Promise.all(docRefs.map((ref) => ref.get()));
+
+        if (!snaps.some((snap) => snap.exists)) {
             return res.status(404).json({ success: false, message: "Notificación no encontrada" });
         }
 
-        await docRef.delete();
+        await Promise.all(
+            docRefs.map(async (ref, idx) => {
+                const snap = snaps[idx];
+                if (snap?.exists) {
+                    await ref.delete();
+                }
+            })
+        );
         console.log(`✅ Notificación eliminada`);
         return res.json({ success: true, message: "Notificación eliminada" });
 
@@ -1548,16 +1807,27 @@ export const limpiarNotificacionesUsuario = async (req: Request, res: Response) 
             return res.status(400).json({ success: false, message: "UID requerido" });
         }
 
-        console.log(`🗑️ Limpiando todas las notificaciones del usuario: ${uid}`);
+        const bucketId = resolveNotificationBucket(req, uid);
+        console.log(`🗑️ Limpiando todas las notificaciones del bucket: ${bucketId}`);
 
-        const notificacionesRef = db.collection('usuarios')
-            .doc('notificaciones')
-            .collection(uid);
-
-        const snapshot = await notificacionesRef.get();
+        const [newSnapshot, legacySnapshot, legacyNestedSnapshot] = await Promise.all([
+            getNotifItemsCol(bucketId).get(),
+            getLegacyNotifCol(bucketId).get(),
+            getLegacyNestedNotifCol(bucketId).get(),
+        ]);
         const batch = db.batch();
 
-        snapshot.docs.forEach(doc => {
+        newSnapshot.docs.forEach(doc => {
+            batch.delete(doc.ref);
+        });
+
+        legacySnapshot.docs
+            .filter((doc) => doc.id !== 'items')
+            .forEach(doc => {
+            batch.delete(doc.ref);
+        });
+
+        legacyNestedSnapshot.docs.forEach(doc => {
             batch.delete(doc.ref);
         });
 
@@ -1581,24 +1851,29 @@ export const obtenerNotificacionesUsuario = async (req: Request, res: Response) 
             return res.status(400).json({ success: false, message: "UID requerido" });
         }
 
-        console.log(`🔍 Obteniendo notificaciones para uid: ${uid}`);
+        const bucketId = resolveNotificationBucket(req, uid);
+        console.log(`🔍 Obteniendo notificaciones para bucket: ${bucketId}`);
 
-        const notificacionesSnapshot = await db.collection('usuarios')
-            .doc('notificaciones')
-            .collection(uid)
-            .orderBy('fecha', 'desc')
-            .limit(50)
-            .get();
+        const snapshots = await Promise.all(
+            getNotifCollections(bucketId).map((col) => fetchNotificationsSnapshot(col, bucketId))
+        );
 
-        const notificaciones = notificacionesSnapshot.docs.map(doc => {
-            const data = doc.data();
-            const notif = {
-                id: doc.id,
-                ...data
-            };
-            console.log(`📧 Notificación ${doc.id}:`, JSON.stringify(notif, null, 2));
-            return notif;
-        });
+        const merged = snapshots.flatMap((snap) =>
+            snap.docs
+                .filter((doc) => doc.id !== 'items')
+                .map((doc) => ({ id: doc.id, ...doc.data() }))
+        );
+
+        const seen = new Set<string>();
+        const notificaciones = merged
+            .filter((notif: any) => {
+                const key = `${notif?.id || ''}|${notif?.tipo || ''}|${notif?.negocioId || ''}|${notif?.fecha || ''}`;
+                if (seen.has(key)) return false;
+                seen.add(key);
+                return true;
+            })
+            .sort((a: any, b: any) => new Date(b?.fecha || 0).getTime() - new Date(a?.fecha || 0).getTime())
+            .slice(0, 50);
 
         console.log(`✅ Se obtuvieron ${notificaciones.length} notificaciones`);
         return res.json({ success: true, notificaciones });
@@ -1608,6 +1883,22 @@ export const obtenerNotificacionesUsuario = async (req: Request, res: Response) 
         res.status(500).json({ 
             success: false
         });
+    }
+};
+
+const fetchNotificationsSnapshot = async (
+    col: FirebaseFirestore.CollectionReference<FirebaseFirestore.DocumentData>,
+    bucketId: string
+) => {
+    try {
+        return await col.orderBy('fecha', 'desc').limit(50).get();
+    } catch (err: any) {
+        console.warn(
+            `⚠️ Fallback de notificaciones para bucket ${bucketId} en ${col.path}:`,
+            err?.message || err
+        );
+        // Algunas colecciones legacy pueden tener estructura mixta; devolvemos las más recientes posibles sin romper el endpoint.
+        return await col.limit(50).get();
     }
 };
 
@@ -1648,4 +1939,66 @@ export const forzarMoverImagenesNegocio = async (req: Request, res: Response) =>
         console.error("[forzarMoverImagenesNegocio] Error:", error);
         return res.status(500).json({ success: false });
     }
+};
+
+// Endpoint auxiliar: Forzar actualización de notificaciones relacionadas a un negocio
+export const actualizarNotificacionesNegocio = async (req: Request, res: Response) => {
+    let { negocioId } = req.params;
+    if (Array.isArray(negocioId)) negocioId = negocioId[0];
+    if (!negocioId) return res.status(400).json({ success: false, message: 'negocioId requerido' });
+
+    try {
+        // Intentar obtener nombre del negocio si no se proporciona en body
+        const providedName = req.body?.newName;
+        let nameToUse = providedName;
+
+        if (!nameToUse) {
+            const found = await findBusiness(negocioId);
+            if (found && found.data) {
+                nameToUse = found.data?.business?.name || found.data?.name || '';
+            }
+        }
+
+        if (!nameToUse) {
+            return res.status(400).json({ success: false, message: 'No se pudo determinar el nombre del negocio. Proporciona newName en el body.' });
+        }
+
+        const ownerUid = req.body?.ownerUid || undefined;
+        await updateBusinessNameInNotifications(negocioId, nameToUse, ownerUid);
+
+        return res.json({ success: true, message: 'Notificaciones actualizadas' });
+    } catch (err: any) {
+        console.error('[actualizarNotificacionesNegocio] Error:', err);
+        return res.status(500).json({ success: false, error: err?.message || String(err) });
+    }
+};
+
+const getNotifItemsCol = (bucketId: string) =>
+    db.collection('usuarios').doc('notificaciones').collection(bucketId);
+
+const getLegacyNotifCol = (bucketId: string) =>
+    db.collection('usuarios').doc('notificaciones').collection(bucketId);
+
+const getLegacyNestedNotifCol = (bucketId: string) =>
+    db.collection('usuarios').doc('notificaciones').collection(bucketId).doc('items').collection('items');
+
+const getNotifCollections = (bucketId: string) => {
+    const refs = [
+        getNotifItemsCol(bucketId),
+        getLegacyNotifCol(bucketId),
+        getLegacyNestedNotifCol(bucketId),
+    ];
+
+    const deduped = new Map<string, FirebaseFirestore.CollectionReference<FirebaseFirestore.DocumentData>>();
+    refs.forEach((ref) => deduped.set(ref.path, ref));
+    return Array.from(deduped.values());
+};
+
+const resolveNotificationBucket = (req: Request, uid: string) => {
+    const requestUser = (req as any)?.user || {};
+    const requestUid = (requestUser?.uid || '').toString();
+    const role = (requestUser?.role || '').toString().toLowerCase();
+    if (uid === 'admin') return 'admin';
+    if (role === 'admin' && (!uid || uid === requestUid)) return 'admin';
+    return uid;
 };

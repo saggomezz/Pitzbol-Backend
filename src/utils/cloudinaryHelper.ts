@@ -114,6 +114,13 @@ export interface BusinessImageMoveResult {
   errors: string[];
 }
 
+const getBusinessFolderPrefixes = (businessId: string) => [
+  `pitzbol/negocios/${businessId}`,
+  `pitzbol/negocios/pendientes/${businessId}`,
+  `pitzbol/negocios/activos/${businessId}`,
+  `pitzbol/negocios/archivados/${businessId}`,
+];
+
 /**
  * Reorganiza imágenes en Cloudinary de una carpeta a otra
  * @param businessId - ID del negocio
@@ -131,31 +138,40 @@ export const reorganizeBusinessImages = async (businessId: string): Promise<Busi
   try {
     console.log(`[reorganizeBusinessImages] Reorganizando imágenes para negocio ${businessId}`);
     
-    // Obtener todos los recursos en la carpeta pendientes
-    const pendientesPath = `pitzbol/negocios/pendientes/${businessId}`;
-    let nextCursor: string | undefined;
+    const sourcePrefixes = [
+      `pitzbol/negocios/pendientes/${businessId}`,
+      `pitzbol/negocios/${businessId}`,
+    ];
     const resources: any[] = [];
 
-    // Buscar todos los archivos en la carpeta pendientes (con paginación)
-    do {
-      const page = await cloudinary.api.resources({
-        type: 'upload',
-        resource_type: 'image',
-        prefix: pendientesPath,
-        max_results: 500,
-        ...(nextCursor ? { next_cursor: nextCursor } : {}),
-      });
+    for (const prefix of sourcePrefixes) {
+      let nextCursor: string | undefined;
+      do {
+        const page = await cloudinary.api.resources({
+          type: 'upload',
+          resource_type: 'image',
+          prefix,
+          max_results: 500,
+          ...(nextCursor ? { next_cursor: nextCursor } : {}),
+        });
 
-      resources.push(...(page.resources || []));
-      nextCursor = page.next_cursor;
-    } while (nextCursor);
+        resources.push(...(page.resources || []));
+        nextCursor = page.next_cursor;
+      } while (nextCursor);
+    }
 
     console.log(`[reorganizeBusinessImages] Encontrados ${resources.length} recursos a reorganizar`);
 
+    const normalizedResources = Array.from(new Map(resources.map((resource) => [resource.public_id, resource])).values());
+
     // Reorganizar cada recurso
-    for (const resource of resources) {
+    for (const resource of normalizedResources) {
       const oldPublicId = resource.public_id; // ej: pitzbol/negocios/pendientes/uid/galeria/image1
-      const newPublicId = oldPublicId.replace('/pendientes/', '/activos/');
+      const newPublicId = oldPublicId
+        .replace('pitzbol/negocios/pendientes/', 'pitzbol/negocios/')
+        .replace('pitzbol/negocios/activos/', 'pitzbol/negocios/')
+        .replace('pitzbol/negocios/archivados/', 'pitzbol/negocios/')
+        .replace('pitzbol/negocios/', 'pitzbol/negocios/');
 
       if (oldPublicId === newPublicId) {
         result.skipped += 1;
@@ -216,12 +232,8 @@ export const deleteBusinessFromCloudinary = async (businessId: string): Promise<
   try {
     console.log(`[deleteBusinessFromCloudinary] 🗑️ Iniciando eliminación de todas las imágenes para negocio ${businessId}`);
     
-    // Buscar en todas las posibles carpetas
-    const possiblePaths = [
-      `pitzbol/negocios/pendientes/${businessId}`,
-      `pitzbol/negocios/activos/${businessId}`,
-      `pitzbol/negocios/archivados/${businessId}`,
-    ];
+    // Buscar en todas las posibles carpetas, incluyendo la nueva ruta plana
+    const possiblePaths = getBusinessFolderPrefixes(businessId);
 
     for (const path of possiblePaths) {
       try {

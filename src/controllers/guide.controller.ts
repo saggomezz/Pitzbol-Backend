@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { db } from "../config/firebase";
 import admin from "firebase-admin";
+import { sendNotificationToAdmins } from "../services/notification.service";
 
 const FieldValue = admin.firestore.FieldValue; 
 
@@ -96,9 +97,8 @@ export const registerGuide = async (req: Request, res: Response) => {
         console.log("✅ Registro de guía completado exitosamente");
         
 
-        // Notificar a todos los administradores
+        // Notificar a todos los administradores (usa el servicio centralizado para persistir + emitir)
         try {
-            const adminsSnapshot = await db.collection('usuarios').doc('admins').collection('lista').get();
             const notificacion = {
                 tipo: 'nueva_solicitud_guia',
                 titulo: 'Nueva solicitud de guía',
@@ -107,15 +107,7 @@ export const registerGuide = async (req: Request, res: Response) => {
                 leido: false,
                 enlace: '/admin/solicitudes-guias'
             };
-            const batch = db.batch();
-            adminsSnapshot.forEach(adminDoc => {
-                const adminUid = adminDoc.data().uid;
-                if (adminUid) {
-                    const notifRef = db.collection('usuarios').doc('notificaciones').collection(adminUid).doc();
-                    batch.set(notifRef, notificacion);
-                }
-            });
-            await batch.commit();
+            await sendNotificationToAdmins(notificacion);
             console.log('✅ Notificación enviada a administradores');
         } catch (notifError) {
             console.warn('⚠️ Error al notificar a administradores:', notifError);
