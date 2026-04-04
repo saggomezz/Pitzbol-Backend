@@ -11,6 +11,7 @@ interface RequestWithUser extends ExpressRequest {
 import { auth, db } from "../config/firebase";
 import admin from "firebase-admin";
 import { sendNotificationToAdmins, sendNotificationToUser } from "../services/notification.service";
+import { emitNewPendingBusiness } from "../socket";
 import { v2 as cloudinary } from 'cloudinary';
 // Configuración de Cloudinary (puedes mover esto a un archivo de config si lo prefieres)
 cloudinary.config({
@@ -264,10 +265,10 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
     if (!logoFile) {
       return res.status(400).json({ message: "El logo del negocio es obligatorio." });
     }
-    // Subir logo a Cloudinary con estructura: pitzbol/negocios/pendientes/{uid}/logo
+    // Subir logo a Cloudinary con estructura plana: pitzbol/negocios/{uid}/logo
     logoUrl = await new Promise((resolve, reject) => {
       const stream = cloudinary.uploader.upload_stream({
-        folder: `pitzbol/negocios/pendientes/${uid}/logo`,
+        folder: `pitzbol/negocios/${uid}/logo`,
         resource_type: 'image',
       }, (error, result) => {
         if (error) return reject(error);
@@ -276,12 +277,12 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
       });
       stream.end(logoFile.buffer);
     });
-    // Subir imágenes (campo 'images') con estructura: pitzbol/negocios/pendientes/{uid}/galeria
+    // Subir imágenes (campo 'images') con estructura plana: pitzbol/negocios/{uid}/galeria
     if (filesObj && Array.isArray(filesObj['images'])) {
       for (const file of filesObj['images']) {
         const url = await new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload_stream({
-            folder: `pitzbol/negocios/pendientes/${uid}/galeria`,
+            folder: `pitzbol/negocios/${uid}/galeria`,
             resource_type: 'image',
           }, (error, result) => {
             if (error) return reject(error);
@@ -328,6 +329,9 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
     });
     
     await db.collection("negocios").doc("Pendientes").collection("items").doc(uid).set(businessData);
+
+    // Emitir evento Socket.io a todos los clientes para notificar nuevo negocio pendiente
+    emitNewPendingBusiness(uid, businessName);
 
     // Notificar a los administradores de nueva solicitud de negocio
     await sendNotificationToAdmins({
@@ -426,6 +430,9 @@ export const registerBusiness = async (req: RequestWithUser, res: Response) => {
           createdAt: admin.firestore.FieldValue.serverTimestamp(),
         },
       });
+
+      // Emitir evento Socket.io a todos los clientes para notificar nuevo negocio pendiente
+      emitNewPendingBusiness(uid, businessName);
 
       // Notificar a los administradores de nueva solicitud de negocio
       await sendNotificationToAdmins({
@@ -758,6 +765,7 @@ export const getMyBusinessRequests = async (req: RequestWithUser, res: Response)
       { ref: db.collection("negocios").doc("Pendientes").collection("items"), estado: "pendiente" },
       { ref: db.collection("negocios").doc("Activos").collection("items"),    estado: "aprobado"  },
       { ref: db.collection("negocios").doc("Archivados").collection("items"), estado: "archivado" },
+      { ref: db.collection("negocios").doc("Rechazados").collection("items"), estado: "rechazado" },
     ];
 
     const results: any[] = [];
@@ -769,7 +777,7 @@ export const getMyBusinessRequests = async (req: RequestWithUser, res: Response)
       for (const doc of byUid.docs) {
         if (!seen.has(doc.id)) {
           seen.add(doc.id);
-          const mapped = mapSolicitudDoc(doc, estado === "archivado" && doc.data().rejectedAt ? "rechazado" : estado);
+          const mapped = mapSolicitudDoc(doc, estado);
           results.push(mapped);
         }
       }
@@ -779,7 +787,7 @@ export const getMyBusinessRequests = async (req: RequestWithUser, res: Response)
       for (const doc of byOwner.docs) {
         if (!seen.has(doc.id)) {
           seen.add(doc.id);
-          const mapped = mapSolicitudDoc(doc, estado === "archivado" && doc.data().rejectedAt ? "rechazado" : estado);
+          const mapped = mapSolicitudDoc(doc, estado);
           results.push(mapped);
         }
       }
@@ -792,7 +800,7 @@ export const getMyBusinessRequests = async (req: RequestWithUser, res: Response)
           if (!seen.has(doc.id)) {
             seen.add(doc.id);
             orphans.push(doc);
-            const mapped = mapSolicitudDoc(doc, estado === "archivado" && doc.data().rejectedAt ? "rechazado" : estado);
+            const mapped = mapSolicitudDoc(doc, estado);
             results.push(mapped);
           }
         }
@@ -805,7 +813,7 @@ export const getMyBusinessRequests = async (req: RequestWithUser, res: Response)
           if (!seen.has(doc.id)) {
             seen.add(doc.id);
             orphans2.push(doc);
-            const mapped = mapSolicitudDoc(doc, estado === "archivado" && doc.data().rejectedAt ? "rechazado" : estado);
+            const mapped = mapSolicitudDoc(doc, estado);
             results.push(mapped);
           }
         }
@@ -971,8 +979,19 @@ export const getBusinessById = async (req: RequestWithUser, res: Response) => {
       return mapAndRespond(archivedDoc as any);
     }
 
+    const rejectedDoc = await db
+      .collection("negocios")
+      .doc("Rechazados")
+      .collection("items")
+      .doc(businessId)
+      .get();
+
+    if (rejectedDoc.exists) {
+      return mapAndRespond(rejectedDoc as any);
+    }
+
     // Fallback robusto: buscar por identificadores alternos cuando la notificación no trae el docId exacto
-    const collections = ["Pendientes", "Activos", "Archivados"];
+    const collections = ["Pendientes", "Activos", "Archivados", "Rechazados"];
     const candidateFields = ["uid", "ownerUid", "owner", "business.owner"];
 
     for (const collectionName of collections) {
@@ -1047,17 +1066,35 @@ const getBusinessCollectionPath = async (businessId: string): Promise<{ collecti
     };
   }
 
+  const rejectedDoc = await db
+    .collection("negocios")
+    .doc("Rechazados")
+    .collection("items")
+    .doc(businessIdStr)
+    .get();
+
+  if (rejectedDoc.exists) {
+    return {
+      collection: "negocios/Rechazados/items",
+      docPath: businessIdStr
+    };
+  }
+
   return null;
 };
 
 // Función para eliminar imágenes de Cloudinary
 const deleteCloudinaryImage = async (imageUrl: string): Promise<void> => {
   try {
-    // Extraer el public_id de la URL
-    const urlParts = imageUrl.split('/');
-    const fileName = urlParts[urlParts.length - 1]?.split('.')[0] || '';
-    const folderPath = urlParts.slice(-3, -1).join('/');
-    const publicId = `${folderPath}/${fileName}`;
+    // Extraer el public_id completo respetando carpetas anidadas de Cloudinary
+    const uploadSegment = imageUrl.split('/upload/')[1];
+    if (!uploadSegment) return;
+
+    const withoutVersion = uploadSegment.replace(/^v\d+\//, '');
+    const withoutQuery = withoutVersion.split('?')[0] || withoutVersion;
+    const publicId = withoutQuery.replace(/\.[a-zA-Z0-9]+$/, '');
+
+    if (!publicId) return;
     
     await cloudinary.uploader.destroy(publicId);
   } catch (error) {
@@ -1169,7 +1206,7 @@ export const updateBusinessImages = async (req: RequestWithUser, res: Response) 
       const logoFile = filesObj['logo'][0];
       newLogoUrl = await new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream({
-          folder: `pitzbol/negocios/pendientes/${businessId}/logo`,
+          folder: `pitzbol/negocios/${businessId}/logo`,
           resource_type: 'image',
         }, (error, result) => {
           if (error) return reject(error);
@@ -1186,7 +1223,7 @@ export const updateBusinessImages = async (req: RequestWithUser, res: Response) 
       for (const file of filesObj['images']) {
         const url = await new Promise((resolve, reject) => {
           const stream = cloudinary.uploader.upload_stream({
-            folder: `pitzbol/negocios/pendientes/${businessId}/galeria`,
+            folder: `pitzbol/negocios/${businessId}/galeria`,
             resource_type: 'image',
           }, (error, result) => {
             if (error) return reject(error);
