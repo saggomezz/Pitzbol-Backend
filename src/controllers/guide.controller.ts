@@ -130,8 +130,7 @@ export const registerGuide = async (req: Request, res: Response) => {
         console.error("❌ Error detallado en registerGuide:", error);
         console.error("Stack trace:", error.stack);
         res.status(500).json({ 
-            message: 'Error interno al procesar la solicitud', 
-            error: error.message 
+            message: 'Error interno al procesar la solicitud'
         });
     }
 };
@@ -295,8 +294,7 @@ export const getVerifiedGuides = async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error("❌ Error al obtener guías verificados:", error);
         return res.status(500).json({ 
-            message: 'Error interno al obtener guías',
-            error: error.message 
+            message: 'Error interno al obtener guías'
         });
     }
 };
@@ -402,8 +400,7 @@ export const getGuideRequest = async (req: Request, res: Response) => {
         console.error("❌ Error al obtener solicitud de guía:", error);
         return res.status(500).json({ 
             success: false,
-            message: 'Error interno al obtener solicitud',
-            error: error.message 
+            message: 'Error interno al obtener solicitud'
         });
     }
 };
@@ -470,8 +467,7 @@ export const getGuidePublicProfile = async (req: Request, res: Response) => {
         console.error("❌ Error al obtener perfil público del guía:", error);
         return res.status(500).json({ 
             success: false,
-            message: 'Error interno al obtener perfil del guía',
-            error: error.message 
+            message: 'Error interno al obtener perfil del guía'
         });
     }
 };

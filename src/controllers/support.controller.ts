@@ -3,7 +3,7 @@ import { db } from "../config/firebase";
 import nodemailer from "nodemailer";
 import { DocumentData, QueryDocumentSnapshot } from "@google-cloud/firestore";
 
-const ADMIN_EMAIL = "pitzbol2026@gmail.com";
+const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "pitzbol2026@gmail.com";
 
 // Configurar el transporter de email (Gmail con App Password)
 const getEmailTransporter = () => {
@@ -110,8 +110,7 @@ export const submitContactForm = async (req: Request, res: Response) => {
       : undefined;
 
     res.status(500).json({
-      msg: "Error al enviar el formulario",
-      error: error.message,
+      msg: "Error al enviar el formulario" ,
       hint,
     });
   }
@@ -196,8 +195,7 @@ export const submitCallRequest = async (req: Request, res: Response) => {
       : undefined;
 
     res.status(500).json({
-      msg: "Error al enviar la solicitud de llamada",
-      error: error.message,
+      msg: "Error al enviar la solicitud de llamada" ,
       hint,
     });
   }
@@ -360,8 +358,7 @@ export const deleteContactForm = async (req: Request, res: Response) => {
     console.error("❌ Error al eliminar formulario:", error);
     res.status(500).json({
       success: false,
-      msg: "Error al eliminar formulario",
-      error: error.message,
+      msg: "Error al eliminar formulario" ,
     });
   }
 };
@@ -408,8 +405,7 @@ export const deleteCallRequest = async (req: Request, res: Response) => {
     console.error("❌ Error al eliminar solicitud:", error);
     res.status(500).json({
       success: false,
-      msg: "Error al eliminar solicitud",
-      error: error.message,
+      msg: "Error al eliminar solicitud" ,
     });
   }
 };
@@ -494,8 +490,7 @@ export const replyToContactForm = async (req: Request, res: Response) => {
     console.error("❌ Error al responder formulario:", error);
     res.status(500).json({
       success: false,
-      msg: "Error al enviar la respuesta",
-      error: error.message,
+      msg: "Error al enviar la respuesta" ,
     });
   }
 };

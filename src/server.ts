@@ -2,9 +2,12 @@
 import dotenv from "dotenv";
 dotenv.config();
 import express from 'express';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cookieParser from 'cookie-parser';
+import jwt from 'jsonwebtoken';
 import authRoutes from './routes/auth.routes';
 import guideRoutes from './routes/guide.routes';
 import businessRoutes from "./routes/business.routes";
@@ -29,9 +32,17 @@ import { setSocketServer } from './socket';
 
 const app = express();
 const httpServer = createServer(app);
+
+// Orígenes permitidos centralizados
+const allowedOrigins = (
+  process.env.ALLOWED_ORIGINS
+    ? process.env.ALLOWED_ORIGINS.split(',')
+    : ['http://localhost:3000', 'http://127.0.0.1:3000']
+).map(o => o.trim());
+
 const io = new Server(httpServer, {
   cors: {
-    origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001', 'http://69.30.204.56:3000'],
+    origin: allowedOrigins,
     methods: ["GET", "POST"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"]
@@ -41,20 +52,33 @@ setSocketServer(io);
 
 const PORT = Number(process.env.PORT) || 3001;
 
-const allowedOrigins = [
-  'http://localhost:3000',
-  'http://localhost:3001',
-  'http://127.0.0.1:3000',
-  'http://127.0.0.1:3001',
-  'http://69.30.204.56:3000',
-  'http://69.30.204.56:3003',
-];
+// Helmet: security headers (CSP, HSTS, X-Frame-Options, etc.)
+app.use(helmet({
+  contentSecurityPolicy: {
+    directives: {
+      defaultSrc: ["'self'"],
+      scriptSrc: ["'self'"],
+      styleSrc: ["'self'", "'unsafe-inline'"],
+      imgSrc: ["'self'", "data:", "https://res.cloudinary.com"],
+      connectSrc: ["'self'", ...allowedOrigins],
+    },
+  },
+  crossOriginEmbedderPolicy: false, // needed for Cloudinary images
+}));
+
+// Global rate limiter: 200 requests per minute per IP
+app.use(rateLimit({
+  windowMs: 60 * 1000,
+  max: 200,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { success: false, msg: 'Demasiadas solicitudes, intente más tarde' },
+}));
 
 app.use(cors({
   origin: function (origin, callback) {
     if (!origin) return callback(null, true);
-
-    if (allowedOrigins.indexOf(origin) !== -1 || process.env.NODE_ENV === 'development') {
+    if (allowedOrigins.indexOf(origin) !== -1) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
@@ -66,8 +90,9 @@ app.use(cors({
   optionsSuccessStatus: 200
 }));
 
-app.use(express.json({ limit: '50mb' }));
-app.use(express.urlencoded({ limit: '50mb', extended: true }));
+// Body limits: 10MB for general, 50MB only for OCR/upload specific routes
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ limit: '10mb', extended: true }));
 app.use(cookieParser());
 
 app.use((req, res, next) => {
@@ -106,18 +131,34 @@ app.use('/api', (req, res) => {
 
 app.use((err: any, req: any, res: any, next: any) => {
   console.error('Error en el servidor:', err);
+  // Never expose internal error details to clients in production
   res.status(err.status || 500).json({
     success: false,
-    msg: err.message || 'Error interno del servidor',
-    error: process.env.NODE_ENV === 'development' ? err.stack : undefined
+    msg: process.env.NODE_ENV === 'development' ? err.message : 'Error interno del servidor',
   });
+});
+
+// Socket.IO authentication middleware
+io.use((socket, next) => {
+  const token = socket.handshake.auth.token;
+  if (!token) {
+    return next(new Error('Authentication required'));
+  }
+  try {
+    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
+    (socket as any).userId = decoded.uid;
+    (socket as any).userRole = decoded.role;
+    next();
+  } catch {
+    return next(new Error('Invalid token'));
+  }
 });
 
 io.on('connection', (socket) => {
   console.log('Usuario conectado:', socket.id);
 
-  const userId = socket.handshake.auth.userId;
-  const userType = socket.handshake.auth.userType;
+  const userId = (socket as any).userId || socket.handshake.auth.userId;
+  const userType = (socket as any).userRole || socket.handshake.auth.userType;
 
   if (userId) {
     socket.join(`user:${userId}`);
@@ -142,9 +183,16 @@ io.on('connection', (socket) => {
     content: string;
   }) => {
     try {
+      // Prevent senderId spoofing: enforce authenticated user identity
+      const authenticatedUid = (socket as any).userId;
+      if (!authenticatedUid || data.senderId !== authenticatedUid) {
+        socket.emit('message-error', { error: 'No autorizado' });
+        return;
+      }
+
       const message = await ChatService.saveMessage({
         chatId: data.chatId,
-        senderId: data.senderId,
+        senderId: authenticatedUid,
         senderName: data.senderName,
         senderType: data.senderType,
         content: data.content,
@@ -168,8 +216,9 @@ io.on('connection', (socket) => {
   });
 
   socket.on('mark-as-read', (data: { chatId: string; userId: string }) => {
+    const authenticatedUid = (socket as any).userId;
+    if (!authenticatedUid || data.userId !== authenticatedUid) return;
     io.to(data.chatId).emit('messages-read', data);
-    console.log(`Mensajes del chat ${data.chatId} marcados como leidos por ${data.userId}`);
   });
 
   socket.on('disconnect', () => {
@@ -178,11 +227,7 @@ io.on('connection', (socket) => {
 });
 
 app.get('/', (req, res) => {
-  res.send(`
-    <h1>El Backend si funcionaa</h1>
-    <p>El servidor esta corriendo correctamente</p>
-    <p>Usa los endpoints en <code>/api/auth/login</code> o <code>/api/auth/register</code></p>
-  `);
+  res.json({ status: 'ok', message: 'Pitzbol API running' });
 });
 
 httpServer.listen(PORT, '0.0.0.0', () => {

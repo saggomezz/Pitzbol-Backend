@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { PaymentService } from '../services/payment.service';
 import * as WalletService from '../services/wallet.service';
+import stripe from '../config/stripe';
 
 // Crear Payment Intent para una reserva
 export const createPaymentIntent = async (req: Request, res: Response) => {
@@ -14,10 +15,15 @@ export const createPaymentIntent = async (req: Request, res: Response) => {
       });
     }
 
-    if (amount <= 0) {
+    // IDOR protection: usuario solo puede crear pagos propios
+    if ((req as any).user?.uid !== userId) {
+      return res.status(403).json({ success: false, message: 'No puedes crear pagos para otro usuario' });
+    }
+
+    if (amount <= 0 || amount > 1000000) {
       return res.status(400).json({
         success: false,
-        message: 'El monto debe ser mayor a 0',
+        message: 'El monto debe ser mayor a 0 y menor a 1,000,000',
       });
     }
 
@@ -57,7 +63,12 @@ export const confirmPaymentWithSavedCard = async (req: Request, res: Response) =
     }
 
     // Verificar que el payment method pertenece al usuario
-    const cards = await WalletService.getUserCards(userId);
+    // IDOR protection: userId from JWT, not body
+    const authUserId = (req as any).user?.uid;
+    if (!authUserId || authUserId !== userId) {
+      return res.status(403).json({ success: false, message: 'No autorizado' });
+    }
+    const cards = await WalletService.getUserCards(authUserId);
     const cardExists = cards.find(card => card.stripePaymentMethodId === paymentMethodId);
 
     if (!cardExists) {
@@ -107,8 +118,7 @@ export const getPaymentStatus = async (req: Request, res: Response) => {
     console.error('Error al obtener estado del pago:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al obtener estado del pago',
-      error: error.message,
+      message: 'Error al obtener estado del pago' ,
     });
   }
 };
@@ -136,8 +146,7 @@ export const cancelPayment = async (req: Request, res: Response) => {
     console.error('Error al cancelar pago:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al cancelar pago',
-      error: error.message,
+      message: 'Error al cancelar pago' ,
     });
   }
 };
@@ -154,6 +163,11 @@ export const getUserPayments = async (req: Request, res: Response) => {
       });
     }
 
+    // IDOR protection: solo el propio usuario puede ver su historial
+    if ((req as any).user?.uid !== userId) {
+      return res.status(403).json({ success: false, message: 'No puedes ver el historial de otro usuario' });
+    }
+
     const payments = await PaymentService.getUserPayments(userId);
 
     res.status(200).json({
@@ -165,8 +179,7 @@ export const getUserPayments = async (req: Request, res: Response) => {
     console.error('Error al obtener historial de pagos:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al obtener historial de pagos',
-      error: error.message,
+      message: 'Error al obtener historial de pagos' ,
     });
   }
 };
@@ -183,10 +196,24 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
       });
     }
 
-    // Aquí deberías verificar la firma del webhook
-    // const event = stripe.webhooks.constructEvent(req.body, sig, webhookSecret);
-    
-    const event = req.body;
+    const webhookSecret = process.env.STRIPE_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      console.error('STRIPE_WEBHOOK_SECRET no configurado');
+      return res.status(500).json({ success: false, message: 'Webhook no configurado' });
+    }
+
+    // Verify Stripe webhook signature to prevent spoofing
+    let event;
+    try {
+      event = stripe.webhooks.constructEvent(
+        typeof req.body === 'string' ? req.body : JSON.stringify(req.body),
+        sig as string,
+        webhookSecret
+      );
+    } catch (err: any) {
+      console.error('Webhook signature verification failed:', err.message);
+      return res.status(400).json({ success: false, message: 'Firma de webhook inválida' });
+    }
 
     await PaymentService.handleStripeWebhook(event);
 
@@ -196,7 +223,6 @@ export const handleStripeWebhook = async (req: Request, res: Response) => {
     res.status(400).json({
       success: false,
       message: 'Error procesando webhook',
-      error: error.message,
     });
   }
 };

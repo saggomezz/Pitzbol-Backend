@@ -202,7 +202,7 @@ export const getAllPlaces = async (req: Request, res: Response) => {
     return res.status(200).json({ lugares: Array.from(mergedByName.values()) });
   } catch (error: any) {
     console.error('Error obteniendo lugares:', error);
-    return res.status(500).json({ message: 'Error interno', error: error.message });
+    return res.status(500).json({ message: 'Error interno' });
   }
 };
 
@@ -252,7 +252,7 @@ export const createPlace = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error creando lugar:', error);
-    return res.status(500).json({ message: 'Error interno', error: error.message });
+    return res.status(500).json({ message: 'Error interno' });
   }
 };
 
@@ -563,8 +563,7 @@ export const geocodeAddress = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error en geocodificación:', error);
     return res.status(500).json({ 
-      message: 'Error interno al buscar coordenadas',
-      error: error.message,
+      message: 'Error interno al buscar coordenadas' ,
       success: false
     });
   }
@@ -596,7 +595,7 @@ export const getPlaceByName = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error obteniendo lugar:', error);
-    return res.status(500).json({ message: 'Error interno', error: error.message });
+    return res.status(500).json({ message: 'Error interno' });
   }
 };
 
@@ -703,7 +702,7 @@ export const addPlacePhotos = async (req: any, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error agregando fotos:', error);
-    return res.status(500).json({ message: 'Error interno', error: error.message });
+    return res.status(500).json({ message: 'Error interno' });
   }
 };
 
@@ -767,7 +766,7 @@ export const deletePlacePhoto = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error eliminando foto:', error);
-    return res.status(500).json({ message: 'Error interno', error: error.message });
+    return res.status(500).json({ message: 'Error interno' });
   }
 };
 
@@ -798,7 +797,7 @@ export const updatePlace = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error actualizando lugar:', error);
-    return res.status(500).json({ message: 'Error interno', error: error.message });
+    return res.status(500).json({ message: 'Error interno' });
   }
 };
 
@@ -826,7 +825,7 @@ export const setPlaceFotos = async (req: Request, res: Response) => {
     return res.status(200).json({ message: 'Fotos actualizadas', fotos: fotosValidas });
   } catch (error: any) {
     console.error('Error actualizando fotos:', error);
-    return res.status(500).json({ message: 'Error interno', error: error.message });
+    return res.status(500).json({ message: 'Error interno' });
   }
 };
 
@@ -846,6 +845,6 @@ export const deletePlace = async (req: Request, res: Response) => {
     return res.status(200).json({ message: 'Lugar eliminado correctamente' });
   } catch (error: any) {
     console.error('Error eliminando lugar:', error);
-    return res.status(500).json({ message: 'Error interno', error: error.message });
+    return res.status(500).json({ message: 'Error interno' });
   }
 };

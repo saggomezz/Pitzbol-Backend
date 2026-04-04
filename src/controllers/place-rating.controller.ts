@@ -93,8 +93,7 @@ export const ratePlaceController = async (req: Request, res: Response) => {
     console.error('Error al calificar lugar:', error);
     return res.status(500).json({
       success: false,
-      message: 'Error al procesar calificación',
-      error: error.message,
+      message: 'Error al procesar calificación' ,
     });
   }
 };
@@ -150,8 +149,7 @@ export const getUserPlaceRatingController = async (req: Request, res: Response) 
     console.error('Error al obtener calificación del usuario:', error);
     return res.status(500).json({
       success: false,
-      message: 'Error al obtener calificación',
-      error: error.message,
+      message: 'Error al obtener calificación' ,
     });
   }
 };
@@ -185,8 +183,7 @@ export const getPlaceStatsController = async (req: Request, res: Response) => {
     console.error('Error al obtener estadísticas:', error);
     return res.status(500).json({
       success: false,
-      message: 'Error al obtener estadísticas',
-      error: error.message,
+      message: 'Error al obtener estadísticas' ,
     });
   }
 };
@@ -235,8 +232,7 @@ export const incrementPlaceViewsController = async (req: Request, res: Response)
     console.error('Error al incrementar vistas:', error);
     return res.status(500).json({
       success: false,
-      message: 'Error al registrar vista',
-      error: error.message,
+      message: 'Error al registrar vista' ,
     });
   }
 };
