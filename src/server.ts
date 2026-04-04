@@ -26,6 +26,7 @@ import itinerariosRoutes from './routes/itinerarios.routes';
 import aiRoutes from "./routes/ai.routes";
 import { ChatService } from './services/chat.service';
 import { setSocketServer } from './socket';
+import { startBusinessWatcher } from './services/businessWatcher';
 
 const app = express();
 const httpServer = createServer(app);
@@ -70,10 +71,7 @@ app.use(express.json({ limit: '50mb' }));
 app.use(express.urlencoded({ limit: '50mb', extended: true }));
 app.use(cookieParser());
 
-app.use((req, res, next) => {
-  console.log(`Peticion recibida: [${req.method}] ${req.url}`);
-  next();
-});
+// Request logging removed to reduce debug noise in production
 
 app.use('/api/auth', authRoutes);
 app.use('/api/guides', guideRoutes);
@@ -188,4 +186,10 @@ app.get('/', (req, res) => {
 httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`Servidor corriendo en puerto ${PORT}`);
   console.log(`Socket.IO corriendo en puerto ${PORT}`);
+  // Start Firestore watchers to auto-detect business name changes
+  try {
+    startBusinessWatcher();
+  } catch (err) {
+    console.error('[server] Error starting business watcher', err);
+  }
 });

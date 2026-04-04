@@ -8,6 +8,67 @@ interface AuthRequest extends Request {
   };
 }
 
+function normalizeName(value: string): string {
+  return String(value || '')
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+function getBusinessName(data: any): string {
+  const business = data?.business || {};
+  return String(
+    business?.name || data?.name || data?.businessName || ''
+  ).trim();
+}
+
+function sanitizeFavorites(values: unknown[]): string[] {
+  const seen = new Set<string>();
+  const result: string[] = [];
+
+  for (const value of values) {
+    if (typeof value !== 'string') continue;
+    const trimmed = value.trim();
+    if (!trimmed) continue;
+
+    const key = normalizeName(trimmed);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    result.push(trimmed);
+  }
+
+  return result;
+}
+
+async function getExistingFavoriteNameSet(): Promise<Set<string>> {
+  const [placesSnap, activeBusinessesSnap] = await Promise.all([
+    db.collection('lugares').get(),
+    db.collection('negocios').doc('Activos').collection('items').get(),
+  ]);
+
+  const existing = new Set<string>();
+
+  placesSnap.docs.forEach((doc) => {
+    const nombre = String(doc.data()?.nombre || '').trim();
+    const key = normalizeName(nombre);
+    if (key) existing.add(key);
+  });
+
+  activeBusinessesSnap.docs.forEach((doc) => {
+    const nombre = getBusinessName(doc.data());
+    const key = normalizeName(nombre);
+    if (key) existing.add(key);
+  });
+
+  return existing;
+}
+
+function filterValidFavorites(favorites: string[], existingNames: Set<string>): string[] {
+  return favorites.filter((name) => existingNames.has(normalizeName(name)));
+}
+
 /**
  * Obtener todos los favoritos del usuario
  */
@@ -32,7 +93,18 @@ export const obtenerFavoritos = async (req: AuthRequest, res: Response) => {
     }
 
     const userData = userDoc.data();
-    const favorites = userData?.favorites || [];
+    const rawFavorites = Array.isArray(userData?.favorites) ? userData?.favorites : [];
+    const normalizedFavorites = sanitizeFavorites(rawFavorites);
+    const existingNames = await getExistingFavoriteNameSet();
+    const favorites = filterValidFavorites(normalizedFavorites, existingNames);
+
+    // Persistir limpieza automática de favoritos huérfanos
+    if (favorites.length !== rawFavorites.length) {
+      await userDoc.ref.update({
+        favorites,
+        updatedAt: new Date().toISOString(),
+      });
+    }
 
     res.json({
       success: true,
@@ -82,10 +154,18 @@ export const agregarFavorito = async (req: AuthRequest, res: Response) => {
     }
 
     const userData = userDoc.data();
-    const currentFavorites = userData?.favorites || [];
+    const currentFavorites = sanitizeFavorites(Array.isArray(userData?.favorites) ? userData.favorites : []);
+
+    const existingNames = await getExistingFavoriteNameSet();
+    if (!existingNames.has(normalizeName(nombreLugar))) {
+      return res.status(404).json({
+        success: false,
+        message: 'El lugar o negocio ya no existe y no puede agregarse a favoritos',
+      });
+    }
 
     // Verificar si ya existe
-    if (currentFavorites.includes(nombreLugar)) {
+    if (currentFavorites.some((fav) => normalizeName(fav) === normalizeName(nombreLugar))) {
       return res.status(400).json({
         success: false,
         message: 'Este lugar ya está en favoritos'
@@ -93,7 +173,7 @@ export const agregarFavorito = async (req: AuthRequest, res: Response) => {
     }
 
     // Agregar el nuevo favorito
-    const updatedFavorites = [...currentFavorites, nombreLugar];
+    const updatedFavorites = [...currentFavorites, nombreLugar.trim()];
     
     await userRef.update({
       favorites: updatedFavorites,
@@ -149,10 +229,11 @@ export const eliminarFavorito = async (req: AuthRequest, res: Response) => {
     }
 
     const userData = userDoc.data();
-    const currentFavorites = userData?.favorites || [];
+    const currentFavorites = sanitizeFavorites(Array.isArray(userData?.favorites) ? userData.favorites : []);
 
     // Filtrar el favorito a eliminar
-    const updatedFavorites = currentFavorites.filter((fav: string) => fav !== nombreLugar);
+    const target = normalizeName(nombreLugar);
+    const updatedFavorites = currentFavorites.filter((fav: string) => normalizeName(fav) !== target);
 
     await userRef.update({
       favorites: updatedFavorites,
@@ -211,18 +292,20 @@ export const sincronizarFavoritos = async (req: AuthRequest, res: Response) => {
     const userData = userDoc.data();
     const currentFavorites = userData?.favorites || [];
 
-    // Combinar favoritos locales con los del servidor (sin duplicados)
-    const favoritosUnicos = Array.from(new Set([...currentFavorites, ...favoritosLocales]));
+    // Combinar favoritos locales con los del servidor, limpiar inválidos y mantener solo existentes
+    const favoritosUnicos = sanitizeFavorites([...currentFavorites, ...favoritosLocales]);
+    const existingNames = await getExistingFavoriteNameSet();
+    const favoritosValidos = filterValidFavorites(favoritosUnicos, existingNames);
 
     await userRef.update({
-      favorites: favoritosUnicos,
+      favorites: favoritosValidos,
       updatedAt: new Date().toISOString()
     });
 
     res.json({
       success: true,
       message: 'Favoritos sincronizados correctamente',
-      favorites: favoritosUnicos
+      favorites: favoritosValidos
     });
 
   } catch (error: any) {

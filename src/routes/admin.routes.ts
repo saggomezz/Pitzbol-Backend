@@ -31,12 +31,28 @@ router.get(
   adminController.obtenerNegociosArchivados
 );
 
+// PROTEGIDO - Obtener negocios rechazados
+router.get(
+  '/negocios/rechazados',
+  authMiddleware,
+  requireAdmin,
+  adminController.obtenerNegociosRechazados
+);
+
 // PROTEGIDO - Obtener historial de movimientos administrativos de negocios
 router.get(
   '/negocios/movimientos',
   authMiddleware,
   requireAdmin,
   adminController.obtenerMovimientosNegocios
+);
+
+// PROTEGIDO - Eliminar movimiento administrativo de negocios
+router.delete(
+  '/negocios/movimientos/:movimientoId',
+  authMiddleware,
+  requireAdmin,
+  adminController.eliminarMovimientoNegocio
 );
 // PROTEGIDO - Editar negocio manualmente
 router.patch(
@@ -59,6 +75,14 @@ router.post(
   authMiddleware,
   requireAdmin,
   adminController.forzarMoverImagenesNegocio
+);
+
+// PROTEGIDO - Forzar actualización de notificaciones relacionadas a un negocio
+router.post(
+  '/negocios/:negocioId/actualizar-notificaciones',
+  authMiddleware,
+  requireAdmin,
+  adminController.actualizarNotificacionesNegocio
 );
 
 // PROTEGIDO - Archivar (eliminar) un negocio
@@ -180,6 +204,13 @@ router.put(
 );
 
 // PROTEGIDO - Eliminar notificación
+router.delete(
+  '/notifications/:id/:uid',
+  authMiddleware,
+  adminController.eliminarNotificacion
+);
+
+// PROTEGIDO - Eliminar notificación (legacy)
 router.delete(
   '/notifications/:id',
   authMiddleware,
