@@ -15,9 +15,9 @@ const router = Router();
 // POST /api/lugares/geocode - Obtener coordenadas de una dirección (público)
 // Esta ruta debe ir ANTES de /:nombre para que no la capture
 if (!placesController.geocodeAddress) {
-  console.error('❌ ERROR: geocodeAddress no está disponible en placesController');
+  console.error('ERROR: geocodeAddress no está disponible en placesController');
 } else {
-  console.log('✅ Registrando ruta POST /api/lugares/geocode');
+  console.log('Registrando ruta POST /api/lugares/geocode');
   router.post('/geocode', placesController.geocodeAddress);
 }
 

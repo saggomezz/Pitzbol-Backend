@@ -31,7 +31,7 @@ export async function saveCard(
   }
 ): Promise<UserCard> {
   try {
-    console.log(`💾 [saveCard] Iniciando guardar tarjeta...`);
+    console.log(`[saveCard] Iniciando guardar tarjeta...`);
     console.log(`   - UID: ${uid}`);
     console.log(`   - Stripe Payment Method ID: ${cardData.stripePaymentMethodId}`);
     console.log(`   - Last4: ${cardData.last4}`);
@@ -71,13 +71,13 @@ export async function saveCard(
 
     await newCardRef.set(newCard);
     
-    console.log(`✅ [saveCard] Tarjeta guardada exitosamente`);
+    console.log(`[saveCard] Tarjeta guardada exitosamente`);
     console.log(`   - ID de tarjeta en Firestore: ${newCard.id}`);
     console.log(`   - Collection: ${CARDS_COLLECTION}`);
     
     return newCard;
   } catch (error) {
-    console.error("❌ [saveCard] Error guardando tarjeta:", error);
+    console.error("[saveCard] Error guardando tarjeta:", error);
     throw error;
   }
 }
@@ -87,7 +87,7 @@ export async function saveCard(
  */
 export async function getUserCards(uid: string): Promise<UserCard[]> {
   try {
-    console.log(`📋 [getUserCards] Obteniendo tarjetas...`);
+    console.log(`[getUserCards] Obteniendo tarjetas...`);
     console.log(`   - UID: ${uid}`);
 
     if (!uid) {
@@ -122,14 +122,14 @@ export async function getUserCards(uid: string): Promise<UserCard[]> {
       return timeB - timeA;
     });
 
-    console.log(`✅ [getUserCards] ${cards.length} tarjeta(s) encontrada(s)`);
+    console.log(`[getUserCards] ${cards.length} tarjeta(s) encontrada(s)`);
     cards.forEach((card, index) => {
       console.log(`   [${index + 1}] ID: ${card.id}, Last4: ${card.last4}, Default: ${card.isDefault}`);
     });
 
     return cards;
   } catch (error) {
-    console.error("❌ [getUserCards] Error obteniendo tarjetas:", error);
+    console.error("[getUserCards] Error obteniendo tarjetas:", error);
     throw error;
   }
 }
@@ -157,9 +157,9 @@ export async function deleteCard(uid: string, cardId: string): Promise<void> {
       updatedAt: Timestamp.now(),
     });
 
-    console.log(`✅ Tarjeta eliminada: ${cardId}`);
+    console.log(`Tarjeta eliminada: ${cardId}`);
   } catch (error) {
-    console.error("❌ Error eliminando tarjeta:", error);
+    console.error("Error eliminando tarjeta:", error);
     throw error;
   }
 }
@@ -205,9 +205,9 @@ export async function setDefaultCard(uid: string, cardId: string): Promise<void>
     });
 
     await batch.commit();
-    console.log(`✅ Tarjeta establecida como predeterminada: ${cardId}`);
+    console.log(`Tarjeta establecida como predeterminada: ${cardId}`);
   } catch (error) {
-    console.error("❌ Error estableciendo tarjeta predeterminada:", error);
+    console.error("Error estableciendo tarjeta predeterminada:", error);
     throw error;
   }
 }
@@ -231,7 +231,7 @@ export async function getDefaultCard(uid: string): Promise<UserCard | null> {
 
     return snapshot.docs[0]!.data() as UserCard;
   } catch (error) {
-    console.error("❌ Error obteniendo tarjeta predeterminada:", error);
+    console.error("Error obteniendo tarjeta predeterminada:", error);
     throw error;
   }
 }

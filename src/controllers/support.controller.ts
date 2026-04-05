@@ -69,7 +69,7 @@ export const submitContactForm = async (req: Request, res: Response) => {
       enlace: `/admin/mensajes?id=${contactId}`,
     });
 
-    console.log(`✅ Formulario de contacto guardado: ${contactId}`);
+    console.log(`Formulario de contacto guardado: ${contactId}`);
 
     // Intentar enviar email (opcional, no bloquea si falla)
     try {
@@ -92,9 +92,9 @@ export const submitContactForm = async (req: Request, res: Response) => {
         subject: `[Pitzbol] Nuevo contacto: ${subject}`,
         html: emailContent,
       });
-      console.log(`📧 Email de contacto enviado al admin`);
+      console.log(`Email de contacto enviado al admin`);
     } catch (emailError: any) {
-      console.warn(`⚠️ No se pudo enviar email (no crítico):`, emailError.message);
+      console.warn(`No se pudo enviar email (no crítico):`, emailError.message);
     }
 
     res.status(200).json({
@@ -157,7 +157,7 @@ export const submitCallRequest = async (req: Request, res: Response) => {
       enlace: `/admin/llamadas?id=${callId}`,
     });
 
-    console.log(`✅ Solicitud de llamada guardada: ${callId}`);
+    console.log(`Solicitud de llamada guardada: ${callId}`);
 
     // Intentar enviar email (opcional, no bloquea si falla)
     try {
@@ -177,9 +177,9 @@ export const submitCallRequest = async (req: Request, res: Response) => {
         subject: `[Pitzbol] Solicitud de llamada de ${name}`,
         html: emailContent,
       });
-      console.log(`📧 Email de llamada enviado al admin`);
+      console.log(`Email de llamada enviado al admin`);
     } catch (emailError: any) {
-      console.warn(`⚠️ No se pudo enviar email (no crítico):`, emailError.message);
+      console.warn(`No se pudo enviar email (no crítico):`, emailError.message);
     }
 
     res.status(200).json({
@@ -187,7 +187,7 @@ export const submitCallRequest = async (req: Request, res: Response) => {
       callId,
     });
   } catch (error: any) {
-    console.error("❌ Error al procesar solicitud de llamada:", error);
+    console.error("Error al procesar solicitud de llamada:", error);
 
     const isAuthError = error?.code === "EAUTH" || /Invalid login/i.test(String(error?.message));
     const hint = isAuthError
@@ -219,7 +219,7 @@ export const getContactForms = async (req: Request, res: Response) => {
 
     res.status(200).json(forms);
   } catch (error: any) {
-    console.error("❌ Error al obtener formularios:", error);
+    console.error("Error al obtener formularios:", error);
     res.status(500).json({ msg: "Error al obtener formularios" });
   }
 };
@@ -242,7 +242,7 @@ export const getCallRequests = async (req: Request, res: Response) => {
 
     res.status(200).json(calls);
   } catch (error: any) {
-    console.error("❌ Error al obtener solicitudes de llamada:", error);
+    console.error("Error al obtener solicitudes de llamada:", error);
     res.status(500).json({ msg: "Error al obtener solicitudes de llamada" });
   }
 };
@@ -276,7 +276,7 @@ export const getSupportNotifications = async (req: Request, res: Response) => {
       notificaciones: notifications,
     });
   } catch (error: any) {
-    console.error("❌ Error al obtener notificaciones:", error);
+    console.error("Error al obtener notificaciones:", error);
     res.status(500).json({
       success: false,
       msg: "Error al obtener notificaciones",
@@ -308,7 +308,7 @@ export const markSupportNotificationAsRead = async (req: Request, res: Response)
       msg: "Notificación marcada como leída",
     });
   } catch (error: any) {
-    console.error("❌ Error al actualizar notificación:", error);
+    console.error("Error al actualizar notificación:", error);
     res.status(500).json({
       success: false,
       msg: "Error al actualizar notificación",
@@ -324,10 +324,10 @@ export const deleteContactForm = async (req: Request, res: Response) => {
   try {
     const { id } = req.params as { id: string };
 
-    console.log(`🗑️ Intentando eliminar formulario: ${id}`);
+    console.log(`Intentando eliminar formulario: ${id}`);
 
     if (!id) {
-      console.warn("⚠️ ID de formulario no proporcionado");
+      console.warn("ID de formulario no proporcionado");
       return res.status(400).json({
         success: false,
         msg: "ID de formulario requerido",
@@ -339,7 +339,7 @@ export const deleteContactForm = async (req: Request, res: Response) => {
     const doc = await docRef.get();
 
     if (!doc.exists) {
-      console.warn(`⚠️ Formulario no encontrado: ${id}`);
+      console.warn(`Formulario no encontrado: ${id}`);
       return res.status(404).json({
         success: false,
         msg: "Formulario no encontrado",
@@ -348,14 +348,14 @@ export const deleteContactForm = async (req: Request, res: Response) => {
 
     await docRef.delete();
 
-    console.log(`✅ Formulario de contacto eliminado: ${id}`);
+    console.log(`Formulario de contacto eliminado: ${id}`);
 
     res.status(200).json({
       success: true,
       msg: "Formulario eliminado exitosamente",
     });
   } catch (error: any) {
-    console.error("❌ Error al eliminar formulario:", error);
+    console.error("Error al eliminar formulario:", error);
     res.status(500).json({
       success: false,
       msg: "Error al eliminar formulario" ,
@@ -371,10 +371,10 @@ export const deleteCallRequest = async (req: Request, res: Response) => {
   try {
     const { id } = req.params as { id: string };
 
-    console.log(`🗑️ Intentando eliminar solicitud: ${id}`);
+    console.log(`Intentando eliminar solicitud: ${id}`);
 
     if (!id) {
-      console.warn("⚠️ ID de solicitud no proporcionado");
+      console.warn("ID de solicitud no proporcionado");
       return res.status(400).json({
         success: false,
         msg: "ID de solicitud requerido",
@@ -386,7 +386,7 @@ export const deleteCallRequest = async (req: Request, res: Response) => {
     const doc = await docRef.get();
 
     if (!doc.exists) {
-      console.warn(`⚠️ Solicitud no encontrada: ${id}`);
+      console.warn(`Solicitud no encontrada: ${id}`);
       return res.status(404).json({
         success: false,
         msg: "Solicitud no encontrada",
@@ -395,14 +395,14 @@ export const deleteCallRequest = async (req: Request, res: Response) => {
 
     await docRef.delete();
 
-    console.log(`✅ Solicitud de llamada eliminada: ${id}`);
+    console.log(`Solicitud de llamada eliminada: ${id}`);
 
     res.status(200).json({
       success: true,
       msg: "Solicitud eliminada exitosamente",
     });
   } catch (error: any) {
-    console.error("❌ Error al eliminar solicitud:", error);
+    console.error("Error al eliminar solicitud:", error);
     res.status(500).json({
       success: false,
       msg: "Error al eliminar solicitud" ,

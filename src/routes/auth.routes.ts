@@ -59,6 +59,9 @@ router.post(
   }
 );
 
+// POST /api/auth/refresh-token - Renovar token expirado
+router.post("/refresh-token", refreshToken);
+
 // POST /api/auth/solicitar-guia - Solicitar convertirse en guía
 router.post(
   "/solicitar-guia",

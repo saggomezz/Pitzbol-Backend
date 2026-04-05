@@ -1,5 +1,25 @@
 import { Request, Response } from 'express';
+import admin from 'firebase-admin';
 import { db } from '../config/firebase';
+
+// Cache en memoria para estadísticas de lugares — TTL 5 minutos
+const statsCache = new Map<string, { data: any; expiresAt: number }>();
+const STATS_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+
+function getCachedStats(placeId: string) {
+  const entry = statsCache.get(placeId);
+  if (entry && entry.expiresAt > Date.now()) return entry.data;
+  statsCache.delete(placeId);
+  return null;
+}
+
+function setCachedStats(placeId: string, data: any) {
+  statsCache.set(placeId, { data, expiresAt: Date.now() + STATS_CACHE_TTL });
+}
+
+function invalidateStatsCache(placeId: string) {
+  statsCache.delete(placeId);
+}
 
 /**
  * Normalizar nombre de lugar para usar como ID
@@ -78,7 +98,8 @@ export const ratePlaceController = async (req: Request, res: Response) => {
       console.log(`✅ Nueva calificación: ${placeName} por usuario ${userId} - ${rating} estrellas`);
     }
 
-    // Recalcular estadísticas del lugar
+    // Recalcular estadísticas del lugar e invalidar cache
+    invalidateStatsCache(placeId);
     await recalculatePlaceStats(placeId, placeName);
 
     // Obtener estadísticas actualizadas
@@ -208,21 +229,10 @@ export const incrementPlaceViewsController = async (req: Request, res: Response)
     const placeId = normalizePlaceName(placeName!);
 
     const placeRef = db.collection('lugares').doc(placeId);
-    const placeDoc = await placeRef.get();
-
-    if (!placeDoc.exists) {
-      // Crear documento si no existe
-      await placeRef.set({
-        nombre: placeName,
-        views: 1,
-        createdAt: new Date().toISOString(),
-      });
-    } else {
-      const currentViews = placeDoc.data()?.views || 0;
-      await placeRef.update({
-        views: currentViews + 1,
-      });
-    }
+    await placeRef.set(
+      { views: admin.firestore.FieldValue.increment(1) },
+      { merge: true }
+    );
 
     return res.status(200).json({
       success: true,
@@ -289,9 +299,12 @@ async function recalculatePlaceStats(placeId: string, placeName: string) {
 }
 
 /**
- * Obtener estadísticas de un lugar desde la DB
+ * Obtener estadísticas de un lugar desde la DB (con cache)
  */
 async function getPlaceStatsFromDB(placeId: string) {
+  const cached = getCachedStats(placeId);
+  if (cached) return cached;
+
   const placeDoc = await db.collection('lugares').doc(placeId).get();
 
   if (!placeDoc.exists) {
@@ -303,9 +316,11 @@ async function getPlaceStatsFromDB(placeId: string) {
   }
 
   const data = placeDoc.data();
-  return {
+  const stats = {
     averageRating: data?.averageRating || 0,
     totalRatings: data?.totalRatings || 0,
     views: data?.views || 0,
   };
+  setCachedStats(placeId, stats);
+  return stats;
 }
