@@ -143,6 +143,8 @@ export async function updateBusinessNameInNotifications(negocioId: string, newNa
         newMessage = `Tu negocio "${newName}" ha sido regresado a revisión por el administrador.`;
         break;
       case 'negocio_archivado':
+        newMessage = `Tu negocio "${newName}" ha sido archivado por el administrador.${data?.archivedReason || ''}`;
+        break;
       case 'negocio_eliminado':
         newMessage = `Tu negocio "${newName}" ha sido eliminado por el administrador.${data?.archivedReason || ''}`;
         break;
