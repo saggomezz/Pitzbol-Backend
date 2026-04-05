@@ -3,6 +3,14 @@ import { db } from '../config/firebase';
 import { upload } from '../middleware/uploadMiddleware';
 import { v2 as cloudinary } from 'cloudinary';
 
+// Cache en memoria para lista de lugares — TTL 10 minutos
+let lugaresCache: { data: any[] | null; expiresAt: number } = { data: null, expiresAt: 0 };
+const LUGARES_CACHE_TTL = 10 * 60 * 1000; // 10 minutos
+
+function invalidateLugaresCache() {
+  lugaresCache = { data: null, expiresAt: 0 };
+}
+
 // Configurar Cloudinary con validación
 if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
   console.warn('Variables de Cloudinary no configuradas en .env');
@@ -158,6 +166,11 @@ export const getAllPlaces = async (req: Request, res: Response) => {
   try {
     const includeBusinesses = shouldIncludeApprovedBusinesses(req.query.includeApprovedBusinesses);
 
+    // Servir desde cache si está vigente (solo para la vista sin negocios)
+    if (!includeBusinesses && lugaresCache.data && lugaresCache.expiresAt > Date.now()) {
+      return res.status(200).json({ lugares: lugaresCache.data });
+    }
+
     const snapshot = await db.collection('lugares').get();
 
     const lugares = snapshot.docs.map(doc => ({
@@ -166,6 +179,7 @@ export const getAllPlaces = async (req: Request, res: Response) => {
     }));
 
     if (!includeBusinesses) {
+      lugaresCache = { data: lugares, expiresAt: Date.now() + LUGARES_CACHE_TTL };
       return res.status(200).json({ lugares });
     }
 
@@ -198,7 +212,7 @@ export const getAllPlaces = async (req: Request, res: Response) => {
         mergedByName.set(normalizedName, mergePlaceData(existing, businessPlace));
       }
     }
-    
+
     return res.status(200).json({ lugares: Array.from(mergedByName.values()) });
   } catch (error: any) {
     console.error('Error obteniendo lugares:', error);
@@ -690,7 +704,7 @@ export const addPlacePhotos = async (req: any, res: Response) => {
     }
     
     await placeRef.set(updateData, { merge: true });
-    
+    invalidateLugaresCache();
     console.log(`${newPhotos.length} foto(s) agregada(s) al lugar: ${nombre}`);
     
     return res.status(200).json({
@@ -823,6 +837,7 @@ export const setPlaceFotos = async (req: Request, res: Response) => {
       ultimaActualizacion: new Date().toISOString()
     }, { merge: true });
 
+    invalidateLugaresCache();
     return res.status(200).json({ message: 'Fotos actualizadas', fotos: fotosValidas });
   } catch (error: any) {
     console.error('Error actualizando fotos:', error);
