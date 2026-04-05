@@ -6,6 +6,7 @@ import {
   getMyBusiness,
   getMyBusinessRequests,
   getBusinessById,
+  getBusinessStatus,
   updateBusiness,
   updateBusinessImages,
 } from "../controllers/business.controller";
@@ -51,6 +52,12 @@ router.get(
   "/by-id/:id",
   authMiddleware,
   getBusinessById
+);
+
+router.get(
+  "/status",
+  authMiddleware,
+  getBusinessStatus
 );
 
 router.get(
