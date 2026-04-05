@@ -850,11 +850,11 @@ export const archivarNegocio = async (req: Request, res: Response) => {
             const motivoMsg = motivoFinal ? ` Motivo: ${motivoFinal}` : "";
             await sendNotificationToUser(ownerUidArch, {
                 tipo: 'negocio_archivado',
-                titulo: 'Negocio eliminado',
-                mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido eliminado por el administrador.${motivoMsg}`,
+                titulo: 'Negocio Archivado',
+                mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido archivado por el administrador.${motivoMsg}`,
                 fecha: new Date().toISOString(),
                 leido: false,
-                enlace: '/negocio/estatus',
+                enlace: `/negocio/mis-solicitudes/${negocioId}`,
                 negocioId
             });
             
@@ -1082,6 +1082,27 @@ export const eliminarNegocioPermanente = async (req: Request, res: Response) => 
                 console.error(`[eliminarNegocioPermanente] Error eliminando de Cloudinary:`, cloudinaryError);
             }
         })();
+
+        // Notify owner about permanent deletion (modal flow in frontend)
+        const ownerUidDel = firstNonEmpty(negocioData?.owner, negocioData?.ownerUid, negocioData?.business?.owner);
+        if (ownerUidDel) {
+            const deletionReason = negocioData?.archivedReason || negocioData?.rejectionReason || "";
+            const motivoMsg = deletionReason ? ` Motivo: ${deletionReason}` : "";
+            await sendNotificationToUser(ownerUidDel, {
+                tipo: 'negocio_eliminado',
+                titulo: 'Negocio Eliminado',
+                mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido eliminado por el administrador.${motivoMsg}`,
+                fecha: new Date().toISOString(),
+                leido: false,
+                enlace: null,
+                negocioId,
+            });
+
+            emitBusinessStatusChange(ownerUidDel, negocioId, 'eliminado', {
+                businessName: negocioData?.business?.name || negocioData?.name,
+                reason: deletionReason,
+            });
+        }
         
         console.log(`[eliminarNegocioPermanente] ✅ Negocio ${negocioId} eliminado permanentemente de Firestore`);
         
