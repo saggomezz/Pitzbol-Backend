@@ -13,6 +13,12 @@ export const getOrCreateChat = async (req: Request, res: Response) => {
       });
     }
 
+    // IDOR protection: authenticated user must be one of the participants
+    const authUid = (req as any).user?.uid;
+    if (authUid !== touristId && authUid !== guideId) {
+      return res.status(403).json({ success: false, msg: 'No puedes crear chats para otros usuarios' });
+    }
+
     const chat = await ChatService.getOrCreateChat(touristId, guideId, touristName, guideName);
     
     res.status(200).json({
@@ -23,8 +29,7 @@ export const getOrCreateChat = async (req: Request, res: Response) => {
     console.error('Error al obtener o crear chat:', error);
     res.status(500).json({
       success: false,
-      msg: 'Error al obtener o crear chat',
-      error: error.message,
+      msg: 'Error al obtener o crear chat' ,
     });
   }
 };
@@ -52,8 +57,7 @@ export const getMessages = async (req: Request, res: Response) => {
     console.error('Error al obtener mensajes:', error);
     res.status(500).json({
       success: false,
-      msg: 'Error al obtener mensajes',
-      error: error.message,
+      msg: 'Error al obtener mensajes' ,
     });
   }
 };
@@ -69,6 +73,11 @@ export const getUserChats = async (req: Request, res: Response) => {
         success: false,
         msg: 'userId es requerido',
       });
+    }
+
+    // IDOR protection: only allow viewing own chats
+    if ((req as any).user?.uid !== userId) {
+      return res.status(403).json({ success: false, msg: 'No puedes ver chats de otro usuario' });
     }
 
     if (!userType || (userType !== 'tourist' && userType !== 'guide')) {
@@ -88,8 +97,7 @@ export const getUserChats = async (req: Request, res: Response) => {
     console.error('Error al obtener chats:', error);
     res.status(500).json({
       success: false,
-      msg: 'Error al obtener chats',
-      error: error.message,
+      msg: 'Error al obtener chats' ,
     });
   }
 };
@@ -114,6 +122,12 @@ export const markAsRead = async (req: Request, res: Response) => {
       });
     }
 
+    // IDOR protection: use JWT uid for marking as read
+    const authUid = (req as any).user?.uid;
+    if (!authUid || authUid !== userId) {
+      return res.status(403).json({ success: false, msg: 'No autorizado' });
+    }
+
     await ChatService.markAsRead(chatId, userId);
     
     res.status(200).json({
@@ -124,8 +138,7 @@ export const markAsRead = async (req: Request, res: Response) => {
     console.error('Error al marcar mensajes como leídos:', error);
     res.status(500).json({
       success: false,
-      msg: 'Error al marcar mensajes como leídos',
-      error: error.message,
+      msg: 'Error al marcar mensajes como leídos' ,
     });
   }
 };
@@ -151,6 +164,12 @@ export const getChatInfo = async (req: Request, res: Response) => {
       });
     }
 
+    // IDOR protection: only participants can view chat info
+    const authUid = (req as any).user?.uid;
+    if (!authUid || (chat.touristId !== authUid && chat.guideId !== authUid)) {
+      return res.status(403).json({ success: false, msg: 'No autorizado' });
+    }
+
     res.status(200).json({
       success: true,
       chat,
@@ -159,8 +178,7 @@ export const getChatInfo = async (req: Request, res: Response) => {
     console.error('Error al obtener información del chat:', error);
     res.status(500).json({
       success: false,
-      msg: 'Error al obtener información del chat',
-      error: error.message,
+      msg: 'Error al obtener información del chat' ,
     });
   }
 };
@@ -176,6 +194,11 @@ export const getUnreadMessages = async (req: Request, res: Response) => {
         success: false,
         msg: 'userId es requerido',
       });
+    }
+
+    // IDOR protection: only allow checking own unread messages
+    if ((req as any).user?.uid !== userId) {
+      return res.status(403).json({ success: false, msg: 'No autorizado' });
     }
 
     if (!userType || (userType !== 'tourist' && userType !== 'guide')) {
@@ -196,8 +219,7 @@ export const getUnreadMessages = async (req: Request, res: Response) => {
     console.error('Error al obtener mensajes no leídos:', error);
     res.status(500).json({
       success: false,
-      msg: 'Error al obtener mensajes no leídos',
-      error: error.message,
+      msg: 'Error al obtener mensajes no leídos' ,
     });
   }
 };
@@ -214,6 +236,16 @@ export const deleteChat = async (req: Request, res: Response) => {
       });
     }
 
+    // IDOR protection: only participants can delete a chat
+    const chat = await ChatService.getChatById(chatId);
+    if (!chat) {
+      return res.status(404).json({ success: false, msg: 'Chat no encontrado' });
+    }
+    const authUid = (req as any).user?.uid;
+    if (!authUid || (chat.touristId !== authUid && chat.guideId !== authUid)) {
+      return res.status(403).json({ success: false, msg: 'No autorizado' });
+    }
+
     await ChatService.deleteChat(chatId);
     
     res.status(200).json({
@@ -224,8 +256,7 @@ export const deleteChat = async (req: Request, res: Response) => {
     console.error('Error al eliminar chat:', error);
     res.status(500).json({
       success: false,
-      msg: 'Error al eliminar chat',
-      error: error.message,
+      msg: 'Error al eliminar chat' ,
     });
   }
 };

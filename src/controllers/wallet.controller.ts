@@ -14,6 +14,11 @@ export const getUserCards = async (req: Request, res: Response) => {
       });
     }
 
+    // IDOR protection: only allow access to own cards
+    if ((req as any).user?.uid !== userId) {
+      return res.status(403).json({ success: false, message: 'No tienes permiso para ver estas tarjetas' });
+    }
+
     const cards = await WalletService.getUserCards(userId);
 
     res.status(200).json({
@@ -25,8 +30,7 @@ export const getUserCards = async (req: Request, res: Response) => {
     console.error('Error al obtener tarjetas:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al obtener tarjetas',
-      error: error.message,
+      message: 'Error al obtener tarjetas' ,
     });
   }
 };
@@ -42,6 +46,11 @@ export const addCard = async (req: Request, res: Response) => {
         success: false,
         message: 'userId es requerido',
       });
+    }
+
+    // IDOR protection: only allow adding cards to own wallet
+    if ((req as any).user?.uid !== userId) {
+      return res.status(403).json({ success: false, message: 'No tienes permiso para modificar esta billetera' });
     }
 
     if (!paymentMethodId) {
@@ -84,8 +93,7 @@ export const addCard = async (req: Request, res: Response) => {
     console.error('Error al agregar tarjeta:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al agregar tarjeta',
-      error: error.message,
+      message: 'Error al agregar tarjeta' ,
     });
   }
 };
@@ -102,6 +110,11 @@ export const removeCard = async (req: Request, res: Response) => {
       });
     }
 
+    // IDOR protection: only allow deleting own cards
+    if ((req as any).user?.uid !== userId) {
+      return res.status(403).json({ success: false, message: 'No tienes permiso para eliminar tarjetas de otro usuario' });
+    }
+
     await WalletService.deleteCard(userId, cardId);
 
     res.status(200).json({
@@ -112,8 +125,7 @@ export const removeCard = async (req: Request, res: Response) => {
     console.error('Error al eliminar tarjeta:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al eliminar tarjeta',
-      error: error.message,
+      message: 'Error al eliminar tarjeta' ,
     });
   }
 };
@@ -130,6 +142,11 @@ export const setDefaultCard = async (req: Request, res: Response) => {
       });
     }
 
+    // IDOR protection
+    if ((req as any).user?.uid !== userId) {
+      return res.status(403).json({ success: false, message: 'No tienes permiso' });
+    }
+
     await WalletService.setDefaultCard(userId, cardId);
 
     res.status(200).json({
@@ -140,8 +157,7 @@ export const setDefaultCard = async (req: Request, res: Response) => {
     console.error('Error al establecer tarjeta predeterminada:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al establecer tarjeta predeterminada',
-      error: error.message,
+      message: 'Error al establecer tarjeta predeterminada' ,
     });
   }
 };
@@ -156,6 +172,11 @@ export const getDefaultCard = async (req: Request, res: Response) => {
         success: false,
         message: 'userId es requerido',
       });
+    }
+
+    // IDOR protection
+    if ((req as any).user?.uid !== userId) {
+      return res.status(403).json({ success: false, message: 'No tienes permiso' });
     }
 
     const card = await WalletService.getDefaultCard(userId);
@@ -175,8 +196,7 @@ export const getDefaultCard = async (req: Request, res: Response) => {
     console.error('Error al obtener tarjeta predeterminada:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al obtener tarjeta predeterminada',
-      error: error.message,
+      message: 'Error al obtener tarjeta predeterminada' ,
     });
   }
 };

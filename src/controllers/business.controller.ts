@@ -697,7 +697,7 @@ export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
 
   } catch (error: any) {
     console.error("Error getMyBusiness:", error);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false });
   }
 };
 
@@ -826,7 +826,7 @@ export const getMyBusinessRequests = async (req: RequestWithUser, res: Response)
 
   } catch (error: any) {
     console.error("Error getMyBusinessRequests:", error);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false });
   }
 };
 
@@ -1016,7 +1016,7 @@ export const getBusinessById = async (req: RequestWithUser, res: Response) => {
     return res.status(404).json({ success: false, message: "Negocio no encontrado" });
   } catch (error: any) {
     console.error("Error getBusinessById:", error);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false });
   }
 };
 
@@ -1313,7 +1313,7 @@ export const updateBusiness = async (req: RequestWithUser, res: Response) => {
     });
   } catch (error: any) {
     console.error("Error updateBusiness:", error);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false });
   }
 };
 
@@ -1419,6 +1419,6 @@ export const updateBusinessImages = async (req: RequestWithUser, res: Response) 
     });
   } catch (error: any) {
     console.error("Error updateBusinessImages:", error);
-    return res.status(500).json({ success: false, error: error.message });
+    return res.status(500).json({ success: false });
   }
 };

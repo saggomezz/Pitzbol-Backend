@@ -657,8 +657,7 @@ export const obtenerPerfilPublico = async (req: Request, res: Response) => {
     console.error('❌ Error al obtener perfil público:', error);
     return res.status(500).json({
       success: false,
-      message: 'Error interno al obtener perfil público',
-      error: error.message,
+      message: 'Error interno al obtener perfil público' ,
     });
   }
 };
@@ -691,7 +690,7 @@ export const obtenerTarjetas = async (req: any, res: Response) => {
     res.json({ cards });
   } catch (error: any) {
     console.error('❌ Error obteniendo tarjetas:', error);
-    res.status(500).json({ error: error.message || 'Error al obtener tarjetas' });
+    res.status(500).json({ error: 'Error al obtener tarjetas' });
   }
 };
 
@@ -741,7 +740,7 @@ export const crearSetupIntent = async (req: any, res: Response) => {
     res.json({ clientSecret: setupIntent.client_secret });
   } catch (error: any) {
     console.error('❌ Error creando setup intent:', error);
-    res.status(500).json({ error: error.message || 'Error creando setup intent' });
+    res.status(500).json({ error: 'Error creando setup intent' });
   }
 };
 
@@ -832,7 +831,7 @@ export const guardarTarjeta = async (req: any, res: Response) => {
     });
   } catch (error: any) {
     console.error('❌ Error guardando tarjeta:', error);
-    res.status(500).json({ error: error.message || 'Error guardando tarjeta' });
+    res.status(500).json({ error: 'Error guardando tarjeta' });
   }
 };
 
@@ -858,7 +857,7 @@ export const eliminarTarjeta = async (req: any, res: Response) => {
     });
   } catch (error: any) {
     console.error('❌ Error eliminando tarjeta:', error);
-    res.status(500).json({ error: error.message || 'Error eliminando tarjeta' });
+    res.status(500).json({ error: 'Error eliminando tarjeta' });
   }
 };
 
@@ -884,7 +883,7 @@ export const establecerPredeterminada = async (req: any, res: Response) => {
     });
   } catch (error: any) {
     console.error('❌ Error estableciendo predeterminada:', error);
-    res.status(500).json({ error: error.message || 'Error estableciendo predeterminada' });
+    res.status(500).json({ error: 'Error estableciendo predeterminada' });
   }
 };
 
@@ -923,8 +922,7 @@ export const obtenerToursGuia = async (req: Request, res: Response) => {
     console.error('❌ Error al obtener tours del guía:', error);
     return res.status(500).json({
       success: false,
-      message: 'Error al obtener tours',
-      error: error.message
+      message: 'Error al obtener tours'
     });
   }
 };
@@ -991,8 +989,7 @@ export const obtenerNegociosUsuario = async (req: Request, res: Response) => {
     console.error('❌ Error al obtener negocios del usuario:', error);
     return res.status(500).json({
       success: false,
-      message: 'Error al obtener negocios',
-      error: error.message
+      message: 'Error al obtener negocios'
     });
   }
 };

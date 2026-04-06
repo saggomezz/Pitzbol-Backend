@@ -97,7 +97,7 @@ export const register = async (req: Request, res: Response) => {
     if (error.code === 'auth/email-already-exists') {
         return res.status(400).json({ msg: "El correo ya está registrado en Pitzbol" });
     }
-    res.status(500).json({ msg: "Error interno al registrar", error: error.message });
+    res.status(500).json({ msg: "Error interno al registrar" });
   }
 };
 
@@ -183,7 +183,7 @@ export const login = async (req: Request, res: Response) => {
     const token = jwt.sign(
       { uid: localId, email, role: userRole },
       JWT_SECRET!,
-      { expiresIn: "7d" }
+      { expiresIn: "30d" }
     );
 
     // Establecer HTTP-only cookie
@@ -227,54 +227,29 @@ export const login = async (req: Request, res: Response) => {
     const firebaseError = error.response?.data?.error;
     const code = firebaseError?.message;
 
-    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.error('❌ ERROR EN LOGIN');
-    console.error('📋 Email intentado:', req.body.email);
-    console.error('🔥 Código de error Firebase:', code || 'Sin código');
-    console.error('📝 Mensaje de error:', error.message);
-    console.error('📊 Respuesta completa de Firebase:', JSON.stringify(error.response?.data, null, 2));
-    console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+    console.error('❌ Error en login para:', req.body.email, 'Code:', code);
 
-    // Mensajes de error más descriptivos
-    if (code === "INVALID_LOGIN_CREDENTIALS") {
+    // Unified error responses to prevent user enumeration
+    if (code === "INVALID_LOGIN_CREDENTIALS" || code === "EMAIL_NOT_FOUND" || code === "INVALID_PASSWORD") {
       return res.status(401).json({ 
-        msg: "Correo o contraseña incorrectos. Por favor verifica tus credenciales.",
-        error_code: "INVALID_CREDENTIALS"
-      });
-    }
-    
-    if (code === "EMAIL_NOT_FOUND") {
-      return res.status(401).json({ 
-        msg: "No existe una cuenta con este correo electrónico.",
-        error_code: "EMAIL_NOT_FOUND"
-      });
-    }
-    
-    if (code === "INVALID_PASSWORD") {
-      return res.status(401).json({ 
-        msg: "Contraseña incorrecta.",
-        error_code: "INVALID_PASSWORD"
+        msg: "Correo o contraseña incorrectos."
       });
     }
     
     if (code === "USER_DISABLED") {
       return res.status(403).json({ 
-        msg: "Esta cuenta ha sido deshabilitada.",
-        error_code: "USER_DISABLED"
+        msg: "Esta cuenta ha sido deshabilitada."
       });
     }
     
     if (code === "TOO_MANY_ATTEMPTS_TRY_LATER") {
       return res.status(429).json({ 
-        msg: "Demasiados intentos fallidos. Por favor intenta más tarde.",
-        error_code: "TOO_MANY_ATTEMPTS"
+        msg: "Demasiados intentos fallidos. Por favor intenta más tarde."
       });
     }
 
     return res.status(500).json({ 
-      msg: "Error interno en el servidor", 
-      error: code || error.message,
-      details: "Revisa los logs del servidor para más información"
+      msg: "Error interno en el servidor"
     });
   }
 };
@@ -325,7 +300,7 @@ export const recoverPassword = async (req: Request, res: Response) => {
     }
 
     const resetLink = await auth.generatePasswordResetLink(email, {
-      url: "http://localhost:3000/reset-password",
+      url: process.env.FRONTEND_URL || "http://localhost:3000/reset-password",
     });
 
     const mailOptions = {
@@ -361,7 +336,7 @@ export const recoverPassword = async (req: Request, res: Response) => {
 
   } catch (error: any) {
     console.error("Error en recoverPassword:", error);
-    return res.status(500).json({ msg: "Error al procesar la solicitud", error: error.message });
+    return res.status(500).json({ msg: "Error al procesar la solicitud" });
   }
 };
 
@@ -445,7 +420,7 @@ export const updateProfile = async (req: any, res: Response) => {
 
   } catch (error: any) {
     console.error("Error en updateProfile:", error);
-    res.status(500).json({ msg: "Error interno del servidor", error: error.message });
+    res.status(500).json({ msg: "Error interno del servidor" });
   }
 };
 
@@ -467,8 +442,23 @@ export const refreshToken = async (req: Request, res: Response) => {
       return res.status(401).json({ msg: "Token no proporcionado" });
     }
 
-    // Verificar firma pero ignorar expiración
-    const decoded = jwt.verify(token, JWT_SECRET!, { ignoreExpiration: true }) as jwt.JwtPayload;
+    // Verify signature but allow recently-expired tokens (max 1 hour past expiry)
+    let decoded: jwt.JwtPayload;
+    try {
+      decoded = jwt.verify(token, JWT_SECRET!) as jwt.JwtPayload;
+    } catch (err: any) {
+      if (err.name === 'TokenExpiredError') {
+        // Allow refresh only if expired less than 1 hour ago
+        decoded = jwt.verify(token, JWT_SECRET!, { ignoreExpiration: true }) as jwt.JwtPayload;
+        const expiredAt = (decoded.exp || 0) * 1000;
+        const oneHourMs = 60 * 60 * 1000;
+        if (Date.now() - expiredAt > oneHourMs) {
+          return res.status(401).json({ msg: "Token expirado hace demasiado tiempo. Inicia sesión nuevamente." });
+        }
+      } else {
+        return res.status(401).json({ msg: "Token inválido" });
+      }
+    }
 
     if (!decoded.uid || !decoded.email || !decoded.role) {
       return res.status(401).json({ msg: "Token inválido" });
@@ -485,7 +475,7 @@ export const refreshToken = async (req: Request, res: Response) => {
     const newToken = jwt.sign(
       { uid: decoded.uid, email: decoded.email, role: decoded.role },
       JWT_SECRET!,
-      { expiresIn: "7d" }
+      { expiresIn: "30d" }
     );
 
     res.cookie('authToken', newToken, {
@@ -594,6 +584,6 @@ export const solicitarGuia = async (req: any, res: Response) => {
 
   } catch (error: any) {
     console.error("Error en solicitarGuia:", error);
-    res.status(500).json({ msg: "Error interno del servidor", error: error.message });
+    res.status(500).json({ msg: "Error interno del servidor" });
   }
 };

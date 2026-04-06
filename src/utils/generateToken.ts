@@ -13,6 +13,6 @@ export const generateToken = (
   return jwt.sign(
     { uid, email, role },
     JWT_SECRET,
-    { expiresIn: "7d" }
+    { expiresIn: "30d" }
   );
 };

@@ -3,9 +3,17 @@ import { db } from '../config/firebase';
 import { upload } from '../middleware/uploadMiddleware';
 import { v2 as cloudinary } from 'cloudinary';
 
+// Cache en memoria para lista de lugares — TTL 10 minutos
+let lugaresCache: { data: any[] | null; expiresAt: number } = { data: null, expiresAt: 0 };
+const LUGARES_CACHE_TTL = 10 * 60 * 1000; // 10 minutos
+
+function invalidateLugaresCache() {
+  lugaresCache = { data: null, expiresAt: 0 };
+}
+
 // Configurar Cloudinary con validación
 if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
-  console.warn('⚠️ Variables de Cloudinary no configuradas en .env');
+  console.warn('Variables de Cloudinary no configuradas en .env');
 }
 
 cloudinary.config({
@@ -158,6 +166,11 @@ export const getAllPlaces = async (req: Request, res: Response) => {
   try {
     const includeBusinesses = shouldIncludeApprovedBusinesses(req.query.includeApprovedBusinesses);
 
+    // Servir desde cache si está vigente (solo para la vista sin negocios)
+    if (!includeBusinesses && lugaresCache.data && lugaresCache.expiresAt > Date.now()) {
+      return res.status(200).json({ lugares: lugaresCache.data });
+    }
+
     const snapshot = await db.collection('lugares').get();
 
     const lugares = snapshot.docs.map(doc => ({
@@ -166,6 +179,7 @@ export const getAllPlaces = async (req: Request, res: Response) => {
     }));
 
     if (!includeBusinesses) {
+      lugaresCache = { data: lugares, expiresAt: Date.now() + LUGARES_CACHE_TTL };
       return res.status(200).json({ lugares });
     }
 
@@ -198,11 +212,11 @@ export const getAllPlaces = async (req: Request, res: Response) => {
         mergedByName.set(normalizedName, mergePlaceData(existing, businessPlace));
       }
     }
-    
+
     return res.status(200).json({ lugares: Array.from(mergedByName.values()) });
   } catch (error: any) {
     console.error('Error obteniendo lugares:', error);
-    return res.status(500).json({ message: 'Error interno', error: error.message });
+    return res.status(500).json({ message: 'Error interno' });
   }
 };
 
@@ -241,7 +255,7 @@ export const createPlace = async (req: Request, res: Response) => {
     
     await db.collection('lugares').doc(placeId).set(nuevoLugar);
     
-    console.log(`✅ Lugar creado: ${nombre} (ID: ${placeId})`);
+    console.log(`Lugar creado: ${nombre} (ID: ${placeId})`);
     
     return res.status(201).json({
       message: 'Lugar creado correctamente',
@@ -252,7 +266,7 @@ export const createPlace = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error creando lugar:', error);
-    return res.status(500).json({ message: 'Error interno', error: error.message });
+    return res.status(500).json({ message: 'Error interno' });
   }
 };
 
@@ -261,7 +275,7 @@ export const createPlace = async (req: Request, res: Response) => {
  * Versión optimizada con mejor precisión para calles de Guadalajara
  */
 export const geocodeAddress = async (req: Request, res: Response) => {
-  console.log('📍 geocodeAddress llamado con:', req.body);
+  console.log('geocodeAddress llamado con:', req.body);
   try {
     const { direccion } = req.body;
     
@@ -270,7 +284,7 @@ export const geocodeAddress = async (req: Request, res: Response) => {
     }
 
     const direccionOriginal = direccion.trim();
-    console.log('🔍 Buscando coordenadas para:', direccionOriginal);
+    console.log('Buscando coordenadas para:', direccionOriginal);
     
     // Función para normalizar texto (quitar acentos)
     const normalizar = (texto: string): string => {
@@ -375,11 +389,11 @@ export const geocodeAddress = async (req: Request, res: Response) => {
         address.municipality?.toLowerCase().includes('guadalajara') ||
         displayName.includes('guadalajara');
       
-      console.log(`    🔍 Evaluando: "${displayName}" | road="${road}" | enGDL=${enGuadalajara}`);
+      console.log(`    Evaluando: "${displayName}" | road="${road}" | enGDL=${enGuadalajara}`);
       
       // Si NO está en Guadalajara, descartar completamente
       if (!enGuadalajara) {
-        console.log(`    ❌ DESCARTAR: No está en Guadalajara`);
+        console.log(`    DESCARTAR: No está en Guadalajara`);
         return -100;
       }
       
@@ -397,7 +411,7 @@ export const geocodeAddress = async (req: Request, res: Response) => {
         if (roadNormalizado && roadNormalizado === calleNormalizada) {
           puntuacion += 15.0;
           coincideCalle = true;
-          console.log(`    ✅ EXACTA en road: "${calleBuscada}" = "${road}"`);
+          console.log(`    EXACTA en road: "${calleBuscada}" = "${road}"`);
           break;
         }
         
@@ -406,7 +420,7 @@ export const geocodeAddress = async (req: Request, res: Response) => {
           const bonus = 12.0 * (calleNormalizada.length / Math.max(roadNormalizado.length, 1));
           puntuacion += bonus;
           coincideCalle = true;
-          console.log(`    ✅ PARCIAL 1 en road: "${calleBuscada}" ⊂ "${road}" (+${bonus.toFixed(2)})`);
+          console.log(`    PARCIAL 1 en road: "${calleBuscada}" ⊂ "${road}" (+${bonus.toFixed(2)})`);
           break;
         }
         
@@ -415,7 +429,7 @@ export const geocodeAddress = async (req: Request, res: Response) => {
           const bonus = 11.0 * (roadNormalizado.length / calleNormalizada.length);
           puntuacion += bonus;
           coincideCalle = true;
-          console.log(`    ✅ PARCIAL 2: "${road}" ⊂ "${calleBuscada}" (+${bonus.toFixed(2)})`);
+          console.log(`    PARCIAL 2: "${road}" ⊂ "${calleBuscada}" (+${bonus.toFixed(2)})`);
           break;
         }
         
@@ -424,7 +438,7 @@ export const geocodeAddress = async (req: Request, res: Response) => {
           const bonus = 10.0;
           puntuacion += bonus;
           coincideCalle = true;
-          console.log(`    ✅ Encontrado en displayName: "${displayName}" (+${bonus.toFixed(2)})`);
+          console.log(`    Encontrado en displayName: "${displayName}" (+${bonus.toFixed(2)})`);
           break;
         }
       }
@@ -434,10 +448,10 @@ export const geocodeAddress = async (req: Request, res: Response) => {
         const importance = resultado.importance || 0;
         if (importance > 0.1) {
           puntuacion += importance * 5.0;
-          console.log(`    ℹ️ Sin coincidencia de calle, pero importance=${importance.toFixed(3)} (+${(importance * 5).toFixed(2)})`);
+          console.log(`    Sin coincidencia de calle, pero importance=${importance.toFixed(3)} (+${(importance * 5).toFixed(2)})`);
         } else {
           // Si no hay ninguna coincidencia y importance bajo, dar mínima puntuación
-          console.log(`    ⚠️ Sin coincidencia de calle, importance bajo=${importance}`);
+          console.log(`    Sin coincidencia de calle, importance bajo=${importance}`);
         }
       }
       
@@ -453,7 +467,7 @@ export const geocodeAddress = async (req: Request, res: Response) => {
       // BONUS por importance
       puntuacion += (resultado.importance || 0) * 0.5;
       
-      console.log(`    📊 Puntuación final: ${puntuacion.toFixed(2)}`);
+      console.log(`    Puntuación final: ${puntuacion.toFixed(2)}`);
       return puntuacion;
     };
 
@@ -471,25 +485,25 @@ export const geocodeAddress = async (req: Request, res: Response) => {
     // Limitar variantes para evitar demasiadas búsquedas (máximo 6)
     const variantesLimitadas = variantesCalle.slice(0, 6);
     
-    console.log('  📋 Variantes de calle a buscar:', variantesLimitadas);
+    console.log('  Variantes de calle a buscar:', variantesLimitadas);
 
     let todosLosResultados: any[] = [];
 
     // Estrategia 1: Búsquedas con variantes de calle + Guadalajara
     for (const variante of variantesLimitadas) {
       const query = `${variante}, Guadalajara, Jalisco, Mexico`;
-      console.log(`  🔎 Buscando: "${query}"`);
+      console.log(`  Buscando: "${query}"`);
       
       const resultados = await buscarConParams({ q: query }, 10);
       if (resultados && resultados.length > 0) {
-        console.log(`    📊 ${resultados.length} resultado(s)`);
+        console.log(`    ${resultados.length} resultado(s)`);
         todosLosResultados.push(...resultados);
       }
     }
 
     // Estrategia 2: Búsqueda estructurada con street (solo con original)
     if (calleOriginal) {
-      console.log(`  🔎 Búsqueda estructurada con street: "${calleOriginal}"`);
+      console.log(`  Búsqueda estructurada con street: "${calleOriginal}"`);
       const resultados = await buscarConParams({
         street: calleOriginal,
         city: 'Guadalajara',
@@ -498,13 +512,13 @@ export const geocodeAddress = async (req: Request, res: Response) => {
       }, 10);
       
       if (resultados && resultados.length > 0) {
-        console.log(`    📊 ${resultados.length} resultado(s)`);
+        console.log(`    ${resultados.length} resultado(s)`);
         todosLosResultados.push(...resultados);
       }
     }
 
     if (todosLosResultados.length === 0) {
-      console.log('  ❌ No se encontraron resultados');
+      console.log('  No se encontraron resultados');
       return res.status(200).json({ 
         message: 'No se encontró esta calle. Ajusta la ubicación manualmente en el mapa.',
         success: false
@@ -516,7 +530,7 @@ export const geocodeAddress = async (req: Request, res: Response) => {
       index === self.findIndex(t => t.place_id === r.place_id)
     );
 
-    console.log(`  📊 Total de resultados únicos: ${unicos.length}`);
+    console.log(`  Total de resultados únicos: ${unicos.length}`);
 
     // Calcular puntuación y ordenar
     const resultadosConPuntuacion = unicos
@@ -528,7 +542,7 @@ export const geocodeAddress = async (req: Request, res: Response) => {
       .sort((a, b) => b.puntuacion - a.puntuacion);
 
     if (resultadosConPuntuacion.length === 0) {
-      console.log('  ❌ Ningún resultado válido después del filtrado');
+      console.log('  Ningún resultado válido después del filtrado');
       return res.status(200).json({ 
         message: 'No se encontró una coincidencia precisa para esta calle.',
         success: false
@@ -536,13 +550,13 @@ export const geocodeAddress = async (req: Request, res: Response) => {
     }
 
     // Mostrar top 3
-    console.log(`  🏆 Top resultados:`);
+    console.log(`  Top resultados:`);
     resultadosConPuntuacion.slice(0, 3).forEach((r, i) => {
       console.log(`    ${i + 1}. Puntuación: ${r.puntuacion.toFixed(2)} - ${r.display_name}`);
     });
 
     const mejorResultado = resultadosConPuntuacion[0];
-    console.log(`  ✅ Mejor resultado seleccionado:`, mejorResultado.display_name);
+    console.log(`  Mejor resultado seleccionado:`, mejorResultado.display_name);
 
     const lat = parseFloat(mejorResultado.lat);
     const lon = parseFloat(mejorResultado.lon);
@@ -563,8 +577,7 @@ export const geocodeAddress = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error en geocodificación:', error);
     return res.status(500).json({ 
-      message: 'Error interno al buscar coordenadas',
-      error: error.message,
+      message: 'Error interno al buscar coordenadas' ,
       success: false
     });
   }
@@ -596,7 +609,7 @@ export const getPlaceByName = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error obteniendo lugar:', error);
-    return res.status(500).json({ message: 'Error interno', error: error.message });
+    return res.status(500).json({ message: 'Error interno' });
   }
 };
 
@@ -690,8 +703,8 @@ export const addPlacePhotos = async (req: any, res: Response) => {
     }
     
     await placeRef.set(updateData, { merge: true });
-    
-    console.log(`✅ ${newPhotos.length} foto(s) agregada(s) al lugar: ${nombre}`);
+    invalidateLugaresCache();
+    console.log(`${newPhotos.length} foto(s) agregada(s) al lugar: ${nombre}`);
     
     return res.status(200).json({
       message: `${newPhotos.length} foto(s) agregada(s) correctamente`,
@@ -703,7 +716,7 @@ export const addPlacePhotos = async (req: any, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error agregando fotos:', error);
-    return res.status(500).json({ message: 'Error interno', error: error.message });
+    return res.status(500).json({ message: 'Error interno' });
   }
 };
 
@@ -767,7 +780,7 @@ export const deletePlacePhoto = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error eliminando foto:', error);
-    return res.status(500).json({ message: 'Error interno', error: error.message });
+    return res.status(500).json({ message: 'Error interno' });
   }
 };
 
@@ -798,7 +811,7 @@ export const updatePlace = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error actualizando lugar:', error);
-    return res.status(500).json({ message: 'Error interno', error: error.message });
+    return res.status(500).json({ message: 'Error interno' });
   }
 };
 
@@ -823,10 +836,11 @@ export const setPlaceFotos = async (req: Request, res: Response) => {
       ultimaActualizacion: new Date().toISOString()
     }, { merge: true });
 
+    invalidateLugaresCache();
     return res.status(200).json({ message: 'Fotos actualizadas', fotos: fotosValidas });
   } catch (error: any) {
     console.error('Error actualizando fotos:', error);
-    return res.status(500).json({ message: 'Error interno', error: error.message });
+    return res.status(500).json({ message: 'Error interno' });
   }
 };
 
@@ -842,10 +856,10 @@ export const deletePlace = async (req: Request, res: Response) => {
     const placeId = normalizePlaceName(nombre);
     await db.collection('lugares').doc(placeId).delete();
 
-    console.log(`🗑️ Lugar eliminado: ${nombre} (ID: ${placeId})`);
+    console.log(`Lugar eliminado: ${nombre} (ID: ${placeId})`);
     return res.status(200).json({ message: 'Lugar eliminado correctamente' });
   } catch (error: any) {
     console.error('Error eliminando lugar:', error);
-    return res.status(500).json({ message: 'Error interno', error: error.message });
+    return res.status(500).json({ message: 'Error interno' });
   }
 };

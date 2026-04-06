@@ -16,9 +16,15 @@ const storage: StorageEngine = multer.memoryStorage();
 
 // 🛡️ Filtro de archivos - Validación en servidor
 const fileFilter = (req: any, file: any, cb: any) => {
+  // Validar MIME type del archivo
+  const allowedMimes = ['image/jpeg', 'image/png', 'image/webp'];
+  if (!allowedMimes.includes(file.mimetype)) {
+    return cb(new Error('Tipo MIME no permitido. Solo: JPEG, PNG, WebP'), false);
+  }
+
   // Validar extensión de archivo (no confiar solo en cliente)
   const allowedExts = ['.jpg', '.jpeg', '.png', '.webp'];
-  const ext = file.originalname.toLowerCase().slice(-4);
+  const ext = '.' + file.originalname.toLowerCase().split('.').pop();
   
   if (!allowedExts.includes(ext)) {
     return cb(new Error('Extensión de archivo no permitida. Solo: JPG, PNG, WebP'), false);

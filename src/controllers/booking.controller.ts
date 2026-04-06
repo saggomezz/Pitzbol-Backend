@@ -5,6 +5,11 @@ import { BookingService } from '../services/booking.service';
 export const createBooking = async (req: Request, res: Response) => {
   try {
     const bookingData = req.body;
+    const authUser = (req as any).user;
+
+    if (!authUser?.uid) {
+      return res.status(401).json({ success: false, message: 'Autenticación requerida' });
+    }
 
     // Validaciones
     if (!bookingData.guideId || !bookingData.touristId || !bookingData.fecha) {
@@ -12,6 +17,17 @@ export const createBooking = async (req: Request, res: Response) => {
         success: false,
         message: 'Faltan datos requeridos',
       });
+    }
+
+    // IDOR protection: touristId must match authenticated user
+    if (bookingData.touristId !== authUser.uid) {
+      return res.status(403).json({ success: false, message: 'No puedes crear reservas para otro usuario' });
+    }
+
+    // Validate date is not in the past
+    const bookingDate = new Date(bookingData.fecha);
+    if (isNaN(bookingDate.getTime()) || bookingDate < new Date()) {
+      return res.status(400).json({ success: false, message: 'La fecha debe ser futura y válida' });
     }
 
     // Verificar disponibilidad
@@ -44,8 +60,7 @@ export const createBooking = async (req: Request, res: Response) => {
     console.error('Error al crear reserva:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al crear reserva',
-      error: error.message,
+      message: 'Error al crear reserva' ,
     });
   }
 };
@@ -79,8 +94,7 @@ export const getBookingById = async (req: Request, res: Response) => {
     console.error('Error al obtener reserva:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al obtener reserva',
-      error: error.message,
+      message: 'Error al obtener reserva' ,
     });
   }
 };
@@ -97,6 +111,11 @@ export const getTouristBookings = async (req: Request, res: Response) => {
       });
     }
 
+    // IDOR protection: only the tourist can see their own bookings
+    if ((req as any).user?.uid !== touristId) {
+      return res.status(403).json({ success: false, message: 'No puedes ver reservas de otro turista' });
+    }
+
     const bookings = await BookingService.getTouristBookings(touristId);
 
     res.status(200).json({
@@ -108,8 +127,7 @@ export const getTouristBookings = async (req: Request, res: Response) => {
     console.error('Error al obtener reservas del turista:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al obtener reservas',
-      error: error.message,
+      message: 'Error al obtener reservas' ,
     });
   }
 };
@@ -126,6 +144,11 @@ export const getGuideBookings = async (req: Request, res: Response) => {
       });
     }
 
+    // IDOR protection: only the guide can see their own bookings
+    if ((req as any).user?.uid !== guideId) {
+      return res.status(403).json({ success: false, message: 'No puedes ver reservas de otro guía' });
+    }
+
     const bookings = await BookingService.getGuideBookings(guideId);
 
     res.status(200).json({
@@ -137,8 +160,7 @@ export const getGuideBookings = async (req: Request, res: Response) => {
     console.error('Error al obtener reservas del guía:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al obtener reservas',
-      error: error.message,
+      message: 'Error al obtener reservas' ,
     });
   }
 };
@@ -173,8 +195,7 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
     console.error('Error al actualizar estado de reserva:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al actualizar estado',
-      error: error.message,
+      message: 'Error al actualizar estado' ,
     });
   }
 };
@@ -201,8 +222,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
     console.error('Error al cancelar reserva:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al cancelar reserva',
-      error: error.message,
+      message: 'Error al cancelar reserva' ,
     });
   }
 };
@@ -225,6 +245,12 @@ export const completeTour = async (req: Request, res: Response) => {
         success: false,
         message: 'guideId es requerido',
       });
+    }
+
+    // Use JWT uid, not body guideId, to prevent spoofing
+    const authUid = (req as any).user?.uid;
+    if (!authUid || authUid !== guideId) {
+      return res.status(403).json({ success: false, message: 'Solo el guía asignado puede completar el tour' });
     }
 
     // Verificar que la reserva existe y pertenece al guía
@@ -269,8 +295,7 @@ export const completeTour = async (req: Request, res: Response) => {
     console.error('Error al completar tour:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al completar tour',
-      error: error.message,
+      message: 'Error al completar tour' ,
     });
   }
 };
@@ -287,6 +312,12 @@ export const confirmBooking = async (req: Request, res: Response) => {
 
     if (!guideId) {
       return res.status(400).json({ success: false, message: 'guideId es requerido' });
+    }
+
+    // Use JWT uid to verify the guide identity
+    const confirmAuthUid = (req as any).user?.uid;
+    if (!confirmAuthUid || confirmAuthUid !== guideId) {
+      return res.status(403).json({ success: false, message: 'Solo el guía puede confirmar/rechazar reservas' });
     }
 
     if (!action || !['confirmar', 'rechazar'].includes(action)) {
@@ -328,8 +359,7 @@ export const confirmBooking = async (req: Request, res: Response) => {
     console.error('Error al confirmar/rechazar reserva:', error);
     return res.status(500).json({
       success: false,
-      message: 'Error al procesar la solicitud',
-      error: error.message,
+      message: 'Error al procesar la solicitud' ,
     });
   }
 };

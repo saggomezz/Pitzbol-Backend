@@ -28,12 +28,13 @@ router.post('/cancel/:paymentIntentId', authMiddleware, cancelPayment);
 // Obtener historial de pagos del usuario
 router.get('/history/:userId', authMiddleware, getUserPayments);
 
-// Webhook de Stripe (no requiere autenticacion)
+// Webhook de Stripe (no requiere autenticacion - uses signature verification)
 router.post('/webhook', handleStripeWebhook);
 
-// ENDPOINT SIMPLE para pagos sin reserva (testing / pagos directos)
+// ENDPOINT SIMPLE para pagos (requiere autenticación)
 router.post(
   "/create-simple-payment",
+  authMiddleware,
   async (req: Request, res: Response): Promise<void> => {
     try {
       const { amount, currency = "mxn", customerId, paymentMethodId, bookingId } = req.body as {
@@ -44,10 +45,10 @@ router.post(
         bookingId?: string;
       };
 
-      if (!amount || amount <= 0) {
+      if (!amount || amount <= 0 || amount > 1000000) {
         res.status(400).json({
           success: false,
-          error: "Monto invalido"
+          error: "Monto inválido (debe ser entre 1 y 1,000,000)"
         });
         return;
       }
@@ -110,9 +111,16 @@ router.post(
 
 router.get(
   "/cards/:userId",
+  authMiddleware,
   async (req: Request, res: Response): Promise<void> => {
     try {
       const { userId } = req.params;
+
+      // IDOR protection
+      if ((req as any).user?.uid !== userId) {
+        res.status(403).json({ success: false, error: 'No autorizado' });
+        return;
+      }
 
       const walletDoc = await db.collection('wallets').doc(userId).get();
 
@@ -149,10 +157,17 @@ router.get(
 
 router.post(
   "/cards/:userId",
+  authMiddleware,
   async (req: Request, res: Response): Promise<void> => {
     try {
       const { userId } = req.params;
       const { paymentMethodId } = req.body;
+
+      // IDOR protection
+      if ((req as any).user?.uid !== userId) {
+        res.status(403).json({ success: false, error: 'No autorizado' });
+        return;
+      }
 
       if (!paymentMethodId) {
         res.status(400).json({

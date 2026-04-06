@@ -5,6 +5,7 @@ import {
   recoverPassword,
   updateProfile,
   solicitarGuia,
+  refreshToken,
 } from "../controllers/auth.controller";
 import { authMiddleware } from "../middlewares/auth.middleware";
 import { validateRegisterInput, validateLoginInput, validatePasswordRecoveryInput, validateProfileUpdate } from "../middlewares/validation.middleware";
@@ -58,11 +59,20 @@ router.post(
   }
 );
 
+// POST /api/auth/refresh-token - Renovar token expirado
+router.post("/refresh-token", refreshToken);
+
 // POST /api/auth/solicitar-guia - Solicitar convertirse en guía
 router.post(
   "/solicitar-guia",
   authMiddleware,           // Requiere estar autenticado
   solicitarGuia
+);
+
+// POST /api/auth/refresh-token - Refrescar token expirado (sin authMiddleware)
+router.post(
+  "/refresh-token",
+  refreshToken
 );
 
 export default router;

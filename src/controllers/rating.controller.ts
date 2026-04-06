@@ -76,8 +76,7 @@ export const getGuideRatings = async (req: Request, res: Response) => {
     console.error('Error al obtener calificaciones:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al obtener calificaciones',
-      error: error.message,
+      message: 'Error al obtener calificaciones' ,
     });
   }
 };
@@ -104,8 +103,7 @@ export const getGuideRatingStats = async (req: Request, res: Response) => {
     console.error('Error al obtener estadísticas:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al obtener estadísticas',
-      error: error.message,
+      message: 'Error al obtener estadísticas' ,
     });
   }
 };
@@ -133,8 +131,7 @@ export const checkCanRate = async (req: Request, res: Response) => {
     console.error('Error al verificar calificación:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al verificar calificación',
-      error: error.message,
+      message: 'Error al verificar calificación' ,
     });
   }
 };
@@ -168,8 +165,7 @@ export const getRatingByBooking = async (req: Request, res: Response) => {
     console.error('Error al obtener calificación:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al obtener calificación',
-      error: error.message,
+      message: 'Error al obtener calificación' ,
     });
   }
 };

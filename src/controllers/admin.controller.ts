@@ -246,7 +246,7 @@ export const obtenerMovimientosNegocios = async (req: Request, res: Response) =>
         return res.json({ success: true, movimientos });
     } catch (error: any) {
         console.error("[obtenerMovimientosNegocios] Error:", error);
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(500).json({ success: false });
     }
 };
 
@@ -357,7 +357,7 @@ export const obtenerNegociosRechazados = async (req: Request, res: Response) => 
 
         return res.json({ success: true, negocios });
     } catch (error: any) {
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(500).json({ success: false });
     }
 };
 
@@ -395,7 +395,7 @@ export const obtenerNegociosPendientes = async (req: Request, res: Response) => 
         }));
         return res.json({ success: true, negocios });
     } catch (error: any) {
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(500).json({ success: false });
     }
 };
 // Obtener todos los negocios activos (solo admin)
@@ -435,7 +435,7 @@ export const obtenerNegocios = async (req: Request, res: Response) => {
         return res.json({ success: true, negocios });
     } catch (error: any) {
         console.error("[obtenerNegocios] Error:", error);
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(500).json({ success: false });
     }
 };
 // Helper function to find a business in Activos, Pendientes, Archivados or Rechazados
@@ -474,10 +474,9 @@ export const editarNegocio = async (req: Request, res: Response) => {
     let { negocioId } = req.params;
     if (Array.isArray(negocioId)) negocioId = negocioId[0];
     if (!negocioId) negocioId = "";
-    const { adminUid, ...data } = req.body;
-    if (!adminUid) {
-        return res.status(400).json({ success: false, message: "adminUid requerido" });
-    }
+    const { ...data } = req.body;
+    const adminUid = (req as any).user?.uid;
+
     try {
         const businessResult = await findBusiness(negocioId);
         if (!businessResult) {
@@ -557,7 +556,7 @@ export const editarNegocio = async (req: Request, res: Response) => {
         return res.json({ success: true, message: "Negocio editado y notificado" });
     } catch (error: any) {
         console.error("[editarNegocio] Error:", error);
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(500).json({ success: false });
     }
 };
 
@@ -608,7 +607,8 @@ const updateCloudinaryUrls = (data: any): any => {
 
 // Aprobar o rechazar un negocio pendiente
 export const gestionarNegocioPendiente = async (req: Request, res: Response) => {
-    const { negocioId, accion, adminUid, motivoRechazo } = req.body;
+    const { negocioId, accion, motivoRechazo } = req.body;
+    const adminUid = (req as any).user?.uid;
     if (!negocioId || !accion || !adminUid) {
         return res.status(400).json({ success: false, message: "Faltan datos obligatorios" });
     }
@@ -778,7 +778,7 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
         }
     } catch (error: any) {
         console.error("[gestionarNegocioPendiente] Error:", error);
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(500).json({ success: false });
     }
 };
 // Archivar (eliminar) un negocio, guardar motivo y notificar al dueño
@@ -786,10 +786,9 @@ export const archivarNegocio = async (req: Request, res: Response) => {
     let { negocioId } = req.params;
     if (Array.isArray(negocioId)) negocioId = negocioId[0];
     if (!negocioId) negocioId = "";
-    const { motivo, adminUid } = req.body;
-    if (!adminUid) {
-        return res.status(400).json({ success: false, message: "adminUid requerido" });
-    }
+    const { motivo } = req.body;
+    const adminUid = (req as any).user?.uid;
+
     try {
         const motivoFinal = typeof motivo === "string" && motivo.trim()
             ? motivo.trim()
@@ -867,7 +866,7 @@ export const archivarNegocio = async (req: Request, res: Response) => {
         return res.json({ success: true, message: "Negocio archivado y notificado" });
     } catch (error: any) {
         console.error("[archivarNegocio] Error:", error);
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(500).json({ success: false });
     }
 };
 
@@ -875,7 +874,7 @@ export const archivarNegocio = async (req: Request, res: Response) => {
 export const regresarAPendientes = async (req: Request, res: Response) => {
     let { negocioId } = req.params;
     if (Array.isArray(negocioId)) negocioId = negocioId[0];
-    const { adminUid } = req.body;
+    const adminUid = (req as any).user?.uid;
     
     if (!negocioId || !adminUid) {
         return res.status(400).json({ success: false, message: "negocioId y adminUid requeridos" });
@@ -953,7 +952,7 @@ export const regresarAPendientes = async (req: Request, res: Response) => {
         return res.json({ success: true, message: "Negocio regresado a pendientes" });
     } catch (error: any) {
         console.error("[regresarAPendientes] Error:", error);
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(500).json({ success: false });
     }
 };
 
@@ -961,7 +960,7 @@ export const regresarAPendientes = async (req: Request, res: Response) => {
 export const desarchivarNegocio = async (req: Request, res: Response) => {
     let { negocioId } = req.params;
     if (Array.isArray(negocioId)) negocioId = negocioId[0];
-    const { adminUid } = req.body;
+    const adminUid = (req as any).user?.uid;
     
     if (!negocioId || !adminUid) {
         return res.status(400).json({ success: false, message: "negocioId y adminUid requeridos" });
@@ -1033,7 +1032,7 @@ export const desarchivarNegocio = async (req: Request, res: Response) => {
         return res.json({ success: true, message: "Negocio desarchivado exitosamente" });
     } catch (error: any) {
         console.error("[desarchivarNegocio] Error:", error);
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(500).json({ success: false });
     }
 };
 
@@ -1041,7 +1040,7 @@ export const desarchivarNegocio = async (req: Request, res: Response) => {
 export const eliminarNegocioPermanente = async (req: Request, res: Response) => {
     let { negocioId } = req.params;
     if (Array.isArray(negocioId)) negocioId = negocioId[0];
-    const { adminUid } = req.body;
+    const adminUid = (req as any).user?.uid;
     
     if (!negocioId || !adminUid) {
         return res.status(400).json({ success: false, message: "negocioId y adminUid requeridos" });
@@ -1113,7 +1112,7 @@ export const eliminarNegocioPermanente = async (req: Request, res: Response) => 
         });
     } catch (error: any) {
         console.error("[eliminarNegocioPermanente] Error:", error);
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(500).json({ success: false });
     }
 };
 
@@ -1151,7 +1150,7 @@ export const recibirNotificacion = async (req: any, res: any) => {
         await sendNotificationToUser(targetBucket, notificacion);
         return res.json({ success: true });
     } catch (error: any) {
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(500).json({ success: false });
     }
 };
 
@@ -1178,7 +1177,7 @@ export const getSolicitudesPendientes = async (req: any, res: any) => {
         return res.status(200).json({ solicitudes });
     } catch (error: any) {
         console.error("❌ Error de Firebase:", error);
-        return res.status(500).json({ message: "Error interno", error: error.message });
+        return res.status(500).json({ message: "Error interno" });
     }
 };
 
@@ -1221,7 +1220,7 @@ export const getGuiasAprobados = async (req: any, res: any) => {
         return res.status(200).json({ success: true, guias });
     } catch (error: any) {
         console.error("❌ Error al obtener guías aprobados:", error);
-        return res.status(500).json({ success: false, message: "Error interno", error: error.message });
+        return res.status(500).json({ success: false, message: "Error interno" });
     }
 };
 
@@ -1232,7 +1231,7 @@ export const getGuiasPendientes = async (req: any, res: any) => {
         return res.status(200).json({ success: true, guias });
     } catch (error: any) {
         console.error("❌ Error al obtener guías pendientes:", error);
-        return res.status(500).json({ success: false, message: "Error interno", error: error.message });
+        return res.status(500).json({ success: false, message: "Error interno" });
     }
 };
 
@@ -1297,7 +1296,7 @@ export const obtenerUsuariosGestionables = async (req: Request, res: Response) =
         });
     } catch (error: any) {
         console.error('❌ Error al obtener usuarios gestionables:', error);
-        return res.status(500).json({ success: false, message: 'Error interno', error: error.message });
+        return res.status(500).json({ success: false, message: 'Error interno' });
     }
 };
 
@@ -1371,7 +1370,7 @@ export const eliminarUsuarioGestionable = async (req: Request, res: Response) =>
         });
     } catch (error: any) {
         console.error('❌ Error al eliminar usuario gestionable:', error);
-        return res.status(500).json({ success: false, message: 'Error al eliminar usuario', error: error.message });
+        return res.status(500).json({ success: false, message: 'Error al eliminar usuario' });
     }
 };
 
@@ -1583,8 +1582,7 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error("❌ Error en gestión admin:", error);
         res.status(500).json({ 
-            success: false,
-            error: error.message 
+            success: false
         });
     }
 };
@@ -1667,8 +1665,7 @@ export const verificarEstadoUsuario = async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error("❌ Error al verificar estado:", error);
         res.status(500).json({ 
-            success: false,
-            error: error.message 
+            success: false
         });
     }
 };
@@ -1727,7 +1724,7 @@ export const obtenerDetalleUsuarioAdmin = async (req: Request, res: Response) =>
         return res.status(404).json({ success: false, message: 'Usuario no encontrado' });
     } catch (error: any) {
         console.error('❌ Error al obtener detalle admin de usuario:', error);
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(500).json({ success: false });
     }
 };
 
@@ -1769,7 +1766,7 @@ export const marcarNotificacionComoLeida = async (req: Request, res: Response) =
 
     } catch (error: any) {
         console.error("❌ Error al marcar notificación:", error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false });
     }
 };
 
@@ -1818,7 +1815,7 @@ export const eliminarNotificacion = async (req: Request, res: Response) => {
 
     } catch (error: any) {
         console.error("❌ Error al eliminar notificación:", error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false });
     }
 };
 
@@ -1862,7 +1859,7 @@ export const limpiarNotificacionesUsuario = async (req: Request, res: Response) 
 
     } catch (error: any) {
         console.error("❌ Error al limpiar notificaciones:", error);
-        res.status(500).json({ success: false, error: error.message });
+        res.status(500).json({ success: false });
     }
 };
 
@@ -1894,8 +1891,7 @@ export const obtenerNotificacionesUsuario = async (req: Request, res: Response) 
         }
 
         res.status(500).json({ 
-            success: false,
-            error: error.message 
+            success: false
         });
     }
 };
@@ -1935,7 +1931,7 @@ export const forzarMoverImagenesNegocio = async (req: Request, res: Response) =>
         });
     } catch (error: any) {
         console.error("[forzarMoverImagenesNegocio] Error:", error);
-        return res.status(500).json({ success: false, error: error.message });
+        return res.status(500).json({ success: false });
     }
 };
 

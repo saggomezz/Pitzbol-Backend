@@ -13,8 +13,8 @@ import { authMiddleware } from '../middlewares/auth.middleware';
 
 const router = Router();
 
-// Crear reserva
-router.post('/create', createBooking);
+// Crear reserva (requiere autenticación)
+router.post('/create', authMiddleware, createBooking);
 
 // Obtener reservas de un turista
 router.get('/tourist/:touristId', authMiddleware, getTouristBookings);
@@ -22,8 +22,8 @@ router.get('/tourist/:touristId', authMiddleware, getTouristBookings);
 // Obtener reservas de un guia
 router.get('/guide/:guideId', authMiddleware, getGuideBookings);
 
-// Obtener reserva por ID (debe ir despues de las rutas con prefijo)
-router.get('/:bookingId', getBookingById);
+// Obtener reserva por ID (requiere autenticación)
+router.get('/:bookingId', authMiddleware, getBookingById);
 
 // Confirmar o rechazar reserva (guia)
 router.put('/:bookingId/confirm', authMiddleware, confirmBooking);

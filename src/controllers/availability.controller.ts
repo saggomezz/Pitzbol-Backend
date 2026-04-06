@@ -49,8 +49,7 @@ export const setGuideAvailability = async (req: Request, res: Response) => {
     console.error('Error al establecer disponibilidad:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al establecer disponibilidad',
-      error: error.message,
+      message: 'Error al establecer disponibilidad' ,
     });
   }
 };
@@ -84,8 +83,7 @@ export const getGuideAvailabilityByDate = async (req: Request, res: Response) =>
     console.error('Error al obtener disponibilidad:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al obtener disponibilidad',
-      error: error.message,
+      message: 'Error al obtener disponibilidad' ,
     });
   }
 };
@@ -117,8 +115,7 @@ export const getGuideAvailabilities = async (req: Request, res: Response) => {
     console.error('Error al obtener disponibilidades:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al obtener disponibilidades',
-      error: error.message,
+      message: 'Error al obtener disponibilidades' ,
     });
   }
 };
@@ -145,8 +142,7 @@ export const deleteAvailability = async (req: Request, res: Response) => {
     console.error('Error al eliminar disponibilidad:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al eliminar disponibilidad',
-      error: error.message,
+      message: 'Error al eliminar disponibilidad' ,
     });
   }
 };
@@ -177,8 +173,7 @@ export const checkTimeSlotAvailability = async (req: Request, res: Response) => 
     console.error('Error al verificar disponibilidad de horario:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al verificar disponibilidad',
-      error: error.message,
+      message: 'Error al verificar disponibilidad' ,
     });
   }
 };

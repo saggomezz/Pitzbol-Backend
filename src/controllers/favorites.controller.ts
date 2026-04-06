@@ -115,8 +115,7 @@ export const obtenerFavoritos = async (req: AuthRequest, res: Response) => {
     console.error('Error al obtener favoritos:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al obtener favoritos',
-      error: error.message
+      message: 'Error al obtener favoritos'
     });
   }
 };
@@ -190,8 +189,7 @@ export const agregarFavorito = async (req: AuthRequest, res: Response) => {
     console.error('Error al agregar favorito:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al agregar favorito',
-      error: error.message
+      message: 'Error al agregar favorito'
     });
   }
 };
@@ -250,8 +248,7 @@ export const eliminarFavorito = async (req: AuthRequest, res: Response) => {
     console.error('Error al eliminar favorito:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al eliminar favorito',
-      error: error.message
+      message: 'Error al eliminar favorito'
     });
   }
 };
@@ -312,8 +309,7 @@ export const sincronizarFavoritos = async (req: AuthRequest, res: Response) => {
     console.error('Error al sincronizar favoritos:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al sincronizar favoritos',
-      error: error.message
+      message: 'Error al sincronizar favoritos'
     });
   }
 };
