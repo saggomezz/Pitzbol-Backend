@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { db, auth } from '../config/firebase';
-import { sendNotificationToUser, updateBusinessNameInNotifications } from '../services/notification.service';
+import { getUserNotifications, sendNotificationToUser, updateBusinessNameInNotifications } from '../services/notification.service';
 import { reorganizeBusinessImages, deleteBusinessFromCloudinary } from '../utils/cloudinaryHelper';
 import { emitBusinessStatusChange } from '../socket';
 
@@ -849,11 +849,11 @@ export const archivarNegocio = async (req: Request, res: Response) => {
             const motivoMsg = motivoFinal ? ` Motivo: ${motivoFinal}` : "";
             await sendNotificationToUser(ownerUidArch, {
                 tipo: 'negocio_archivado',
-                titulo: 'Negocio eliminado',
-                mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido eliminado por el administrador.${motivoMsg}`,
+                titulo: 'Negocio Archivado',
+                mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido archivado por el administrador.${motivoMsg}`,
                 fecha: new Date().toISOString(),
                 leido: false,
-                enlace: '/negocio/estatus',
+                enlace: `/negocio/mis-solicitudes/${negocioId}`,
                 negocioId
             });
             
@@ -1081,6 +1081,27 @@ export const eliminarNegocioPermanente = async (req: Request, res: Response) => 
                 console.error(`[eliminarNegocioPermanente] Error eliminando de Cloudinary:`, cloudinaryError);
             }
         })();
+
+        // Notify owner about permanent deletion (modal flow in frontend)
+        const ownerUidDel = firstNonEmpty(negocioData?.owner, negocioData?.ownerUid, negocioData?.business?.owner);
+        if (ownerUidDel) {
+            const deletionReason = negocioData?.archivedReason || negocioData?.rejectionReason || "";
+            const motivoMsg = deletionReason ? ` Motivo: ${deletionReason}` : "";
+            await sendNotificationToUser(ownerUidDel, {
+                tipo: 'negocio_eliminado',
+                titulo: 'Negocio Eliminado',
+                mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido eliminado por el administrador.${motivoMsg}`,
+                fecha: new Date().toISOString(),
+                leido: false,
+                enlace: null,
+                negocioId,
+            });
+
+            emitBusinessStatusChange(ownerUidDel, negocioId, 'eliminado', {
+                businessName: negocioData?.business?.name || negocioData?.name,
+                reason: deletionReason,
+            });
+        }
         
         console.log(`[eliminarNegocioPermanente] ✅ Negocio ${negocioId} eliminado permanentemente de Firestore`);
         
@@ -1854,51 +1875,24 @@ export const obtenerNotificacionesUsuario = async (req: Request, res: Response) 
         const bucketId = resolveNotificationBucket(req, uid);
         console.log(`🔍 Obteniendo notificaciones para bucket: ${bucketId}`);
 
-        const snapshots = await Promise.all(
-            getNotifCollections(bucketId).map((col) => fetchNotificationsSnapshot(col, bucketId))
-        );
-
-        const merged = snapshots.flatMap((snap) =>
-            snap.docs
-                .filter((doc) => doc.id !== 'items')
-                .map((doc) => ({ id: doc.id, ...doc.data() }))
-        );
-
-        const seen = new Set<string>();
-        const notificaciones = merged
-            .filter((notif: any) => {
-                const key = `${notif?.id || ''}|${notif?.tipo || ''}|${notif?.negocioId || ''}|${notif?.fecha || ''}`;
-                if (seen.has(key)) return false;
-                seen.add(key);
-                return true;
-            })
-            .sort((a: any, b: any) => new Date(b?.fecha || 0).getTime() - new Date(a?.fecha || 0).getTime())
-            .slice(0, 50);
+        const notificaciones = await getUserNotifications(bucketId);
 
         console.log(`✅ Se obtuvieron ${notificaciones.length} notificaciones`);
         return res.json({ success: true, notificaciones });
 
     } catch (error: any) {
         console.error("❌ Error al obtener notificaciones:", error);
+
+        if (error?.code === 8 || /quota exceeded/i.test(error?.message || "")) {
+            return res.status(200).json({
+                success: true,
+                notificaciones: [],
+            });
+        }
+
         res.status(500).json({ 
             success: false
         });
-    }
-};
-
-const fetchNotificationsSnapshot = async (
-    col: FirebaseFirestore.CollectionReference<FirebaseFirestore.DocumentData>,
-    bucketId: string
-) => {
-    try {
-        return await col.orderBy('fecha', 'desc').limit(50).get();
-    } catch (err: any) {
-        console.warn(
-            `⚠️ Fallback de notificaciones para bucket ${bucketId} en ${col.path}:`,
-            err?.message || err
-        );
-        // Algunas colecciones legacy pueden tener estructura mixta; devolvemos las más recientes posibles sin romper el endpoint.
-        return await col.limit(50).get();
     }
 };
 

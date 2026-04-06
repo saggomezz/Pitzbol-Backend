@@ -1,6 +1,23 @@
 ﻿import admin from 'firebase-admin';
 import { emitNotificationToUser } from '../socket';
 
+type CachedNotificationEntry = {
+  expiresAt: number;
+  data: any[];
+  inFlight?: Promise<any[]>;
+};
+
+const NOTIFICATION_CACHE_TTL_MS = 15000;
+const notificationCache = new Map<string, CachedNotificationEntry>();
+
+const getCacheKey = (bucketId: string) => bucketId.trim();
+
+export const invalidateNotificationCache = (bucketId: string) => {
+  const key = getCacheKey(bucketId);
+  if (!key) return;
+  notificationCache.delete(key);
+};
+
 const getNotificationsRoot = (db: FirebaseFirestore.Firestore) =>
   db.collection('usuarios').doc('notificaciones');
 
@@ -47,12 +64,14 @@ export async function sendNotificationToUser(userId: string, notification: any) 
   let docRef = col.doc();
   if (dedupeKey) {
     const existing = await col.where('dedupeKey', '==', dedupeKey).limit(1).get();
-    if (!existing.empty) {
-      docRef = existing.docs[0].ref;
+    const firstExisting = existing.docs[0];
+    if (firstExisting) {
+      docRef = firstExisting.ref;
     }
   }
 
   await docRef.set(payload, { merge: true });
+  invalidateNotificationCache(targetBucket);
 
   try {
     emitNotificationToUser(targetBucket, { id: docRef.id, ...payload });
@@ -66,27 +85,56 @@ export async function getUserNotifications(userId: string) {
   const targetBucket = (userId || '').trim();
   if (!targetBucket) return [];
 
-  const collections = getNotificationCollections(db, targetBucket);
-  const snapshots = await Promise.all(
-    collections.map((col) => col.orderBy('fecha', 'desc').limit(50).get())
-  );
+  const cacheKey = getCacheKey(targetBucket);
+  const cached = notificationCache.get(cacheKey);
+  const now = Date.now();
 
-  const merged = snapshots.flatMap((snap) =>
-    snap.docs
-      .filter((doc) => doc.id !== 'items')
-      .map((doc) => ({ id: doc.id, ...doc.data() }))
-  );
+  if (cached?.data && cached.expiresAt > now) {
+    return [...cached.data];
+  }
 
-  const seen = new Set<string>();
-  return merged
-    .filter((item: any) => {
-      const key = `${item?.id || ''}|${item?.tipo || ''}|${item?.negocioId || ''}|${item?.fecha || ''}`;
-      if (seen.has(key)) return false;
-      seen.add(key);
-      return true;
-    })
-    .sort((a: any, b: any) => new Date(b?.fecha || 0).getTime() - new Date(a?.fecha || 0).getTime())
-    .slice(0, 50);
+  if (cached?.inFlight) {
+    return cached.inFlight.then((data) => [...data]);
+  }
+
+  const inFlight = (async () => {
+    const collections = getNotificationCollections(db, targetBucket);
+    const snapshots = await Promise.all(
+      collections.map((col) => col.orderBy('fecha', 'desc').limit(50).get())
+    );
+
+    const merged = snapshots.flatMap((snap) =>
+      snap.docs
+        .filter((doc) => doc.id !== 'items')
+        .map((doc) => ({ id: doc.id, ...doc.data() }))
+    );
+
+    const seen = new Set<string>();
+    const result = merged
+      .filter((item: any) => {
+        const key = `${item?.id || ''}|${item?.tipo || ''}|${item?.negocioId || ''}|${item?.fecha || ''}`;
+        if (seen.has(key)) return false;
+        seen.add(key);
+        return true;
+      })
+      .sort((a: any, b: any) => new Date(b?.fecha || 0).getTime() - new Date(a?.fecha || 0).getTime())
+      .slice(0, 50);
+
+    notificationCache.set(cacheKey, {
+      data: result,
+      expiresAt: Date.now() + NOTIFICATION_CACHE_TTL_MS,
+    });
+
+    return result;
+  })();
+
+  notificationCache.set(cacheKey, {
+    data: cached?.data || [],
+    expiresAt: cached?.expiresAt || 0,
+    inFlight,
+  });
+
+  return inFlight;
 }
 
 export async function sendNotificationToAdmins(notification: any) {
@@ -143,6 +191,8 @@ export async function updateBusinessNameInNotifications(negocioId: string, newNa
         newMessage = `Tu negocio "${newName}" ha sido regresado a revisión por el administrador.`;
         break;
       case 'negocio_archivado':
+        newMessage = `Tu negocio "${newName}" ha sido archivado por el administrador.${data?.archivedReason || ''}`;
+        break;
       case 'negocio_eliminado':
         newMessage = `Tu negocio "${newName}" ha sido eliminado por el administrador.${data?.archivedReason || ''}`;
         break;

@@ -1020,6 +1020,156 @@ export const getBusinessById = async (req: RequestWithUser, res: Response) => {
   }
 };
 
+export const getBusinessStatus = async (req: RequestWithUser, res: Response) => {
+  try {
+    const businessIdRaw = typeof req.query.businessId === "string" ? req.query.businessId : "";
+    const businessNameRaw = typeof req.query.businessName === "string" ? req.query.businessName : "";
+    const businessId = businessIdRaw.trim();
+    const businessName = decodeURIComponent(businessNameRaw).trim();
+
+    if (!businessId && !businessName) {
+      return res.status(400).json({ success: false, message: "businessId o businessName requerido" });
+    }
+
+    const userEmail = req.user?.email as string | undefined;
+    const userUid = req.user?.uid as string | undefined;
+    const userRole = req.user?.role as string | undefined;
+    const isAdmin = (userRole || "").toLowerCase() === "admin";
+
+    const normalize = (value: string) =>
+      value
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .trim();
+
+    const normalizedBusinessName = businessName ? normalize(businessName) : "";
+
+    const canAccessBusiness = (data: any) => {
+      if (isAdmin) return true;
+      return (
+        data?.ownerUid === userUid ||
+        data?.owner === userUid ||
+        data?.business?.owner === userUid ||
+        data?.uid === userUid ||
+        (userEmail && data?.email === userEmail)
+      );
+    };
+
+    const collections = ["Pendientes", "Activos", "Archivados", "Rechazados"];
+    for (const collectionName of collections) {
+      const bucketRef = db.collection("negocios").doc(collectionName).collection("items");
+
+      if (businessId) {
+        const byDocId = await bucketRef.doc(businessId).get();
+        if (byDocId.exists) {
+          const data = byDocId.data();
+          if (data && canAccessBusiness(data)) {
+            return res.json({
+              success: true,
+              exists: true,
+              deleted: false,
+              source: collectionName,
+              business: {
+                id: byDocId.id,
+                name: data?.business?.name || data?.name || null,
+              },
+            });
+          }
+        }
+
+        const candidateFields = ["uid", "ownerUid", "owner", "business.owner"];
+        for (const field of candidateFields) {
+          const byField = await bucketRef.where(field, "==", businessId).limit(1).get();
+          if (!byField.empty) {
+            const doc = byField.docs[0];
+            const data = doc?.data();
+            if (doc && data && canAccessBusiness(data)) {
+              return res.json({
+                success: true,
+                exists: true,
+                deleted: false,
+                source: collectionName,
+                business: {
+                  id: doc.id,
+                  name: data?.business?.name || data?.name || null,
+                },
+              });
+            }
+          }
+        }
+      }
+
+      if (normalizedBusinessName) {
+        const byName = await bucketRef.where("business.name", "==", businessName).limit(1).get();
+        if (!byName.empty) {
+          const doc = byName.docs[0];
+          const data = doc?.data();
+          if (doc && data && canAccessBusiness(data)) {
+            return res.json({
+              success: true,
+              exists: true,
+              deleted: false,
+              source: collectionName,
+              business: {
+                id: doc.id,
+                name: data?.business?.name || data?.name || null,
+              },
+            });
+          }
+        }
+      }
+    }
+
+    const [nestedSnap, legacySnap] = await Promise.all([
+      db.collection("negocios").doc("movimientos").collection("items").orderBy("fecha", "desc").limit(1000).get(),
+      db.collection("negocios_movimientos").orderBy("fecha", "desc").limit(1000).get(),
+    ]);
+
+    const movimientos = [...nestedSnap.docs, ...legacySnap.docs]
+      .map((doc) => ({ id: doc.id, ...(doc.data() as any) }))
+      .sort((a, b) => new Date(b?.fecha || 0).getTime() - new Date(a?.fecha || 0).getTime());
+
+    const deletionMovement = movimientos.find((mov: any) => {
+      if (mov?.accion !== "eliminado_permanente") return false;
+
+      const sameId = businessId && mov?.negocioId === businessId;
+      if (sameId) return true;
+
+      if (!normalizedBusinessName) return false;
+      const movementName = typeof mov?.nombreNegocio === "string" ? mov.nombreNegocio : "";
+      return movementName ? normalize(movementName) === normalizedBusinessName : false;
+    });
+
+    if (deletionMovement) {
+      return res.json({
+        success: true,
+        exists: false,
+        deleted: true,
+        deletion: {
+          businessId: deletionMovement?.negocioId || businessId || null,
+          businessName: deletionMovement?.nombreNegocio || businessName || null,
+          reason: deletionMovement?.reason || null,
+          message: deletionMovement?.reason
+            ? `Tu negocio "${deletionMovement?.nombreNegocio || businessName || "Negocio"}" ha sido eliminado por el administrador. Motivo: ${deletionMovement.reason}`
+            : `Tu negocio "${deletionMovement?.nombreNegocio || businessName || "Negocio"}" ha sido eliminado por el administrador.`,
+          deletedAt: deletionMovement?.fecha || null,
+        },
+      });
+    }
+
+    return res.json({
+      success: true,
+      exists: false,
+      deleted: false,
+      deletion: null,
+    });
+  } catch (error: any) {
+    console.error("Error getBusinessStatus:", error);
+    return res.status(500).json({ success: false, error: error.message });
+  }
+};
+
 // Función auxiliar para obtener la colección de un negocio
 const getBusinessCollectionPath = async (businessId: string): Promise<{ collection: string; docPath: string } | null> => {
   const businessIdStr = Array.isArray(businessId) ? businessId[0] : businessId;

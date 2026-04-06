@@ -4,6 +4,17 @@ import nodemailer from "nodemailer";
 import { DocumentData, QueryDocumentSnapshot } from "@google-cloud/firestore";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "pitzbol2026@gmail.com";
+const SUPPORT_NOTIFICATIONS_CACHE_TTL_MS = 15000;
+
+type SupportNotificationsCacheEntry = {
+  expiresAt: number;
+  data: any[];
+  inFlight?: Promise<any[]>;
+};
+
+const supportNotificationsCache = new Map<string, SupportNotificationsCacheEntry>();
+
+const getSupportNotificationsCacheKey = (bucketId: string) => bucketId.trim();
 
 // Configurar el transporter de email (Gmail con App Password)
 const getEmailTransporter = () => {
@@ -254,29 +265,63 @@ export const getCallRequests = async (req: Request, res: Response) => {
 export const getSupportNotifications = async (req: Request, res: Response) => {
   try {
     // Primero hacemos el where, luego el sort en memoria para evitar índices compuestos
-    const snapshot = await db
-      .collection("notificaciones")
-      .where("usuarioId", "==", "admin")
-      .get();
+    const cacheKey = getSupportNotificationsCacheKey("admin-support");
+    const cached = supportNotificationsCache.get(cacheKey);
+    const now = Date.now();
 
-    const notifications = snapshot.docs
-      .map((doc) => ({
-        id: doc.id,
-        ...doc.data(),
-      }))
-      .sort((a: any, b: any) => {
-        // Ordenar por fecha descendente
-        const fechaA = new Date(a.fecha).getTime();
-        const fechaB = new Date(b.fecha).getTime();
-        return fechaB - fechaA;
-      });
+    if (cached?.data && cached.expiresAt > now) {
+      return res.status(200).json({ success: true, notificaciones: [...cached.data] });
+    }
+
+    if (cached?.inFlight) {
+      const notifications = await cached.inFlight;
+      return res.status(200).json({ success: true, notificaciones: [...notifications] });
+    }
+
+    const inFlight = (async () => {
+      const snapshot = await db
+        .collection("notificaciones")
+        .where("usuarioId", "==", "admin")
+        .limit(50)
+        .get();
+
+      return snapshot.docs
+        .map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        }))
+        .sort((a: any, b: any) => {
+          const fechaA = new Date(a.fecha).getTime();
+          const fechaB = new Date(b.fecha).getTime();
+          return fechaB - fechaA;
+        });
+    })();
+
+    supportNotificationsCache.set(cacheKey, {
+      data: cached?.data || [],
+      expiresAt: cached?.expiresAt || 0,
+      inFlight,
+    });
+
+    const notifications = await inFlight;
+    supportNotificationsCache.set(cacheKey, {
+      data: notifications,
+      expiresAt: Date.now() + SUPPORT_NOTIFICATIONS_CACHE_TTL_MS,
+    });
 
     res.status(200).json({
       success: true,
-      notificaciones: notifications,
+      notificaciones: [...notifications],
     });
   } catch (error: any) {
-    console.error("Error al obtener notificaciones:", error);
+    console.error("❌ Error al obtener notificaciones:", error);
+
+    if (error?.code === 8 || /quota exceeded/i.test(error?.message || "")) {
+      return res.status(200).json({
+        success: true,
+        notificaciones: [],
+      });
+    }
     res.status(500).json({
       success: false,
       msg: "Error al obtener notificaciones",
