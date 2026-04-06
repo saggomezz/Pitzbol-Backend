@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { db } from "../config/firebase";
 import admin from "firebase-admin";
-import { sendNotificationToAdmins } from "../services/notification.service";
+import { sendNotificationToAdmins, sendNotificationToUser } from "../services/notification.service";
 
 const FieldValue = admin.firestore.FieldValue; 
 
@@ -111,6 +111,22 @@ export const registerGuide = async (req: Request, res: Response) => {
             console.log('✅ Notificación enviada a administradores');
         } catch (notifError) {
             console.warn('⚠️ Error al notificar a administradores:', notifError);
+        }
+
+        // Notificar al usuario que envió la solicitud (para que vea en tiempo real via socket)
+        try {
+            const userNotification = {
+                tipo: 'solicitud_guia_enviada',
+                titulo: 'Solicitud enviada',
+                mensaje: 'Tu solicitud para ser guía ha sido enviada a revisión. Un administrador la revisará pronto.',
+                fecha: new Date().toISOString(),
+                leido: false,
+                enlace: '/perfil'
+            };
+            await sendNotificationToUser(uid, userNotification);
+            console.log('✅ Notificación de confirmación enviada al usuario');
+        } catch (notifError) {
+            console.warn('⚠️ Error al notificar al usuario:', notifError);
         }
 
         res.status(201).json({ 
