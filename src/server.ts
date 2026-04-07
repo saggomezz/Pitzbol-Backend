@@ -31,7 +31,7 @@ const app = express();
 const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
-    origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001', 'http://69.30.204.56:3000'],
+    origin: ['http://localhost:3000', 'http://127.0.0.1:3000', 'http://localhost:3001', 'http://69.30.204.56:3000', 'https://pitzbol.me', 'https://www.pitzbol.me'],
     methods: ["GET", "POST"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"]
@@ -48,6 +48,8 @@ const allowedOrigins = [
   'http://127.0.0.1:3001',
   'http://69.30.204.56:3000',
   'http://69.30.204.56:3003',
+  'https://pitzbol.me',
+  'https://www.pitzbol.me',
 ];
 
 app.use(cors({
