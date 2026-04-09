@@ -101,6 +101,19 @@ function mapApprovedBusinessToPlace(doc: FirebaseFirestore.QueryDocumentSnapshot
     business?.contactEmail
   );
   const codigoPostal = firstNonEmptyString(business?.cp, data?.cp, business?.codigoPostal, data?.codigoPostal);
+  const tiempoEstancia = business?.suggestedStayTime ?? data?.suggestedStayTime ?? business?.tiempoEstancia ?? data?.tiempoEstancia ?? null;
+  const costoEstimado = firstNonEmptyString(business?.estimatedCost, data?.estimatedCost, business?.costoEstimado, data?.costoEstimado);
+  const schedule = business?.schedule ?? data?.schedule ?? null;
+  const subcategories = Array.isArray(business?.subcategories)
+    ? business.subcategories.filter((item: unknown) => typeof item === 'string' && item.trim())
+    : Array.isArray(data?.subcategories)
+    ? data.subcategories.filter((item: unknown) => typeof item === 'string' && item.trim())
+    : [];
+  const subcategoria = firstNonEmptyString(
+    business?.subcategoria,
+    data?.subcategoria,
+    subcategories[0]
+  );
 
   const photos = [
     ...(Array.isArray(business?.images) ? business.images : []),
@@ -127,6 +140,11 @@ function mapApprovedBusinessToPlace(doc: FirebaseFirestore.QueryDocumentSnapshot
     website,
     email,
     codigoPostal,
+    tiempoEstancia,
+    costoEstimado,
+    schedule,
+    subcategoria,
+    subcategorias: subcategories,
     fotos: Array.from(new Set(photos)),
   };
 }
@@ -146,6 +164,11 @@ function mergePlaceData(existing: any, incoming: any) {
     website: firstNonEmptyString(existing?.website, incoming?.website),
     email: firstNonEmptyString(existing?.email, incoming?.email),
     codigoPostal: firstNonEmptyString(existing?.codigoPostal, incoming?.codigoPostal),
+    tiempoEstancia: existing?.tiempoEstancia ?? incoming?.tiempoEstancia,
+    costoEstimado: firstNonEmptyString(existing?.costoEstimado, incoming?.costoEstimado),
+    schedule: existing?.schedule || incoming?.schedule,
+    subcategoria: firstNonEmptyString(existing?.subcategoria, incoming?.subcategoria),
+    subcategorias: Array.from(new Set([...(existing?.subcategorias || []), ...(incoming?.subcategorias || [])])),
     fotos: Array.from(new Set([...existingPhotos, ...incomingPhotos])),
     sourceType: existing?.sourceType || incoming?.sourceType,
     negocioId: existing?.negocioId || incoming?.negocioId,
