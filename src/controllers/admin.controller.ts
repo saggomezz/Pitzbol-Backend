@@ -486,25 +486,61 @@ export const editarNegocio = async (req: Request, res: Response) => {
         const { ref: negocioRef, data: negocioData } = businessResult;
         
         // Actualizar campos permitidos
-        const camposEditables = ["name", "description", "category", "phone", "location", "website", "rfc", "cp", "images"];
+        const camposEditables = [
+            "name",
+            "description",
+            "category",
+            "phone",
+            "location",
+            "website",
+            "rfc",
+            "cp",
+            "images",
+            "schedule",
+            "estimatedCost",
+            "suggestedStayTime",
+            "subcategories"
+        ];
         const updateData: any = { updatedAt: new Date().toISOString() };
         for (const campo of camposEditables) {
             if (data[campo] !== undefined) updateData[campo] = data[campo];
         }
-        // Si se actualiza el `name`, reflejar también en el objeto `business.name`
-        // para mantener consistencia con cómo el frontend consume los datos.
-        if (updateData.name) {
-            try {
-                const existingBusiness = negocioData?.business || negocioData || {};
-                if (typeof existingBusiness === 'object') {
-                    updateData.business = {
-                        ...(existingBusiness || {}),
-                        name: updateData.name,
-                    };
+        // Propagar también al objeto `business.*` para mantener consistencia
+        // con el formato consumido por frontend y por los mapeos de lugares.
+        try {
+            const existingBusiness = negocioData?.business || {};
+            if (typeof existingBusiness === 'object') {
+                const businessPatch: any = { ...(existingBusiness || {}) };
+                const businessFields = [
+                    "name",
+                    "description",
+                    "category",
+                    "phone",
+                    "location",
+                    "website",
+                    "rfc",
+                    "cp",
+                    "images",
+                    "schedule",
+                    "estimatedCost",
+                    "suggestedStayTime",
+                    "subcategories"
+                ];
+
+                let touched = false;
+                for (const field of businessFields) {
+                    if (data[field] !== undefined) {
+                        businessPatch[field] = data[field];
+                        touched = true;
+                    }
                 }
-            } catch (err) {
-                console.warn('[editarNegocio] No se pudo propagar business.name', err);
+
+                if (touched) {
+                    updateData.business = businessPatch;
+                }
             }
+        } catch (err) {
+            console.warn('[editarNegocio] No se pudo propagar business.*', err);
         }
         // Build a safe snapshot of changes to avoid cycles (don't include history itself)
         const changesSnapshot: any = {};

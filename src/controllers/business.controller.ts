@@ -19,6 +19,33 @@ cloudinary.config({
   api_key: process.env.CLOUDINARY_API_KEY || '',
   api_secret: process.env.CLOUDINARY_API_SECRET || '',
 });
+
+const parseOptionalJson = <T>(value: unknown): T | null => {
+  if (value === null || value === undefined || value === "") return null;
+  if (typeof value === "object") return value as T;
+  if (typeof value !== "string") return null;
+  try {
+    return JSON.parse(value) as T;
+  } catch {
+    return null;
+  }
+};
+
+const parseSubcategories = (value: unknown): string[] => {
+  const parsed = parseOptionalJson<unknown>(value);
+  const baseArray = Array.isArray(parsed)
+    ? parsed
+    : typeof value === "string"
+    ? value.split(",")
+    : [];
+
+  const normalized = baseArray
+    .map((item) => String(item || "").trim())
+    .filter(Boolean)
+    .slice(0, 10);
+
+  return Array.from(new Set(normalized));
+};
 // Nuevo endpoint para registro de negocio con imágenes
 // Endpoint para validar unicidad de datos del negocio
 export const validateBusinessUniqueness = async (req: RequestWithUser, res: Response) => {
@@ -211,7 +238,11 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
       description,
       email,
       latitud,
-      longitud
+      longitud,
+      schedule,
+      estimatedCost,
+      suggestedStayTime,
+      subcategories
     } = req.body;
 
     console.log("[registerBusinessWithImages] Body recibido:", req.body);
@@ -219,7 +250,7 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
     console.log("[registerBusinessWithImages] Files recibidos:", req.files);
 
     // Validar que los campos obligatorios estén presentes
-    if (!businessName || !email || !rfc || !cp || !category || !phone || !location || !website) {
+    if (!businessName || !email || !rfc || !cp || !category || !phone || !location || !website || !description) {
       const missingFields = [];
       if (!businessName) missingFields.push("businessName");
       if (!email) missingFields.push("email");
@@ -229,12 +260,17 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
       if (!phone) missingFields.push("phone");
       if (!location) missingFields.push("location");
       if (!website) missingFields.push("website");
+      if (!description) missingFields.push("description");
       console.log("[registerBusinessWithImages] Campos faltantes:", missingFields);
       return res.status(400).json({ 
         message: "Datos incompletos. Verifica todos los campos obligatorios.",
         missingFields 
       });
     }
+
+    const parsedSchedule = parseOptionalJson<Record<string, any>>(schedule);
+    const parsedSubcategories = parseSubcategories(subcategories);
+    const parsedSuggestedStayTime = Number(suggestedStayTime);
 
     // Generar un UID para el negocio (sin crear usuario en Firebase Auth)
     // El email de contacto se guarda como campo del negocio, no como credencial de usuario
@@ -314,6 +350,10 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
         rfc,
         cp,
         description: description || "",
+        schedule: parsedSchedule || null,
+        estimatedCost: typeof estimatedCost === "string" ? estimatedCost.trim() : "",
+        suggestedStayTime: Number.isFinite(parsedSuggestedStayTime) ? parsedSuggestedStayTime : null,
+        subcategories: parsedSubcategories,
         images: imageUrls,
         logo: logoUrl,
         owner: ownerUid || uid, // Usar ownerUid si existe, sino el uid del negocio
@@ -1258,7 +1298,30 @@ export const updateBusiness = async (req: RequestWithUser, res: Response) => {
   try {
     const businessId = Array.isArray(req.params.businessId) ? req.params.businessId[0] : req.params.businessId;
     const userRole = req.user?.role as string | undefined;
-    const { phone, location, website, latitud, longitud, calle, numero, colonia, codigoPostal, ciudad, estado, local, referencias, description, category, rfc, email, businessName } = req.body;
+    const {
+      phone,
+      location,
+      website,
+      latitud,
+      longitud,
+      calle,
+      numero,
+      colonia,
+      codigoPostal,
+      ciudad,
+      estado,
+      local,
+      referencias,
+      description,
+      category,
+      rfc,
+      email,
+      businessName,
+      schedule,
+      estimatedCost,
+      suggestedStayTime,
+      subcategories,
+    } = req.body;
 
     if (!businessId || typeof businessId !== 'string') {
       return res.status(400).json({ success: false, message: "ID de negocio requerido" });
@@ -1295,6 +1358,13 @@ export const updateBusiness = async (req: RequestWithUser, res: Response) => {
     if (description !== undefined) updateData["business.description"] = description;
     if (category !== undefined) updateData["business.category"] = category;
     if (rfc !== undefined) updateData["business.rfc"] = rfc;
+    if (estimatedCost !== undefined) updateData["business.estimatedCost"] = estimatedCost;
+    if (suggestedStayTime !== undefined) {
+      const parsedSuggestedStayTime = Number(suggestedStayTime);
+      updateData["business.suggestedStayTime"] = Number.isFinite(parsedSuggestedStayTime) ? parsedSuggestedStayTime : null;
+    }
+    if (schedule !== undefined) updateData["business.schedule"] = parseOptionalJson<Record<string, any>>(schedule) || null;
+    if (subcategories !== undefined) updateData["business.subcategories"] = parseSubcategories(subcategories);
     if (email !== undefined) updateData["email"] = email; // Email se guarda a nivel raíz del documento
 
     // Obtener referencia del documento
