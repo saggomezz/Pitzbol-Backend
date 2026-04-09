@@ -1,6 +1,6 @@
 import { Request, Response } from 'express';
 import { db, auth } from '../config/firebase';
-import { getUserNotifications, sendNotificationToUser, updateBusinessNameInNotifications } from '../services/notification.service';
+import { getUserNotifications, sendNotificationToUser, updateBusinessNameInNotifications, invalidateNotificationCache } from '../services/notification.service';
 import { reorganizeBusinessImages, deleteBusinessFromCloudinary } from '../utils/cloudinaryHelper';
 import { emitBusinessStatusChange } from '../socket';
 
@@ -1761,6 +1761,7 @@ export const marcarNotificacionComoLeida = async (req: Request, res: Response) =
                 }
             })
         );
+        invalidateNotificationCache(bucketId);
         console.log(`✅ Notificación marcada como leída`);
         return res.json({ success: true, message: "Notificación marcada como leída" });
 
@@ -1810,6 +1811,7 @@ export const eliminarNotificacion = async (req: Request, res: Response) => {
                 }
             })
         );
+        invalidateNotificationCache(bucketId);
         console.log(`✅ Notificación eliminada`);
         return res.json({ success: true, message: "Notificación eliminada" });
 
@@ -1853,6 +1855,7 @@ export const limpiarNotificacionesUsuario = async (req: Request, res: Response) 
         });
 
         await batch.commit();
+        invalidateNotificationCache(bucketId);
         console.log(`✅ Notificaciones del usuario limpiadas`);
         
         return res.json({ success: true, message: "Todas las notificaciones han sido eliminadas" });
