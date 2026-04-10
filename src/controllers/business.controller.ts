@@ -1321,7 +1321,16 @@ export const updateBusiness = async (req: RequestWithUser, res: Response) => {
       estimatedCost,
       suggestedStayTime,
       subcategories,
+      horario,
+      costoEstimado,
+      tiempoSugerido,
+      subcategorias,
     } = req.body;
+
+    const normalizedSchedule = schedule ?? horario;
+    const normalizedEstimatedCost = estimatedCost ?? costoEstimado;
+    const normalizedSuggestedStayTime = suggestedStayTime ?? tiempoSugerido;
+    const normalizedSubcategories = subcategories ?? subcategorias;
 
     if (!businessId || typeof businessId !== 'string') {
       return res.status(400).json({ success: false, message: "ID de negocio requerido" });
@@ -1358,13 +1367,25 @@ export const updateBusiness = async (req: RequestWithUser, res: Response) => {
     if (description !== undefined) updateData["business.description"] = description;
     if (category !== undefined) updateData["business.category"] = category;
     if (rfc !== undefined) updateData["business.rfc"] = rfc;
-    if (estimatedCost !== undefined) updateData["business.estimatedCost"] = estimatedCost;
-    if (suggestedStayTime !== undefined) {
-      const parsedSuggestedStayTime = Number(suggestedStayTime);
-      updateData["business.suggestedStayTime"] = Number.isFinite(parsedSuggestedStayTime) ? parsedSuggestedStayTime : null;
+    if (normalizedEstimatedCost !== undefined) {
+      updateData["business.estimatedCost"] = typeof normalizedEstimatedCost === "string"
+        ? normalizedEstimatedCost.trim()
+        : normalizedEstimatedCost;
     }
-    if (schedule !== undefined) updateData["business.schedule"] = parseOptionalJson<Record<string, any>>(schedule) || null;
-    if (subcategories !== undefined) updateData["business.subcategories"] = parseSubcategories(subcategories);
+    if (normalizedSuggestedStayTime !== undefined) {
+      if (normalizedSuggestedStayTime === null || normalizedSuggestedStayTime === "") {
+        updateData["business.suggestedStayTime"] = null;
+      } else {
+        const parsedSuggestedStayTime = Number(normalizedSuggestedStayTime);
+        updateData["business.suggestedStayTime"] = Number.isFinite(parsedSuggestedStayTime) ? parsedSuggestedStayTime : null;
+      }
+    }
+    if (normalizedSchedule !== undefined) {
+      updateData["business.schedule"] = parseOptionalJson<Record<string, any>>(normalizedSchedule) || null;
+    }
+    if (normalizedSubcategories !== undefined) {
+      updateData["business.subcategories"] = parseSubcategories(normalizedSubcategories);
+    }
     if (email !== undefined) updateData["email"] = email; // Email se guarda a nivel raíz del documento
 
     // Obtener referencia del documento

@@ -475,6 +475,19 @@ export const editarNegocio = async (req: Request, res: Response) => {
     if (Array.isArray(negocioId)) negocioId = negocioId[0];
     if (!negocioId) negocioId = "";
     const { ...data } = req.body;
+    // Compatibilidad: aceptar aliases en español y normalizar a llaves canónicas en inglés.
+    if (data.horario !== undefined && data.schedule === undefined) {
+        data.schedule = data.horario;
+    }
+    if (data.costoEstimado !== undefined && data.estimatedCost === undefined) {
+        data.estimatedCost = data.costoEstimado;
+    }
+    if (data.tiempoSugerido !== undefined && data.suggestedStayTime === undefined) {
+        data.suggestedStayTime = data.tiempoSugerido;
+    }
+    if (data.subcategorias !== undefined && data.subcategories === undefined) {
+        data.subcategories = data.subcategorias;
+    }
     const adminUid = (req as any).user?.uid;
 
     try {
