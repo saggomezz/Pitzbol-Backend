@@ -38,12 +38,33 @@ const httpServer = createServer(app);
 const allowedOrigins = (
   process.env.ALLOWED_ORIGINS
     ? process.env.ALLOWED_ORIGINS.split(',')
-    : ['http://localhost:3000', 'http://127.0.0.1:3000']
+    : [
+        'http://localhost:3000',
+        'http://127.0.0.1:3000',
+        'https://pitzbol.me',
+        'https://www.pitzbol.me',
+        'https://api.pitzbol.me',
+        'https://api.pitzbol.me:8443',
+        'https://ia.pitzbol.me',
+        'https://ia.pitzbol.me:8443',
+      ]
 ).map(o => o.trim());
+
+const isAllowedOrigin = (origin?: string) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes(origin)) return true;
+
+  try {
+    const parsedOrigin = new URL(origin);
+    return parsedOrigin.hostname === 'pitzbol.me' || parsedOrigin.hostname.endsWith('.pitzbol.me');
+  } catch {
+    return false;
+  }
+};
 
 const io = new Server(httpServer, {
   cors: {
-    origin: allowedOrigins,
+    origin: isAllowedOrigin,
     methods: ["GET", "POST"],
     credentials: true,
     allowedHeaders: ["Content-Type", "Authorization"]
@@ -78,8 +99,7 @@ app.use(rateLimit({
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin) return callback(null, true);
-    if (allowedOrigins.indexOf(origin) !== -1) {
+    if (isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
       callback(new Error('Not allowed by CORS'));
