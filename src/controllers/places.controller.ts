@@ -846,6 +846,40 @@ export const setPlaceFotos = async (req: Request, res: Response) => {
 };
 
 /**
+ * PATCH /api/lugares/:nombre/categorias - Reemplazar categorías de un lugar (solo auth requerida)
+ */
+export const setPlaceCategorias = async (req: Request, res: Response) => {
+  try {
+    let { nombre } = req.params;
+    if (!nombre) return res.status(400).json({ message: 'Nombre requerido' });
+    if (Array.isArray(nombre)) nombre = nombre.join(' ');
+
+    const { categorias } = req.body;
+    if (!Array.isArray(categorias) || categorias.length === 0) {
+      return res.status(400).json({ message: 'categorias debe ser un array no vacío' });
+    }
+
+    const categoriasValidas = categorias
+      .filter((c: any) => typeof c === 'string' && c.trim())
+      .map((c: string) => c.trim());
+
+    const placeId = normalizePlaceName(nombre);
+    await db.collection('lugares').doc(placeId).set({
+      nombre,
+      categoria: categoriasValidas[0],
+      categorias: categoriasValidas,
+      ultimaActualizacion: new Date().toISOString()
+    }, { merge: true });
+
+    invalidateLugaresCache();
+    return res.status(200).json({ message: 'Categorías actualizadas', categorias: categoriasValidas });
+  } catch (error: any) {
+    console.error('Error actualizando categorías:', error);
+    return res.status(500).json({ message: 'Error interno', error: error.message });
+  }
+};
+
+/**
  * DELETE /api/lugares/:nombre - Eliminar un lugar completo de Firestore
  */
 export const deletePlace = async (req: Request, res: Response) => {
