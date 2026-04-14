@@ -3,9 +3,9 @@ import { db } from '../config/firebase';
 import { upload } from '../middleware/uploadMiddleware';
 import { v2 as cloudinary } from 'cloudinary';
 
-// Cache en memoria para lista de lugares — TTL 10 minutos
+// Cache en memoria para lista de lugares — TTL 1 hora
 let lugaresCache: { data: any[] | null; expiresAt: number } = { data: null, expiresAt: 0 };
-const LUGARES_CACHE_TTL = 10 * 60 * 1000; // 10 minutos
+const LUGARES_CACHE_TTL = 60 * 60 * 1000; // 1 hora
 
 function invalidateLugaresCache() {
   lugaresCache = { data: null, expiresAt: 0 };

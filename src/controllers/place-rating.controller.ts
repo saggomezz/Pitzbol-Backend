@@ -2,9 +2,9 @@ import { Request, Response } from 'express';
 import admin from 'firebase-admin';
 import { db } from '../config/firebase';
 
-// Cache en memoria para estadísticas de lugares — TTL 5 minutos
+// Cache en memoria para estadísticas de lugares — TTL 30 minutos
 const statsCache = new Map<string, { data: any; expiresAt: number }>();
-const STATS_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+const STATS_CACHE_TTL = 30 * 60 * 1000; // 30 minutos
 
 function getCachedStats(placeId: string) {
   const entry = statsCache.get(placeId);
