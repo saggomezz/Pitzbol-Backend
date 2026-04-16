@@ -607,6 +607,62 @@ export const geocodeAddress = async (req: Request, res: Response) => {
 };
 
 /**
+ * POST /api/lugares/reverse-geocode - Obtener dirección a partir de coordenadas
+ */
+export const reverseGeocodeAddress = async (req: Request, res: Response) => {
+  try {
+    const { latitud, longitud } = req.body || {};
+
+    if (!latitud || !longitud) {
+      return res.status(400).json({
+        success: false,
+        message: 'Latitud y longitud son requeridas',
+      });
+    }
+
+    const lat = String(latitud).trim();
+    const lon = String(longitud).trim();
+
+    const queryParams = new URLSearchParams({
+      format: 'json',
+      lat,
+      lon,
+      zoom: '18',
+      addressdetails: '1',
+      countrycodes: 'mx',
+    });
+
+    const url = `https://nominatim.openstreetmap.org/reverse?${queryParams.toString()}`;
+    const response = await fetch(url, {
+      headers: {
+        'User-Agent': 'Pitzbol-Tourism-App/1.0',
+        'Accept-Language': 'es-MX,es,en',
+      },
+    });
+
+    if (!response.ok) {
+      return res.status(200).json({
+        success: false,
+        message: 'No se pudo obtener dirección para esas coordenadas',
+      });
+    }
+
+    const data = await response.json();
+    return res.status(200).json({
+      success: true,
+      address: data?.address || {},
+      displayName: data?.display_name || '',
+    });
+  } catch (error) {
+    console.error('Error en reverse geocoding:', error);
+    return res.status(200).json({
+      success: false,
+      message: 'Error al obtener dirección desde coordenadas',
+    });
+  }
+};
+
+/**
  * GET /api/lugares/:nombre - Obtener un lugar específico con sus fotos
  */
 export const getPlaceByName = async (req: Request, res: Response) => {

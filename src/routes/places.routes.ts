@@ -21,6 +21,14 @@ if (!placesController.geocodeAddress) {
   router.post('/geocode', placesController.geocodeAddress);
 }
 
+// POST /api/lugares/reverse-geocode - Obtener dirección desde coordenadas (público)
+if (!placesController.reverseGeocodeAddress) {
+  console.error('ERROR: reverseGeocodeAddress no está disponible en placesController');
+} else {
+  console.log('Registrando ruta POST /api/lugares/reverse-geocode');
+  router.post('/reverse-geocode', placesController.reverseGeocodeAddress);
+}
+
 // GET /api/lugares - Obtener todos los lugares (público)
 router.get('/', placesController.getAllPlaces);
 
