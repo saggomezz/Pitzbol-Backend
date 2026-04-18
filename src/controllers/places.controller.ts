@@ -225,33 +225,35 @@ export const getAllPlaces = async (req: Request, res: Response) => {
  */
 export const createPlace = async (req: Request, res: Response) => {
   try {
-    const { nombre, categoria, ubicacion, latitud, longitud, descripcion } = req.body;
-    
+    const { nombre, categoria, ubicacion, latitud, longitud, descripcion, costoEstimado, tiempoEstancia, fotos } = req.body;
+
     if (!nombre || !nombre.trim()) {
       return res.status(400).json({ message: 'El nombre del lugar es requerido' });
     }
-    
+
     const placeId = normalizePlaceName(nombre);
-    
+
     // Verificar si el lugar ya existe
     const existingDoc = await db.collection('lugares').doc(placeId).get();
     if (existingDoc.exists) {
       return res.status(400).json({ message: 'Este lugar ya existe' });
     }
-    
+
     // Crear el nuevo lugar
     const nuevoLugar: any = {
       nombre: nombre.trim(),
-      fotos: [],
+      fotos: Array.isArray(fotos) ? fotos.filter((f: string) => typeof f === 'string' && f.trim()) : [],
       createdAt: new Date().toISOString(),
       ultimaActualizacion: new Date().toISOString()
     };
-    
+
     if (categoria) nuevoLugar.categoria = categoria.trim();
     if (ubicacion) nuevoLugar.ubicacion = ubicacion.trim();
     if (latitud) nuevoLugar.latitud = String(latitud).replace(',', '.').trim();
     if (longitud) nuevoLugar.longitud = String(longitud).replace(',', '.').trim();
     if (descripcion) nuevoLugar.descripcion = descripcion.trim();
+    if (costoEstimado) nuevoLugar.costoEstimado = String(costoEstimado).trim();
+    if (tiempoEstancia) nuevoLugar.tiempoEstancia = Number(tiempoEstancia) || null;
     
     await db.collection('lugares').doc(placeId).set(nuevoLugar);
     
