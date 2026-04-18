@@ -12,6 +12,19 @@ const firstNonEmpty = (...values: any[]): string => {
     return '';
 };
 
+const getCategoryRoute = (category: string): string => {
+    const normalized = category.toLowerCase().trim();
+    if (normalized.includes('restaurante') || normalized.includes('cafeter') || normalized.includes('gastronom')) return '/gastronomia';
+    if (normalized.includes('clubs') || normalized.includes('bar') || normalized.includes('cantina') || normalized.includes('nocturna')) return '/clubs';
+    if (normalized.includes('transporte') || normalized.includes('traslado') || normalized.includes('tour')) return '/tours';
+    if (normalized.includes('artesanía') || normalized.includes('artesania') || normalized.includes('souvenir')) return '/explora';
+    if (normalized.includes('casas de cambio') || normalized.includes('cambio')) return '/casas-cambio';
+    if (normalized.includes('cultura') || normalized.includes('museo') || normalized.includes('arte')) return '/cultura';
+    if (normalized.includes('fútbol') || normalized.includes('futbol')) return '/futbol';
+    if (normalized.includes('evento')) return '/eventos';
+    return '/explora';
+};
+
 const getUserFromRoleCollectionsByUid = async (uid: string) => {
     const collectionRefs = [
         db.collection('usuarios').doc('turistas').collection('lista'),
@@ -483,13 +496,27 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
             
             // Notify owner
             if (ownerUid) {
+                const businessName = negocioData?.business?.name || negocioData?.name || '';
+                const businessCategory = negocioData?.business?.category || negocioData?.category || '';
+                const categoryRoute = getCategoryRoute(businessCategory);
+
                 await sendNotificationToUser(ownerUid, {
                     tipo: 'negocio_aprobado',
                     titulo: 'Negocio aprobado',
-                    mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido aprobado y ya es visible para los usuarios.`,
+                    mensaje: `Tu negocio "${businessName}" ha sido aprobado y ya es visible para los usuarios.`,
                     fecha: new Date().toISOString(),
                     leido: false,
                     enlace: `/negocio/mis-solicitudes/${negocioId}`,
+                    negocioId,
+                });
+
+                await sendNotificationToUser(ownerUid, {
+                    tipo: 'ver_negocio_publicado',
+                    titulo: '¿Quieres verlo en vivo?',
+                    mensaje: `¿Quieres ver tu negocio @${businessName} publicado?`,
+                    fecha: new Date().toISOString(),
+                    leido: false,
+                    enlace: `${categoryRoute}?highlight=${encodeURIComponent(businessName)}`,
                     negocioId,
                 });
             }
