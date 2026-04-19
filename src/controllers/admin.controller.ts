@@ -669,7 +669,7 @@ const updateCloudinaryUrls = (data: any): any => {
 
 // Aprobar o rechazar un negocio pendiente
 export const gestionarNegocioPendiente = async (req: Request, res: Response) => {
-    const { negocioId, accion, motivoRechazo } = req.body;
+    const { negocioId, accion, motivoRechazo, categoriaEspecial } = req.body;
     const adminUid = (req as any).user?.uid;
     if (!negocioId || !accion || !adminUid) {
         return res.status(400).json({ success: false, message: "Faltan datos obligatorios" });
@@ -703,6 +703,11 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
             const updatedData = updateCloudinaryUrls(negocioData);
             updatedData.status = "aprobado";
             updatedData.updatedAt = new Date().toISOString();
+            // Si el admin asignó una categoría especial, sobreescribir la categoría del negocio
+            if (categoriaEspecial && ["Fútbol", "Cultura", "Eventos"].includes(categoriaEspecial)) {
+                if (updatedData.business) updatedData.business.category = categoriaEspecial;
+                else updatedData.category = categoriaEspecial;
+            }
             updatedData.history = [
                 ...(negocioData?.history || []),
                 { action: "aprobado", date: new Date().toISOString(), by: adminUid, approvedAt: new Date().toISOString() }

@@ -242,7 +242,8 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
       schedule,
       estimatedCost,
       suggestedStayTime,
-      subcategories
+      subcategories,
+      solicitaRevisionAdmin
     } = req.body;
 
     console.log("[registerBusinessWithImages] Body recibido:", req.body);
@@ -356,9 +357,10 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
         subcategories: parsedSubcategories,
         images: imageUrls,
         logo: logoUrl,
-        owner: ownerUid || uid, // Usar ownerUid si existe, sino el uid del negocio
+        owner: ownerUid || uid,
         latitud: latitud || null,
         longitud: longitud || null,
+        solicitaRevisionAdmin: solicitaRevisionAdmin === "true" || solicitaRevisionAdmin === true,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
       },
     };
