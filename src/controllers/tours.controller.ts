@@ -43,12 +43,12 @@ export const createTour = async (req: RequestWithUser, res: Response) => {
       return res.status(403).json({ success: false, message: "No tienes permiso para publicar en esta empresa" });
     }
 
-    // Subir foto principal del tour a Cloudinary
-    let fotoPrincipal = "";
+    // Subir hasta 3 fotos del tour a Cloudinary
     const filesObj = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
-    if (filesObj?.["fotoPrincipal"]?.[0]) {
-      const file = filesObj["fotoPrincipal"][0];
-      fotoPrincipal = await new Promise<string>((resolve, reject) => {
+    const uploadedFotos: string[] = [];
+    const fotosFiles = filesObj?.["fotos"] || [];
+    for (const file of fotosFiles) {
+      const url = await new Promise<string>((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
           { folder: `pitzbol/tours/${empresaId}`, resource_type: "image" },
           (error, result) => {
@@ -58,7 +58,9 @@ export const createTour = async (req: RequestWithUser, res: Response) => {
         );
         stream.end(file.buffer);
       });
+      uploadedFotos.push(url);
     }
+    const fotoPrincipal = uploadedFotos[0] || "";
 
     const tourRef = db.collection("tours").doc();
     const tourData = {
@@ -70,6 +72,7 @@ export const createTour = async (req: RequestWithUser, res: Response) => {
       descripcion: descripcion || "",
       destino,
       fotoPrincipal,
+      fotos: uploadedFotos,
       duracion: duracion || "",
       precio: precio || "",
       idiomas: parseJ<string[]>(idiomas) || [],

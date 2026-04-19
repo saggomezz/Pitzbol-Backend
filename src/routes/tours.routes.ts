@@ -20,7 +20,7 @@ router.get("/:id", getTourById);
 router.post(
   "/",
   authMiddleware,
-  upload.fields([{ name: "fotoPrincipal", maxCount: 1 }]),
+  upload.fields([{ name: "fotos", maxCount: 3 }]),
   createTour
 );
 router.delete("/:id", authMiddleware, deleteTour);
