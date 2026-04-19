@@ -3,9 +3,9 @@ import { db } from '../config/firebase';
 import { upload } from '../middleware/uploadMiddleware';
 import { v2 as cloudinary } from 'cloudinary';
 
-// Cache en memoria para lista de lugares — TTL 10 minutos
+// Cache en memoria para lista de lugares — TTL 1 hora
 let lugaresCache: { data: any[] | null; expiresAt: number } = { data: null, expiresAt: 0 };
-const LUGARES_CACHE_TTL = 10 * 60 * 1000; // 10 minutos
+const LUGARES_CACHE_TTL = 60 * 60 * 1000; // 1 hora
 
 function invalidateLugaresCache() {
   lugaresCache = { data: null, expiresAt: 0 };
@@ -248,33 +248,38 @@ export const getAllPlaces = async (req: Request, res: Response) => {
  */
 export const createPlace = async (req: Request, res: Response) => {
   try {
-    const { nombre, categoria, ubicacion, latitud, longitud, descripcion } = req.body;
-    
+    const { nombre, categoria, ubicacion, latitud, longitud, descripcion, costoEstimado, tiempoEstancia, fotos } = req.body;
+
     if (!nombre || !nombre.trim()) {
       return res.status(400).json({ message: 'El nombre del lugar es requerido' });
     }
-    
+
     const placeId = normalizePlaceName(nombre);
-    
+
     // Verificar si el lugar ya existe
     const existingDoc = await db.collection('lugares').doc(placeId).get();
     if (existingDoc.exists) {
       return res.status(400).json({ message: 'Este lugar ya existe' });
     }
-    
+
     // Crear el nuevo lugar
     const nuevoLugar: any = {
       nombre: nombre.trim(),
-      fotos: [],
+      fotos: Array.isArray(fotos) ? fotos.filter((f: string) => typeof f === 'string' && f.trim()) : [],
       createdAt: new Date().toISOString(),
       ultimaActualizacion: new Date().toISOString()
     };
-    
+
     if (categoria) nuevoLugar.categoria = categoria.trim();
     if (ubicacion) nuevoLugar.ubicacion = ubicacion.trim();
     if (latitud) nuevoLugar.latitud = String(latitud).replace(',', '.').trim();
     if (longitud) nuevoLugar.longitud = String(longitud).replace(',', '.').trim();
     if (descripcion) nuevoLugar.descripcion = descripcion.trim();
+    if (costoEstimado) nuevoLugar.costoEstimado = String(costoEstimado).trim();
+    if (tiempoEstancia !== undefined && tiempoEstancia !== null && tiempoEstancia !== '') {
+      const parsed = Number(tiempoEstancia);
+      if (Number.isFinite(parsed) && parsed > 0) nuevoLugar.tiempoEstancia = parsed;
+    }
     
     await db.collection('lugares').doc(placeId).set(nuevoLugar);
     
@@ -920,6 +925,40 @@ export const setPlaceFotos = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error actualizando fotos:', error);
     return res.status(500).json({ message: 'Error interno' });
+  }
+};
+
+/**
+ * PATCH /api/lugares/:nombre/categorias - Reemplazar categorías de un lugar (solo auth requerida)
+ */
+export const setPlaceCategorias = async (req: Request, res: Response) => {
+  try {
+    let { nombre } = req.params;
+    if (!nombre) return res.status(400).json({ message: 'Nombre requerido' });
+    if (Array.isArray(nombre)) nombre = nombre.join(' ');
+
+    const { categorias } = req.body;
+    if (!Array.isArray(categorias) || categorias.length === 0) {
+      return res.status(400).json({ message: 'categorias debe ser un array no vacío' });
+    }
+
+    const categoriasValidas = categorias
+      .filter((c: any) => typeof c === 'string' && c.trim())
+      .map((c: string) => c.trim());
+
+    const placeId = normalizePlaceName(nombre);
+    await db.collection('lugares').doc(placeId).set({
+      nombre,
+      categoria: categoriasValidas[0],
+      categorias: categoriasValidas,
+      ultimaActualizacion: new Date().toISOString()
+    }, { merge: true });
+
+    invalidateLugaresCache();
+    return res.status(200).json({ message: 'Categorías actualizadas', categorias: categoriasValidas });
+  } catch (error: any) {
+    console.error('Error actualizando categorías:', error);
+    return res.status(500).json({ message: 'Error interno', error: error.message });
   }
 };
 

@@ -85,7 +85,7 @@ app.use(helmet({
       connectSrc: ["'self'", ...allowedOrigins],
     },
   },
-  crossOriginEmbedderPolicy: false, // needed for Cloudinary images
+  crossOriginEmbedderPolicy: false,
 }));
 
 // Global rate limiter: 200 requests per minute per IP
