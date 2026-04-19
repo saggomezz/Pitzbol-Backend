@@ -10,6 +10,7 @@ import {
   updateBusiness,
   updateBusinessImages,
   getTransportPublicProfile,
+  updateTransportSocialMedia,
 } from "../controllers/business.controller";
 import { upload } from '../middleware/uploadMiddleware';
 import { recoverPassword } from "../controllers/auth.controller";
@@ -18,8 +19,9 @@ import { isBusiness } from "../middlewares/business.middleware";
 
 const router = Router();
 
-// Endpoint público — perfil de empresa de transportes
+// Endpoints públicos / protegidos — empresa de transportes
 router.get("/transporte/perfil/:id", getTransportPublicProfile);
+router.patch("/transporte/redes/:id", authMiddleware, updateTransportSocialMedia);
 
 // Endpoint para validar unicidad de datos del negocio
 router.post("/validate-uniqueness", validateBusinessUniqueness);

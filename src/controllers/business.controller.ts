@@ -1545,6 +1545,15 @@ export const getTransportPublicProfile = async (req: ExpressRequest, res: Respon
       return res.status(404).json({ success: false, message: "Perfil no disponible" });
     }
 
+    // Obtener tours publicados de esta empresa
+    const toursSnap = await db.collection("tours")
+      .where("empresaId", "==", snap.id)
+      .where("status", "==", "activo")
+      .get();
+    const tours = toursSnap.docs
+      .map(doc => ({ ...doc.data(), id: doc.id }))
+      .sort((a: any, b: any) => (b.createdAt > a.createdAt ? 1 : -1));
+
     return res.json({
       success: true,
       empresa: {
@@ -1562,10 +1571,37 @@ export const getTransportPublicProfile = async (req: ExpressRequest, res: Respon
         subcategorias: data.business.subcategories || [],
         horario: data.business.schedule || null,
         toursInfo: data.business.toursInfo || null,
+        redesSociales: data.business.redesSociales || null,
+        tours,
       },
     });
   } catch (error: any) {
     console.error("Error getTransportPublicProfile:", error);
+    return res.status(500).json({ success: false });
+  }
+};
+
+export const updateTransportSocialMedia = async (req: RequestWithUser, res: Response) => {
+  try {
+    const ownerUid = req.user?.uid;
+    const { id } = (req as any).params;
+    if (!ownerUid) return res.status(401).json({ success: false });
+
+    const snap = await db.collection("negocios").doc("Activos").collection("items").doc(id).get();
+    if (!snap.exists) return res.status(404).json({ success: false });
+
+    const data = snap.data();
+    const empresaOwnerUid = data?.ownerUid || data?.business?.owner || data?.owner;
+    if (empresaOwnerUid !== ownerUid) return res.status(403).json({ success: false });
+
+    const { instagram = "", facebook = "", tiktok = "", whatsapp = "", youtube = "" } = req.body;
+    await db.collection("negocios").doc("Activos").collection("items").doc(id).update({
+      "business.redesSociales": { instagram, facebook, tiktok, whatsapp, youtube },
+    });
+
+    return res.json({ success: true });
+  } catch (error: any) {
+    console.error("Error updateTransportSocialMedia:", error);
     return res.status(500).json({ success: false });
   }
 };
