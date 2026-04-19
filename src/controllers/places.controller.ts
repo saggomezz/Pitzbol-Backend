@@ -253,7 +253,10 @@ export const createPlace = async (req: Request, res: Response) => {
     if (longitud) nuevoLugar.longitud = String(longitud).replace(',', '.').trim();
     if (descripcion) nuevoLugar.descripcion = descripcion.trim();
     if (costoEstimado) nuevoLugar.costoEstimado = String(costoEstimado).trim();
-    if (tiempoEstancia) nuevoLugar.tiempoEstancia = Number(tiempoEstancia) || null;
+    if (tiempoEstancia !== undefined && tiempoEstancia !== null && tiempoEstancia !== '') {
+      const parsed = Number(tiempoEstancia);
+      if (Number.isFinite(parsed) && parsed > 0) nuevoLugar.tiempoEstancia = parsed;
+    }
     
     await db.collection('lugares').doc(placeId).set(nuevoLugar);
     
