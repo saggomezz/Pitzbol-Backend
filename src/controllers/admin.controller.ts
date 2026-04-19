@@ -742,28 +742,49 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
             // Notify owner
             if (ownerUid) {
                 const businessName = negocioData?.business?.name || negocioData?.name || '';
-                const businessCategory = negocioData?.business?.category || negocioData?.category || '';
+                const businessCategory = updatedData?.business?.category || updatedData?.category || negocioData?.business?.category || negocioData?.category || '';
+                const isTours = businessCategory === "Transporte / Traslados / Tours";
                 const categoryRoute = getCategoryRoute(businessCategory);
 
-                await sendNotificationToUser(ownerUid, {
-                    tipo: 'negocio_aprobado',
-                    titulo: 'Negocio aprobado',
-                    mensaje: `Tu negocio "${businessName}" ha sido aprobado y ya es visible para los usuarios.`,
-                    fecha: new Date().toISOString(),
-                    leido: false,
-                    enlace: `/negocio/mis-solicitudes/${negocioId}`,
-                    negocioId,
-                });
-
-                await sendNotificationToUser(ownerUid, {
-                    tipo: 'ver_negocio_publicado',
-                    titulo: '¿Quieres verlo en vivo?',
-                    mensaje: `¿Quieres ver tu negocio @${businessName} publicado?`,
-                    fecha: new Date().toISOString(),
-                    leido: false,
-                    enlace: `${categoryRoute}?highlight=${encodeURIComponent(businessName)}`,
-                    negocioId,
-                });
+                if (isTours) {
+                    await sendNotificationToUser(ownerUid, {
+                        tipo: 'negocio_aprobado',
+                        titulo: 'Empresa verificada',
+                        mensaje: `Tu empresa "${businessName}" ha sido verificada por Pitzbol.`,
+                        fecha: new Date().toISOString(),
+                        leido: false,
+                        enlace: `/negocio/transportes/${negocioId}`,
+                        negocioId,
+                    });
+                    await sendNotificationToUser(ownerUid, {
+                        tipo: 'tours_empresa_verificada',
+                        titulo: 'Ya puedes subir tus tours',
+                        mensaje: `Tu empresa de transportes fue verificada. Configura tu perfil y empieza a publicar tours en Pitzbol.`,
+                        fecha: new Date().toISOString(),
+                        leido: false,
+                        enlace: `/negocio/transportes/${negocioId}`,
+                        negocioId,
+                    });
+                } else {
+                    await sendNotificationToUser(ownerUid, {
+                        tipo: 'negocio_aprobado',
+                        titulo: 'Negocio aprobado',
+                        mensaje: `Tu negocio "${businessName}" ha sido aprobado y ya es visible para los usuarios.`,
+                        fecha: new Date().toISOString(),
+                        leido: false,
+                        enlace: `/negocio/mis-solicitudes/${negocioId}`,
+                        negocioId,
+                    });
+                    await sendNotificationToUser(ownerUid, {
+                        tipo: 'ver_negocio_publicado',
+                        titulo: '¿Quieres verlo en vivo?',
+                        mensaje: `¿Quieres ver tu negocio @${businessName} publicado?`,
+                        fecha: new Date().toISOString(),
+                        leido: false,
+                        enlace: `${categoryRoute}?highlight=${encodeURIComponent(businessName)}`,
+                        negocioId,
+                    });
+                }
 
                 emitBusinessStatusChange(ownerUid, negocioId, 'aprobado', {
                     businessName: negocioData?.business?.name || negocioData?.name,

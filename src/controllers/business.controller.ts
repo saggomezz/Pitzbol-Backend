@@ -243,7 +243,13 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
       estimatedCost,
       suggestedStayTime,
       subcategories,
-      solicitaRevisionAdmin
+      solicitaRevisionAdmin,
+      tipoVehiculo,
+      puntoRecogida,
+      idiomas,
+      capacidad,
+      queIncluye,
+      destinosRutas,
     } = req.body;
 
     console.log("[registerBusinessWithImages] Body recibido:", req.body);
@@ -362,6 +368,16 @@ export const registerBusinessWithImages = async (req: RequestWithUser, res: Resp
         longitud: longitud || null,
         solicitaRevisionAdmin: solicitaRevisionAdmin === "true" || solicitaRevisionAdmin === true,
         createdAt: admin.firestore.FieldValue.serverTimestamp(),
+        ...(category === "Transporte / Traslados / Tours" && {
+          toursInfo: {
+            tipoVehiculo: parseOptionalJson<string[]>(tipoVehiculo) || [],
+            puntoRecogida: puntoRecogida || "",
+            idiomas: parseOptionalJson<string[]>(idiomas) || [],
+            capacidad: capacidad || "",
+            queIncluye: parseOptionalJson<string[]>(queIncluye) || [],
+            destinosRutas: parseOptionalJson<string[]>(destinosRutas) || [],
+          }
+        }),
       },
     };
     
@@ -1512,6 +1528,44 @@ export const updateBusinessImages = async (req: RequestWithUser, res: Response) 
     });
   } catch (error: any) {
     console.error("Error updateBusinessImages:", error);
+    return res.status(500).json({ success: false });
+  }
+};
+
+export const getTransportPublicProfile = async (req: ExpressRequest, res: Response) => {
+  try {
+    const { id } = (req as any).params;
+    if (!id) return res.status(400).json({ success: false, message: "ID requerido" });
+
+    const snap = await db.collection("negocios").doc("Activos").collection("items").doc(id).get();
+    if (!snap.exists) return res.status(404).json({ success: false, message: "Empresa no encontrada" });
+
+    const data = snap.data();
+    if (data?.business?.category !== "Transporte / Traslados / Tours") {
+      return res.status(404).json({ success: false, message: "Perfil no disponible" });
+    }
+
+    return res.json({
+      success: true,
+      empresa: {
+        id: snap.id,
+        nombre: data.business.name || "",
+        descripcion: data.business.description || "",
+        ubicacion: data.business.location || "",
+        telefono: data.business.phone || "",
+        website: data.business.website || "",
+        email: data.email || "",
+        logo: data.business.logo || "",
+        galeria: data.business.images || [],
+        latitud: data.business.latitud || null,
+        longitud: data.business.longitud || null,
+        subcategorias: data.business.subcategories || [],
+        horario: data.business.schedule || null,
+        toursInfo: data.business.toursInfo || null,
+      },
+    });
+  } catch (error: any) {
+    console.error("Error getTransportPublicProfile:", error);
     return res.status(500).json({ success: false });
   }
 };
