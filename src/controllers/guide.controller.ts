@@ -82,7 +82,7 @@ export const registerGuide = async (req: Request, res: Response) => {
             "04_correo": email ?? "",
             "05_nacionalidad": data.nacionalidad ?? "",
             "06_telefono": data.telefono ?? "",
-            "07_especialidades": data.categorias ?? [], 
+            "07_especialidades": typeof data.categorias === "string" ? JSON.parse(data.categorias || "[]") : (data.categorias ?? []), 
             "08_rfc": data.rfc ?? "",
             "10_cp": data.codigoPostal ?? "",
             "11_foto_frente": data.ineFrente ?? "",
@@ -169,8 +169,8 @@ export const registerGuide = async (req: Request, res: Response) => {
     } catch (error: any) {
         console.error("❌ Error detallado en registerGuide:", error);
         console.error("Stack trace:", error.stack);
-        res.status(500).json({ 
-            message: 'Error interno al procesar la solicitud'
+        res.status(500).json({
+            message: error?.message || 'Error interno al procesar la solicitud'
         });
     }
 };
