@@ -2,6 +2,13 @@ import { Request, Response } from 'express';
 import { db } from "../config/firebase";
 import admin from "firebase-admin";
 import { sendNotificationToAdmins, sendNotificationToUser } from "../services/notification.service";
+import { v2 as cloudinary } from "cloudinary";
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME || "",
+  api_key: process.env.CLOUDINARY_API_KEY || "",
+  api_secret: process.env.CLOUDINARY_API_SECRET || "",
+});
 
 const FieldValue = admin.firestore.FieldValue; 
 
@@ -41,12 +48,33 @@ export const registerGuide = async (req: Request, res: Response) => {
             }
         }
 
+        const tipo = data.tipo || "persona";
+        const empresaNombre = data.empresaNombre || "";
+        const empresaPagina = data.empresaPagina || "";
+
+        // Subir logo de empresa a Cloudinary si existe
+        let empresaLogo = "";
+        const filesObj = (req as any).files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+        if (filesObj?.["empresaLogo"]?.[0]) {
+            const file = filesObj["empresaLogo"][0];
+            empresaLogo = await new Promise<string>((resolve, reject) => {
+                const stream = cloudinary.uploader.upload_stream(
+                    { folder: `pitzbol/guias/logos`, resource_type: "image" },
+                    (error, result) => {
+                        if (error || !result?.secure_url) return reject(error || new Error("Sin URL"));
+                        resolve(result.secure_url);
+                    }
+                );
+                stream.end(file.buffer);
+            });
+        }
+
         const safeApellido = apellido ? `_${apellido}` : "";
         const customId = `${nombre}${safeApellido}`.replace(/\s+/g, '_').toLowerCase();
 
         console.log("🔑 UID recibido:", uid);
         console.log("📝 Custom ID generado:", customId);
-       
+
         const datosSeguros = {
             "01_nombre": nombre ?? "",
             "02_apellido": apellido ?? "",
@@ -68,7 +96,11 @@ export const registerGuide = async (req: Request, res: Response) => {
                 porcentaje: data.validacion_biometrica?.porcentaje ?? 0,
                 mensaje: data.validacion_biometrica?.mensaje ?? "No validado"
             },
-            uid: uid, 
+            uid: uid,
+            tipo,
+            empresaNombre: tipo === "empresa" ? empresaNombre : "",
+            empresaLogo: tipo === "empresa" ? empresaLogo : "",
+            empresaPagina: tipo === "empresa" ? empresaPagina : "",
             createdAt: new Date().toISOString()
         };
 
