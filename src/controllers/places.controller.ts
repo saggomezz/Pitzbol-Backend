@@ -963,6 +963,44 @@ export const setPlaceCategorias = async (req: Request, res: Response) => {
 };
 
 /**
+ * PATCH /api/lugares/:nombre/info - Actualizar tiempoEstancia y costoEstimado (solo auth)
+ */
+export const setPlaceInfo = async (req: Request, res: Response) => {
+  try {
+    let { nombre } = req.params;
+    if (!nombre) return res.status(400).json({ message: 'Nombre requerido' });
+    if (Array.isArray(nombre)) nombre = nombre.join(' ');
+
+    const { tiempoEstancia, costoEstimado } = req.body;
+    const update: Record<string, any> = { nombre, ultimaActualizacion: new Date().toISOString() };
+
+    if (tiempoEstancia !== undefined) {
+      const parsed = Number(tiempoEstancia);
+      if (!Number.isFinite(parsed) || parsed <= 0) {
+        return res.status(400).json({ message: 'tiempoEstancia debe ser un número positivo' });
+      }
+      update.tiempoEstancia = parsed;
+    }
+
+    if (costoEstimado !== undefined) {
+      if (typeof costoEstimado !== 'string' || !costoEstimado.trim()) {
+        return res.status(400).json({ message: 'costoEstimado debe ser texto' });
+      }
+      update.costoEstimado = costoEstimado.trim();
+    }
+
+    const placeId = normalizePlaceName(nombre);
+    await db.collection('lugares').doc(placeId).set(update, { merge: true });
+
+    invalidateLugaresCache();
+    return res.status(200).json({ message: 'Información actualizada', tiempoEstancia: update.tiempoEstancia, costoEstimado: update.costoEstimado });
+  } catch (error: any) {
+    console.error('Error actualizando info del lugar:', error);
+    return res.status(500).json({ message: 'Error interno', error: error.message });
+  }
+};
+
+/**
  * DELETE /api/lugares/:nombre - Eliminar un lugar completo de Firestore
  */
 export const deletePlace = async (req: Request, res: Response) => {
