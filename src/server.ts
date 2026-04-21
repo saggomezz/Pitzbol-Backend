@@ -32,6 +32,24 @@ import { ChatService } from './services/chat.service';
 import { setSocketServer } from './socket';
 import { startBusinessWatcher } from './services/businessWatcher';
 
+process.on('uncaughtException', (error: any) => {
+  if (error?.code === 'ECONNRESET') {
+    console.warn('[server] Ignorando ECONNRESET transitorio');
+    return;
+  }
+
+  console.error('[server] Uncaught exception', error);
+});
+
+process.on('unhandledRejection', (reason: any) => {
+  if (reason?.code === 'ECONNRESET') {
+    console.warn('[server] Ignorando ECONNRESET transitorio en rechazo no manejado');
+    return;
+  }
+
+  console.error('[server] Unhandled rejection', reason);
+});
+
 const app = express();
 const httpServer = createServer(app);
 
@@ -72,6 +90,24 @@ const io = new Server(httpServer, {
   }
 });
 setSocketServer(io);
+
+io.engine.on('connection_error', (err) => {
+  console.error('[socket.io] connection_error', {
+    code: (err as any)?.code,
+    message: (err as any)?.message,
+    context: (err as any)?.context,
+  });
+});
+
+io.engine.on('initial_headers', (headers, req) => {
+  console.log('[socket.io] initial_headers', req.url);
+});
+
+io.engine.on('headers', (headers, req) => {
+  if (req.url?.includes('/socket.io')) {
+    console.log('[socket.io] headers', req.method, req.url);
+  }
+});
 
 const PORT = Number(process.env.PORT) || 3001;
 
@@ -164,6 +200,7 @@ io.use((socket, next) => {
   if (!token) {
     return next(new Error('Authentication required'));
   }
+
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET!) as any;
     (socket as any).userId = decoded.uid;
@@ -177,8 +214,8 @@ io.use((socket, next) => {
 io.on('connection', (socket) => {
   console.log('Usuario conectado:', socket.id);
 
-  const userId = (socket as any).userId || socket.handshake.auth.userId;
-  const userType = (socket as any).userRole || socket.handshake.auth.userType;
+  const userId = (socket as any).userId;
+  const userType = (socket as any).userRole;
 
   if (userId) {
     socket.join(`user:${userId}`);
