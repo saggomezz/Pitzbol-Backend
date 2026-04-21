@@ -1589,18 +1589,32 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
             await docPendiente.ref.delete();
             console.log(`🗑️ Solicitud eliminada de pendientes`);
 
-            // Notificar al usuario de aprobación de negocio
+            // Notificar al usuario de aprobación
             await sendNotificationToUser(uid, {
                 tipo: 'aprobado',
                 titulo: '¡Felicidades! 🎉',
-                mensaje: 'Tu solicitud de negocio ha sido aprobada. Pronto estará publicada.',
+                mensaje: 'Tu solicitud para ser Guía Oficial Pitzbol ha sido aprobada.',
                 fecha: new Date().toISOString(),
                 leido: false,
-                enlace: '/negocio/estatus'
+                enlace: '/perfil'
             });
-            
-            return res.json({ 
-                success: true, 
+
+            // Notificar que ya puede subir tours
+            const tipoGuia = data?.tipo || "persona";
+            const enlaceTours = tipoGuia === "empresa" ? `/negocio/transportes/${uid}` : '/perfil';
+            await sendNotificationToUser(uid, {
+                tipo: 'tours_guia_verificado',
+                titulo: 'Ya puedes subir tus tours',
+                mensaje: tipoGuia === "empresa"
+                    ? `Tu empresa "${data?.empresaNombre || ''}" ha sido verificada. Accede a tu perfil para publicar tus primeros tours.`
+                    : 'Tu perfil ha sido verificado. Ahora puedes publicar tus experiencias desde tu perfil.',
+                fecha: new Date().toISOString(),
+                leido: false,
+                enlace: enlaceTours
+            });
+
+            return res.json({
+                success: true,
                 message: "Guía aprobado y movido a la lista oficial",
                 newRole: "guia",
                 guide_status: "aprobado"

@@ -25,22 +25,40 @@ export const createTour = async (req: RequestWithUser, res: Response) => {
     if (!ownerUid) return res.status(401).json({ success: false, message: "No autorizado" });
 
     const {
-      empresaId, titulo, descripcion, destino, duracion, precio,
+      empresaId, guiaId, tipoGuia, titulo, descripcion, destino, duracion, precio,
       idiomas, queIncluye, puntoRecogida, capacidad, tipoVehiculo, disponibilidad,
+      incluyeTransporte,
     } = req.body;
 
-    if (!empresaId || !titulo || !destino) {
-      return res.status(400).json({ success: false, message: "Faltan campos: empresaId, titulo, destino" });
+    if (!titulo || !destino) {
+      return res.status(400).json({ success: false, message: "Faltan campos: titulo, destino" });
     }
 
-    // Verificar que el usuario es dueño de la empresa
-    const empresaSnap = await db.collection("negocios").doc("Activos").collection("items").doc(empresaId).get();
-    if (!empresaSnap.exists) return res.status(404).json({ success: false, message: "Empresa no encontrada" });
+    // Determinar propietario: empresa de negocios o guía
+    let propietarioNombre = "";
+    let propietarioLogo = "";
+    let propietarioId = "";
+    const esGuia = !!guiaId;
 
-    const empresaData = empresaSnap.data();
-    const empresaOwnerUid = empresaData?.ownerUid || empresaData?.business?.owner || empresaData?.owner;
-    if (empresaOwnerUid !== ownerUid) {
-      return res.status(403).json({ success: false, message: "No tienes permiso para publicar en esta empresa" });
+    if (esGuia) {
+      // Verificar guía en Firebase
+      const guiaSnap = await db.collection("usuarios").doc("guias").collection("lista")
+        .where("uid", "==", ownerUid).limit(1).get();
+      if (guiaSnap.empty) return res.status(403).json({ success: false, message: "No eres un guía verificado" });
+      const guiaData = guiaSnap.docs[0].data();
+      propietarioId = guiaId;
+      propietarioNombre = guiaData?.empresaNombre || guiaData?.["01_nombre"] || "";
+      propietarioLogo = guiaData?.empresaLogo || guiaData?.["14_foto_perfil"]?.url || "";
+    } else {
+      if (!empresaId) return res.status(400).json({ success: false, message: "Falta empresaId" });
+      const empresaSnap = await db.collection("negocios").doc("Activos").collection("items").doc(empresaId).get();
+      if (!empresaSnap.exists) return res.status(404).json({ success: false, message: "Empresa no encontrada" });
+      const empresaData = empresaSnap.data();
+      const empresaOwnerUid = empresaData?.ownerUid || empresaData?.business?.owner || empresaData?.owner;
+      if (empresaOwnerUid !== ownerUid) return res.status(403).json({ success: false, message: "No tienes permiso para publicar en esta empresa" });
+      propietarioId = empresaId;
+      propietarioNombre = empresaData?.business?.name || "";
+      propietarioLogo = empresaData?.business?.logo || "";
     }
 
     // Subir hasta 3 fotos del tour a Cloudinary
@@ -50,7 +68,7 @@ export const createTour = async (req: RequestWithUser, res: Response) => {
     for (const file of fotosFiles) {
       const url = await new Promise<string>((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
-          { folder: `pitzbol/tours/${empresaId}`, resource_type: "image" },
+          { folder: `pitzbol/tours/${propietarioId}`, resource_type: "image" },
           (error, result) => {
             if (error || !result?.secure_url) return reject(error || new Error("Sin URL"));
             resolve(result.secure_url);
@@ -65,9 +83,10 @@ export const createTour = async (req: RequestWithUser, res: Response) => {
     const tourRef = db.collection("tours").doc();
     const tourData = {
       id: tourRef.id,
-      empresaId,
-      empresaNombre: empresaData?.business?.name || "",
-      empresaLogo: empresaData?.business?.logo || "",
+      ...(esGuia ? { guiaId: propietarioId } : { empresaId: propietarioId }),
+      tipoGuia: tipoGuia || (esGuia ? "persona" : "empresa"),
+      empresaNombre: propietarioNombre,
+      empresaLogo: propietarioLogo,
       titulo,
       descripcion: descripcion || "",
       destino,
@@ -79,6 +98,7 @@ export const createTour = async (req: RequestWithUser, res: Response) => {
       queIncluye: parseJ<string[]>(queIncluye) || [],
       puntoRecogida: puntoRecogida || "",
       capacidad: capacidad || "",
+      incluyeTransporte: incluyeTransporte === "true" || incluyeTransporte === true,
       tipoVehiculo: parseJ<string[]>(tipoVehiculo) || [],
       disponibilidad: disponibilidad || "",
       status: "activo",
