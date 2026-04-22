@@ -971,7 +971,7 @@ export const setPlaceInfo = async (req: Request, res: Response) => {
     if (!nombre) return res.status(400).json({ message: 'Nombre requerido' });
     if (Array.isArray(nombre)) nombre = nombre.join(' ');
 
-    const { tiempoEstancia, costoEstimado } = req.body;
+    const { tiempoEstancia, costoEstimado, descripcion, horariosJson } = req.body;
     const update: Record<string, any> = { nombre, ultimaActualizacion: new Date().toISOString() };
 
     if (tiempoEstancia !== undefined) {
@@ -989,11 +989,28 @@ export const setPlaceInfo = async (req: Request, res: Response) => {
       update.costoEstimado = costoEstimado.trim();
     }
 
+    if (descripcion !== undefined) {
+      if (typeof descripcion !== 'string') {
+        return res.status(400).json({ message: 'descripcion debe ser texto' });
+      }
+      update.descripcion = descripcion.trim();
+    }
+
+    if (horariosJson !== undefined) {
+      if (typeof horariosJson !== 'string') {
+        return res.status(400).json({ message: 'horariosJson debe ser string JSON' });
+      }
+      try { JSON.parse(horariosJson); } catch {
+        return res.status(400).json({ message: 'horariosJson no es JSON válido' });
+      }
+      update.horariosJson = horariosJson;
+    }
+
     const placeId = normalizePlaceName(nombre);
     await db.collection('lugares').doc(placeId).set(update, { merge: true });
 
     invalidateLugaresCache();
-    return res.status(200).json({ message: 'Información actualizada', tiempoEstancia: update.tiempoEstancia, costoEstimado: update.costoEstimado });
+    return res.status(200).json({ message: 'Información actualizada' });
   } catch (error: any) {
     console.error('Error actualizando info del lugar:', error);
     return res.status(500).json({ message: 'Error interno', error: error.message });
