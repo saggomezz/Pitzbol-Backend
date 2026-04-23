@@ -357,7 +357,7 @@ export const actualizarPerfil = async (req: Request, res: Response) => {
   try {
     console.log("🔵 actualizarPerfil llamado");
     const uid = (req as any).user?.uid;
-    const { descripcion, idiomas, especialidades, nombre, apellido } = req.body;
+    const { descripcion, idiomas, especialidades, nombre, apellido, tarifa } = req.body;
 
     console.log("📥 Datos recibidos en el backend:", { uid, descripcion, idiomas, especialidades, nombre, apellido });
 
@@ -391,6 +391,14 @@ export const actualizarPerfil = async (req: Request, res: Response) => {
     if (apellido !== undefined) {
       camposAActualizar.apellido = apellido;
       camposAActualizar["02_apellido"] = apellido;
+    }
+
+    if (tarifa !== undefined) {
+      const tarifaNum = typeof tarifa === "number" ? tarifa : parseFloat(tarifa);
+      if (!isNaN(tarifaNum) && tarifaNum >= 0) {
+        camposAActualizar.tarifa = tarifaNum;
+        camposAActualizar["17_tarifa_mxn"] = tarifaNum;
+      }
     }
 
     // Array para almacenar todas las referencias encontradas
@@ -478,7 +486,7 @@ const buildPublicProfile = (userData: any, role: string, fallbackUid: string) =>
     descripcion: userData?.["15_descripcion"] || userData?.descripcion || '',
     biografia: userData?.["19_biografia"] || userData?.biografia || userData?.["15_descripcion"] || userData?.descripcion || '',
     email: userData?.["04_correo"] || userData?.email || '',
-    telefono: userData?.["06_telefono"] || userData?.telefono || '',
+    telefono: role === 'guia' ? '' : (userData?.["06_telefono"] || userData?.telefono || ''),
     nacionalidad: userData?.["05_nacionalidad"] || userData?.nacionalidad || '',
     idiomas: userData?.["09_idiomas"] || userData?.idiomas || [],
     especialidades: userData?.["07_especialidades"] || userData?.especialidades || [],
