@@ -616,7 +616,8 @@ const resolveOwnerIdentifierFromBusiness = async (identifier: string): Promise<s
 
 export const obtenerPerfilPublico = async (req: Request, res: Response) => {
   try {
-    const { uid } = req.params;
+    const uidParam = Array.isArray(req.params.uid) ? req.params.uid[0] : req.params.uid;
+    const uid = typeof uidParam === 'string' ? uidParam : '';
 
     console.log(`📋 [obtenerPerfilPublico] Buscando perfil para identificador: ${uid}`);
 

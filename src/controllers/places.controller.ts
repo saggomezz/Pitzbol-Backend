@@ -196,7 +196,7 @@ export const getAllPlaces = async (req: Request, res: Response) => {
 
     const snapshot = await db.collection('lugares').get();
 
-    const lugares = snapshot.docs.map(doc => ({
+    const lugares: Array<Record<string, any> & { id: string }> = snapshot.docs.map(doc => ({
       id: doc.id,
       ...doc.data()
     }));
@@ -652,11 +652,11 @@ export const reverseGeocodeAddress = async (req: Request, res: Response) => {
       });
     }
 
-    const data = await response.json();
+    const data = await response.json() as { address?: Record<string, unknown>; display_name?: string };
     return res.status(200).json({
       success: true,
-      address: data?.address || {},
-      displayName: data?.display_name || '',
+      address: data.address || {},
+      displayName: data.display_name || '',
     });
   } catch (error) {
     console.error('Error en reverse geocoding:', error);

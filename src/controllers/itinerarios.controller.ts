@@ -10,7 +10,8 @@ const getUserDocRef = async (uid: string) => {
   for (const cat of categorias) {
     const snap = await db.collection('usuarios').doc(cat).collection('lista')
       .where('uid', '==', uid).limit(1).get();
-    if (!snap.empty) return snap.docs[0].ref;
+    const doc = snap.docs[0];
+    if (doc) return doc.ref;
   }
   return null;
 };
@@ -91,11 +92,13 @@ export const eliminarItinerario = async (req: AuthRequest, res: Response) => {
   try {
     const uid = req.user?.uid;
     if (!uid) return res.status(401).json({ error: 'No autenticado' });
+    const docId = typeof req.params.docId === 'string' ? req.params.docId : '';
+    if (!docId) return res.status(400).json({ error: 'Falta docId' });
 
     const userRef = await getUserDocRef(uid);
     if (!userRef) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-    await userRef.collection('itinerarios').doc(req.params.docId).delete();
+    await userRef.collection('itinerarios').doc(docId).delete();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Error al eliminar itinerario' });
@@ -106,11 +109,13 @@ export const eliminarNota = async (req: AuthRequest, res: Response) => {
   try {
     const uid = req.user?.uid;
     if (!uid) return res.status(401).json({ error: 'No autenticado' });
+    const docId = typeof req.params.docId === 'string' ? req.params.docId : '';
+    if (!docId) return res.status(400).json({ error: 'Falta docId' });
 
     const userRef = await getUserDocRef(uid);
     if (!userRef) return res.status(404).json({ error: 'Usuario no encontrado' });
 
-    await userRef.collection('notas').doc(req.params.docId).delete();
+    await userRef.collection('notas').doc(docId).delete();
     res.json({ ok: true });
   } catch (err) {
     res.status(500).json({ error: 'Error al eliminar nota' });

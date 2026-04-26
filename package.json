@@ -65,6 +65,7 @@
   "overrides": {
     "node-fetch": "^2.7.0",
     "http-proxy-agent": "^7.0.2",
-    "@tootallnate/once": "^2.0.0"
+    "@tootallnate/once": "^2.0.0",
+    "uuid": "^14.0.0"
   }
 }
