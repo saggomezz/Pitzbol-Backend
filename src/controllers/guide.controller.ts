@@ -494,6 +494,10 @@ export const getGuidePublicProfile = async (req: Request, res: Response) => {
             toursPorDia: data.toursPorDia || null,
             calificacion: data.calificacion || 4.5,
             resenas: data.numeroResenas || 0,
+            tipo: data.tipo || "persona",
+            empresaNombre: data.empresaNombre || "",
+            empresaLogo: data.empresaLogo || "",
+            empresaPagina: data.empresaPagina || "",
         };
 
         console.log(`✅ Perfil del guía encontrado:`, guideProfile.nombre);

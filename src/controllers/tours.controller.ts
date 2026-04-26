@@ -129,6 +129,23 @@ export const getPublicTours = async (req: ExpressRequest, res: Response) => {
   }
 };
 
+export const getGuiaTours = async (req: ExpressRequest, res: Response) => {
+  try {
+    const guiaId = String(req.params.guiaId);
+    const snap = await db.collection("tours")
+      .where("guiaId", "==", guiaId)
+      .where("status", "==", "activo")
+      .get();
+    const tours = snap.docs
+      .map(doc => ({ ...doc.data(), id: doc.id }))
+      .sort((a: any, b: any) => (b.createdAt > a.createdAt ? 1 : -1));
+    return res.json({ success: true, tours });
+  } catch (error: any) {
+    console.error("Error getGuiaTours:", error);
+    return res.status(500).json({ success: false, tours: [] });
+  }
+};
+
 export const getEmpresaTours = async (req: ExpressRequest, res: Response) => {
   try {
     const empresaId = String(req.params.empresaId);
@@ -155,6 +172,71 @@ export const getTourById = async (req: ExpressRequest, res: Response) => {
   } catch (error: any) {
     console.error("Error getTourById:", error);
     return res.status(500).json({ success: false });
+  }
+};
+
+export const updateTour = async (req: RequestWithUser, res: Response) => {
+  try {
+    const ownerUid = req.user?.uid;
+    const id = String(req.params.id);
+    if (!ownerUid) return res.status(401).json({ success: false });
+
+    const snap = await db.collection("tours").doc(id).get();
+    if (!snap.exists) return res.status(404).json({ success: false, message: "Tour no encontrado" });
+
+    const tourData = snap.data();
+    const guiaId = tourData?.guiaId;
+    const empresaId = tourData?.empresaId;
+
+    if (guiaId) {
+      const guiaSnap = await db.collection("usuarios").doc("guias").collection("lista")
+        .where("uid", "==", ownerUid).limit(1).get();
+      if (guiaSnap.empty) return res.status(403).json({ success: false });
+    } else if (empresaId) {
+      const empresaSnap = await db.collection("negocios").doc("Activos").collection("items").doc(empresaId).get();
+      const empData = empresaSnap.data();
+      const ownerField = empData?.ownerUid || empData?.business?.owner || empData?.owner;
+      if (ownerField !== ownerUid) return res.status(403).json({ success: false });
+    }
+
+    const filesObj = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
+    const newFotos: string[] = [];
+    const fotosFiles = filesObj?.["fotos"] || [];
+    const propietarioId = guiaId || empresaId || ownerUid;
+    for (const file of fotosFiles) {
+      const url = await new Promise<string>((resolve, reject) => {
+        const stream = cloudinary.uploader.upload_stream(
+          { folder: `pitzbol/tours/${propietarioId}`, resource_type: "image" },
+          (error, result) => {
+            if (error || !result?.secure_url) return reject(error || new Error("Sin URL"));
+            resolve(result.secure_url);
+          }
+        );
+        stream.end(file.buffer);
+      });
+      newFotos.push(url);
+    }
+
+    const allowed = ["titulo", "descripcion", "destino", "duracion", "precio", "puntoRecogida",
+      "capacidad", "disponibilidad", "incluyeTransporte", "tipoVehiculo", "idiomas", "queIncluye"];
+    const updates: Record<string, any> = {};
+    for (const key of allowed) {
+      if (req.body[key] !== undefined) {
+        updates[key] = parseJ(req.body[key]) ?? req.body[key];
+      }
+    }
+    if (newFotos.length > 0) {
+      updates.fotos = newFotos;
+      updates.fotoPrincipal = newFotos[0];
+    }
+    updates.updatedAt = new Date().toISOString();
+
+    await db.collection("tours").doc(id).update(updates);
+    const updated = (await db.collection("tours").doc(id).get()).data();
+    return res.json({ success: true, tour: { ...updated, id } });
+  } catch (error: any) {
+    console.error("Error updateTour:", error);
+    return res.status(500).json({ success: false, message: "Error interno" });
   }
 };
 
