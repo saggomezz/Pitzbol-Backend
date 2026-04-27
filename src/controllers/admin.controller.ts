@@ -715,9 +715,24 @@ export const gestionarNegocioPendiente = async (req: Request, res: Response) => 
             
             // Move from Pendientes to Activos
             await db.collection("negocios").doc("Activos").collection("items").doc(negocioId).set(updatedData);
-            
+
             // Delete from Pendientes
             await negocioRef.delete();
+
+            // Sync schedule to lugares collection so informacion page can display it
+            const businessSchedule = updatedData?.business?.schedule ?? updatedData?.schedule ?? null;
+            const businessName = updatedData?.business?.name || updatedData?.name || '';
+            if (businessSchedule && businessName) {
+                const placeId = businessName.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/\s+/g, '_');
+                try {
+                    await db.collection('lugares').doc(placeId).set(
+                        { nombre: businessName, horariosJson: JSON.stringify(businessSchedule) },
+                        { merge: true }
+                    );
+                } catch (err) {
+                    console.warn('[gestionarNegocioPendiente] No se pudo sincronizar horario a lugares:', err);
+                }
+            }
 
             // Asegurar que las notificaciones existentes reflejen el nombre final en caso de que haya cambiado al aprobar
             try {
