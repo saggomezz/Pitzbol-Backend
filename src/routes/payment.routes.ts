@@ -114,7 +114,11 @@ router.get(
   authMiddleware,
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const { userId } = req.params;
+      const userId = typeof req.params.userId === 'string' ? req.params.userId : '';
+      if (!userId) {
+        res.status(400).json({ success: false, error: 'userId es requerido' });
+        return;
+      }
 
       // IDOR protection
       if ((req as any).user?.uid !== userId) {
@@ -160,7 +164,11 @@ router.post(
   authMiddleware,
   async (req: Request, res: Response): Promise<void> => {
     try {
-      const { userId } = req.params;
+      const userId = typeof req.params.userId === 'string' ? req.params.userId : '';
+      if (!userId) {
+        res.status(400).json({ success: false, error: 'userId es requerido' });
+        return;
+      }
       const { paymentMethodId } = req.body;
 
       // IDOR protection

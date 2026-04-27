@@ -45,7 +45,9 @@ export const createTour = async (req: RequestWithUser, res: Response) => {
       const guiaSnap = await db.collection("usuarios").doc("guias").collection("lista")
         .where("uid", "==", ownerUid).limit(1).get();
       if (guiaSnap.empty) return res.status(403).json({ success: false, message: "No eres un guía verificado" });
-      const guiaData = guiaSnap.docs[0].data();
+      const guiaDoc = guiaSnap.docs[0];
+      if (!guiaDoc) return res.status(403).json({ success: false, message: "No eres un guía verificado" });
+      const guiaData = guiaDoc.data();
       propietarioId = guiaId;
       propietarioNombre = guiaData?.empresaNombre || guiaData?.["01_nombre"] || "";
       propietarioLogo = guiaData?.empresaLogo || guiaData?.["14_foto_perfil"]?.url || "";

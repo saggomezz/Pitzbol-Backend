@@ -85,7 +85,7 @@ router.post(
   adminController.actualizarNotificacionesNegocio
 );
 
-// PROTEGIDO - Archivar (eliminar) un negocio
+// PROTEGIDO - Archivar un negocio
 router.post(
   '/negocios/:negocioId/archivar',
   authMiddleware,

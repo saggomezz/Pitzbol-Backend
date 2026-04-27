@@ -1156,6 +1156,7 @@ export const desarchivarNegocio = async (req: Request, res: Response) => {
 export const eliminarNegocioPermanente = async (req: Request, res: Response) => {
     let { negocioId } = req.params;
     if (Array.isArray(negocioId)) negocioId = negocioId[0];
+    const { motivo, reason } = req.body || {};
     const adminUid = (req as any).user?.uid;
     
     if (!negocioId || !adminUid) {
@@ -1163,6 +1164,12 @@ export const eliminarNegocioPermanente = async (req: Request, res: Response) => 
     }
     
     try {
+        const motivoFinal = typeof motivo === 'string' && motivo.trim()
+            ? motivo.trim()
+            : typeof reason === 'string' && reason.trim()
+                ? reason.trim()
+                : '';
+
         const businessResult = await findBusiness(negocioId);
         if (!businessResult || (businessResult.location !== 'Archivados' && businessResult.location !== 'Rechazados')) {
             return res.status(404).json({ success: false, message: "Negocio no encontrado en archivados o rechazados" });
@@ -1181,8 +1188,8 @@ export const eliminarNegocioPermanente = async (req: Request, res: Response) => 
             adminUid,
             negocioData,
             source: location.toLowerCase(),
-            reason: negocioData?.archivedReason || negocioData?.rejectionReason || null,
-            mensaje: `Negocio ${negocioId} eliminado permanentemente de Firestore`,
+            reason: motivoFinal || null,
+            mensaje: `Negocio ${negocioId} eliminado permanentemente de Firestore${motivoFinal ? `. Motivo: ${motivoFinal}` : ''}`,
         });
 
         // Limpiar Cloudinary en segundo plano para no bloquear el resto de eliminaciones del panel
@@ -1199,24 +1206,66 @@ export const eliminarNegocioPermanente = async (req: Request, res: Response) => 
         })();
 
         // Notify owner about permanent deletion (modal flow in frontend)
-        const ownerUidDel = firstNonEmpty(negocioData?.owner, negocioData?.ownerUid, negocioData?.business?.owner);
+        let ownerUidDel = firstNonEmpty(
+            negocioData?.ownerUid,
+            negocioData?.owner,
+            negocioData?.business?.ownerUid,
+            negocioData?.business?.owner,
+            negocioData?.ownerId,
+            negocioData?.userId,
+            negocioData?.createdBy,
+        );
+
+        if (!ownerUidDel) {
+            const ownerEmail = firstNonEmpty(
+                negocioData?.ownerEmail,
+                negocioData?.email,
+                negocioData?.business?.ownerEmail,
+                negocioData?.business?.email,
+            );
+
+            if (ownerEmail) {
+                try {
+                    const authUser = await auth.getUserByEmail(ownerEmail);
+                    ownerUidDel = authUser.uid;
+                    console.log(`[eliminarNegocioPermanente] ✅ ownerUid resuelto desde Auth por email: ${ownerUidDel}`);
+                } catch (authError) {
+                    try {
+                        const ownerFromCollections = await getUserFromRoleCollectionsByEmail(ownerEmail);
+                        ownerUidDel = firstNonEmpty(
+                            ownerFromCollections?.uid,
+                            ownerFromCollections?.ownerUid,
+                            ownerFromCollections?.userId,
+                        );
+                        if (ownerUidDel) {
+                            console.log(`[eliminarNegocioPermanente] ✅ ownerUid resuelto desde colecciones por email: ${ownerUidDel}`);
+                        }
+                    } catch (collectionError) {
+                        console.warn(`[eliminarNegocioPermanente] ⚠️ No se pudo resolver ownerUid desde email: ${ownerEmail}`);
+                    }
+                }
+            }
+        }
+
         if (ownerUidDel) {
-            const deletionReason = negocioData?.archivedReason || negocioData?.rejectionReason || "";
-            const motivoMsg = deletionReason ? ` Motivo: ${deletionReason}` : "";
+            const motivoMsg = motivoFinal ? ` Motivo: ${motivoFinal}` : '';
             await sendNotificationToUser(ownerUidDel, {
                 tipo: 'negocio_eliminado',
                 titulo: 'Negocio Eliminado',
-                mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido eliminado por el administrador.${motivoMsg}`,
+                mensaje: `Tu negocio "${negocioData?.business?.name || negocioData?.name}" ha sido eliminado definitivamente por el administrador.${motivoMsg}`,
                 fecha: new Date().toISOString(),
                 leido: false,
                 enlace: null,
                 negocioId,
+                reason: motivoFinal || undefined,
             });
 
             emitBusinessStatusChange(ownerUidDel, negocioId, 'eliminado', {
                 businessName: negocioData?.business?.name || negocioData?.name,
-                reason: deletionReason,
+                reason: motivoFinal || undefined,
             });
+        } else {
+            console.warn(`[eliminarNegocioPermanente] ⚠️ No se pudo resolver el ownerUid para notificar el negocio ${negocioId}`);
         }
         
         console.log(`[eliminarNegocioPermanente] ✅ Negocio ${negocioId} eliminado permanentemente de Firestore`);
