@@ -1,8 +1,16 @@
-import { Router } from 'express';
+import { Router, Response, NextFunction } from 'express';
 import * as placesController from '../controllers/places.controller';
-import { authMiddleware } from '../middlewares/auth.middleware';
+import { authMiddleware, AuthRequest } from '../middlewares/auth.middleware';
 import { requireAdmin } from '../middlewares/admin.middleware';
 import { upload } from '../middleware/uploadMiddleware';
+
+const EMAIL_ADMIN_LUGARES = 'cua@hotmail.com';
+const requireEmailAdminLugares = (req: AuthRequest, res: Response, next: NextFunction) => {
+  if (req.user?.email !== EMAIL_ADMIN_LUGARES) {
+    return res.status(403).json({ success: false, msg: 'No autorizado' });
+  }
+  next();
+};
 
 const router = Router();
 
@@ -36,11 +44,11 @@ router.get('/', placesController.getAllPlaces);
 // Esta ruta debe ir DESPUÉS de /geocode para no capturarla
 router.get('/:nombre', placesController.getPlaceByName);
 
-// POST /api/lugares - Crear un lugar nuevo (admin)
+// POST /api/lugares - Crear un lugar nuevo (email autorizado)
 router.post(
   '/',
   authMiddleware,
-  requireAdmin,
+  requireEmailAdminLugares,
   placesController.createPlace
 );
 
