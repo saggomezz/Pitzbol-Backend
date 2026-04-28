@@ -44,11 +44,10 @@ router.get('/', placesController.getAllPlaces);
 // Esta ruta debe ir DESPUÉS de /geocode para no capturarla
 router.get('/:nombre', placesController.getPlaceByName);
 
-// POST /api/lugares - Crear un lugar nuevo (email autorizado)
+// POST /api/lugares - Crear un lugar nuevo (usuario autenticado)
 router.post(
   '/',
   authMiddleware,
-  requireEmailAdminLugares,
   placesController.createPlace
 );
 
