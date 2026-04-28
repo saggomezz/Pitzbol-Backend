@@ -68,8 +68,8 @@ router.patch('/:nombre/fotos', authMiddleware, placesController.setPlaceFotos);
 // PATCH /api/lugares/:nombre/categorias - Reemplazar categorías (solo auth, no admin)
 router.patch('/:nombre/categorias', authMiddleware, placesController.setPlaceCategorias);
 
-// PATCH /api/lugares/:nombre/info - Actualizar tiempoEstancia/costoEstimado (solo auth, no admin)
-router.patch('/:nombre/info', authMiddleware, placesController.setPlaceInfo);
+// PATCH /api/lugares/:nombre/info - Actualizar info del lugar (público, control por UI)
+router.patch('/:nombre/info', placesController.setPlaceInfo);
 
 // DELETE /api/lugares/:nombre - Eliminar lugar completo (solo auth, no admin)
 router.delete('/:nombre', authMiddleware, placesController.deletePlace);
