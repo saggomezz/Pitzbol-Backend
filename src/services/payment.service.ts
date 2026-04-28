@@ -3,8 +3,131 @@ import { db } from '../config/firebase';
 import { Payment, CreatePaymentRequest, ConfirmPaymentRequest } from '../models/wallet.model';
 import { BookingService } from './booking.service';
 import * as WalletService from './wallet.service';
+import { sendPaymentReceiptEmail } from './email.service';
+
+type PaymentRecord = {
+  bookingId: string;
+  userId: string;
+  amount: number;
+  currency: string;
+  paymentIntentId: string;
+  receiptEmailSentAt?: Date;
+  receiptEmailProcessing?: boolean;
+  paymentMethodId?: string;
+};
+
+const buildFullName = (userData: Record<string, any>) => {
+  const firstName = userData?.['01_nombre'] || userData?.nombre || '';
+  const lastName = userData?.['02_apellido'] || userData?.apellido || '';
+  return `${firstName} ${lastName}`.trim();
+};
+
+const buildEmail = (userData: Record<string, any>) =>
+  userData?.['04_correo'] || userData?.email || userData?.correo || '';
 
 export class PaymentService {
+  private static async getUserContact(uid: string): Promise<{ email: string; name: string }> {
+    const collections = [
+      db.collection('usuarios').doc('turistas').collection('lista'),
+      db.collection('usuarios').doc('guias').collection('lista'),
+    ];
+
+    for (const collection of collections) {
+      const snapshot = await collection.where('uid', '==', uid).limit(1).get();
+      if (!snapshot.empty && snapshot.docs[0]) {
+        const userData = snapshot.docs[0].data();
+        return {
+          email: buildEmail(userData),
+          name: buildFullName(userData),
+        };
+      }
+    }
+
+    return { email: '', name: '' };
+  }
+
+  private static async markReceiptDispatchStarted(paymentRef: FirebaseFirestore.DocumentReference): Promise<boolean> {
+    return db.runTransaction(async transaction => {
+      const currentSnapshot = await transaction.get(paymentRef);
+      const paymentData = currentSnapshot.data() as PaymentRecord | undefined;
+
+      if (!paymentData || paymentData.receiptEmailSentAt || paymentData.receiptEmailProcessing) {
+        return false;
+      }
+
+      transaction.update(paymentRef, {
+        receiptEmailProcessing: true,
+        receiptEmailLastAttemptAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      return true;
+    });
+  }
+
+  private static async sendReceiptForPayment(paymentDoc: FirebaseFirestore.QueryDocumentSnapshot, paymentData: PaymentRecord, paymentIntentId: string): Promise<void> {
+    const canSendReceipt = await this.markReceiptDispatchStarted(paymentDoc.ref);
+    if (!canSendReceipt) {
+      return;
+    }
+
+    try {
+      const booking = await BookingService.getBookingById(paymentData.bookingId);
+      if (!booking) {
+        throw new Error('Reserva no encontrada para generar recibo');
+      }
+
+      const touristContact = await this.getUserContact(paymentData.userId || booking.touristId);
+      if (!touristContact.email) {
+        throw new Error('No se encontró correo del turista para enviar el recibo');
+      }
+
+      await sendPaymentReceiptEmail({
+        to: touristContact.email,
+        touristName: booking.touristName || touristContact.name || 'Turista',
+        guideName: booking.guideName || 'Guía',
+        bookingId: booking.id,
+        paymentIntentId,
+        fecha: booking.fecha,
+        horaInicio: booking.horaInicio,
+        duracion: booking.duracion,
+        numPersonas: booking.numPersonas,
+        total: booking.total,
+        issuedAt: new Date(),
+      });
+
+      await paymentDoc.ref.update({
+        receiptEmailProcessing: false,
+        receiptEmailSentAt: new Date(),
+        receiptEmail: touristContact.email,
+        updatedAt: new Date(),
+      });
+    } catch (error: any) {
+      console.error(`Error al enviar recibo para pago ${paymentIntentId}:`, error);
+      await paymentDoc.ref.update({
+        receiptEmailProcessing: false,
+        receiptEmailLastError: error?.message || 'Error al enviar el recibo',
+        updatedAt: new Date(),
+      });
+    }
+  }
+
+  private static async finalizeSuccessfulPayment(
+    paymentDoc: FirebaseFirestore.QueryDocumentSnapshot,
+    paymentData: PaymentRecord,
+    paymentIntentId: string,
+    extraUpdates: Record<string, unknown> = {}
+  ): Promise<void> {
+    await paymentDoc.ref.update({
+      status: 'succeeded',
+      updatedAt: new Date(),
+      ...extraUpdates,
+    });
+
+    await BookingService.updateBookingStatus(paymentData.bookingId, 'pagado', paymentIntentId);
+    await this.sendReceiptForPayment(paymentDoc, paymentData, paymentIntentId);
+  }
+
   // Crear Payment Intent para una reserva
   static async createPaymentIntent(request: CreatePaymentRequest): Promise<{
     paymentIntentId: string;
@@ -106,21 +229,19 @@ export class PaymentService {
 
       if (!paymentQuery.empty && paymentQuery.docs[0]) {
         const paymentDoc = paymentQuery.docs[0];
-        await paymentDoc.ref.update({
-          status: paymentIntent.status,
-          paymentMethodId,
-          updatedAt: new Date(),
-        });
-
-        const paymentData = paymentDoc.data();
+        const paymentData = paymentDoc.data() as PaymentRecord;
 
         // Si el pago es exitoso, actualizar la reserva
         if (paymentIntent.status === 'succeeded') {
-          await BookingService.updateBookingStatus(
-            paymentData.bookingId,
-            'pagado',
-            paymentIntentId
-          );
+          await this.finalizeSuccessfulPayment(paymentDoc, paymentData, paymentIntentId, {
+            paymentMethodId,
+          });
+        } else {
+          await paymentDoc.ref.update({
+            status: paymentIntent.status,
+            paymentMethodId,
+            updatedAt: new Date(),
+          });
         }
       }
 
@@ -223,15 +344,9 @@ export class PaymentService {
 
           if (!paymentQuery.empty && paymentQuery.docs[0]) {
             const paymentDoc = paymentQuery.docs[0];
-            const paymentData = paymentDoc.data();
+            const paymentData = paymentDoc.data() as PaymentRecord;
 
-            await paymentDoc.ref.update({
-              status: 'succeeded',
-              updatedAt: new Date(),
-            });
-
-            // Actualizar la reserva a pagado
-            await BookingService.updateBookingStatus(paymentData.bookingId, 'pagado', paymentIntent.id);
+            await this.finalizeSuccessfulPayment(paymentDoc, paymentData, paymentIntent.id);
 
             console.log(`✅ Pago exitoso para reserva ${paymentData.bookingId}`);
           }
