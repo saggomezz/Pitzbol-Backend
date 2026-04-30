@@ -3,3 +3,4 @@ serviceAccountKey.json
 .env
 dist/
 .DS_Store
+RastreoCommits/
