@@ -14,13 +14,13 @@ const FieldValue = admin.firestore.FieldValue;
 
 export const registerGuide = async (req: Request, res: Response) => {
     try {
-        console.log("📥 Datos recibidos en registerGuide:", JSON.stringify(req.body, null, 2));
+        console.log("Datos recibidos en registerGuide:", JSON.stringify(req.body, null, 2));
         
         const data = req.body;
         const { uid, nombre, apellido, email } = data;
 
         if (!uid) {
-            console.error("❌ Error: UID no proporcionado");
+            console.error("Error: UID no proporcionado");
             return res.status(400).json({ message: 'El UID es obligatorio.' });
         }
 
@@ -41,10 +41,10 @@ export const registerGuide = async (req: Request, res: Response) => {
                     const turistaData = turistaSnap.docs[0].data();
                     if (!telefono) telefono = turistaData.telefono || "";
                     if (!nacionalidad) nacionalidad = turistaData.nacionalidad || "";
-                    console.log("📋 Datos recuperados del turista - telefono:", telefono, "nacionalidad:", nacionalidad);
+                    console.log("Datos recuperados del turista - telefono:", telefono, "nacionalidad:", nacionalidad);
                 }
             } catch (err) {
-                console.log("ℹ️ No se encontraron datos de turista, usando solo los del request");
+                console.log("No se encontraron datos de turista, usando solo los del request");
             }
         }
 
@@ -72,8 +72,8 @@ export const registerGuide = async (req: Request, res: Response) => {
         const safeApellido = apellido ? `_${apellido}` : "";
         const customId = `${nombre}${safeApellido}`.replace(/\s+/g, '_').toLowerCase();
 
-        console.log("🔑 UID recibido:", uid);
-        console.log("📝 Custom ID generado:", customId);
+        console.log("UID recibido:", uid);
+        console.log("Custom ID generado:", customId);
 
         const datosSeguros = {
             "01_nombre": nombre ?? "",
@@ -104,7 +104,7 @@ export const registerGuide = async (req: Request, res: Response) => {
             createdAt: new Date().toISOString()
         };
 
-        console.log("💾 Guardando en Firebase...");
+        console.log("Guardando en Firebase...");
         
         await db.collection('usuarios')
             .doc('guias')
@@ -112,7 +112,7 @@ export const registerGuide = async (req: Request, res: Response) => {
             .doc(customId)
             .set(datosSeguros);
 
-        console.log("✅ Documento guardado en pendientes:", customId);
+        console.log("Documento guardado en pendientes:", customId);
 
         // Intentar eliminar de turistas
         try {
@@ -121,12 +121,12 @@ export const registerGuide = async (req: Request, res: Response) => {
                 .collection("lista")
                 .doc(customId)
                 .delete();
-            console.log("🗑️ Eliminado de turistas:", customId);
+            console.log("Eliminado de turistas:", customId);
         } catch (deleteError) {
-            console.log("ℹ️ No se encontró en turistas o ya fue eliminado");
+            console.log("No se encontró en turistas o ya fue eliminado");
         }
 
-        console.log("✅ Registro de guía completado exitosamente");
+        console.log("Registro de guía completado exitosamente");
         
 
         // Notificar a todos los administradores (usa el servicio centralizado para persistir + emitir)
@@ -140,9 +140,9 @@ export const registerGuide = async (req: Request, res: Response) => {
                 enlace: '/admin/solicitudes-guias'
             };
             await sendNotificationToAdmins(notificacion);
-            console.log('✅ Notificación enviada a administradores');
+            console.log('Notificación enviada a administradores');
         } catch (notifError) {
-            console.warn('⚠️ Error al notificar a administradores:', notifError);
+            console.warn('Error al notificar a administradores:', notifError);
         }
 
         // Notificar al usuario que envió la solicitud (para que vea en tiempo real via socket)
@@ -156,9 +156,9 @@ export const registerGuide = async (req: Request, res: Response) => {
                 enlace: '/perfil'
             };
             await sendNotificationToUser(uid, userNotification);
-            console.log('✅ Notificación de confirmación enviada al usuario');
+            console.log('Notificación de confirmación enviada al usuario');
         } catch (notifError) {
-            console.warn('⚠️ Error al notificar al usuario:', notifError);
+            console.warn('Error al notificar al usuario:', notifError);
         }
 
         res.status(201).json({ 
@@ -167,7 +167,7 @@ export const registerGuide = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        console.error("❌ Error detallado en registerGuide:", error);
+        console.error("Error detallado en registerGuide:", error);
         console.error("Stack trace:", error.stack);
         res.status(500).json({
             message: error?.message || 'Error interno al procesar la solicitud'
@@ -267,7 +267,7 @@ export const updateGuideProfile = async (req: Request, res: Response) => {
 
 export const getVerifiedGuides = async (req: Request, res: Response) => {
     try {
-        console.log("📋 Obteniendo guías verificados...");
+        console.log("Obteniendo guías verificados...");
 
         const guidesSnapshot = await db.collection('usuarios')
             .doc('guias')
@@ -275,7 +275,7 @@ export const getVerifiedGuides = async (req: Request, res: Response) => {
             .get();
 
         if (guidesSnapshot.empty) {
-            console.log("ℹ️ No hay guías verificados registrados");
+            console.log("No hay guías verificados registrados");
             return res.status(200).json({ guides: [] });
         }
 
@@ -286,7 +286,7 @@ export const getVerifiedGuides = async (req: Request, res: Response) => {
             const nombreCompleto = `${nombre} ${apellido}`.trim();
             
             // Log para debug
-            console.log(`🔍 Guía ${doc.id}:`, {
+            console.log(`Guía ${doc.id}:`, {
                 "01_nombre": data["01_nombre"],
                 "02_apellido": data["02_apellido"],
                 "nombre": data.nombre,
@@ -312,12 +312,12 @@ export const getVerifiedGuides = async (req: Request, res: Response) => {
             return guideData;
         });
 
-        console.log(`✅ Se encontraron ${guides.length} guías verificados`);
+        console.log(`Se encontraron ${guides.length} guías verificados`);
         
         // Log detallado del primer guía
         if (guides.length > 0) {
             const firstGuide = guides[0]!;
-            console.log("📌 Ejemplo de guía devuelto:", {
+            console.log("Ejemplo de guía devuelto:", {
                 uid: firstGuide.uid,
                 nombre: firstGuide.nombre,
                 descripcion: firstGuide.descripcion?.substring(0, 50) + "...",
@@ -332,7 +332,7 @@ export const getVerifiedGuides = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        console.error("❌ Error al obtener guías verificados:", error);
+        console.error("Error al obtener guías verificados:", error);
         return res.status(500).json({ 
             message: 'Error interno al obtener guías'
         });
@@ -351,7 +351,7 @@ export const getGuideRequest = async (req: Request, res: Response) => {
             });
         }
 
-        console.log("📋 Obteniendo solicitud de guía para UID:", uid);
+        console.log("Obteniendo solicitud de guía para UID:", uid);
 
         // Buscar en la colección de pendientes
         const pendientesSnapshot = await db.collection('usuarios')
@@ -365,7 +365,7 @@ export const getGuideRequest = async (req: Request, res: Response) => {
             const doc = pendientesSnapshot.docs[0]!;
             const data = doc.data() as any;
             
-            console.log("✅ Solicitud pendiente encontrada para UID:", uid);
+            console.log("Solicitud pendiente encontrada para UID:", uid);
             
             const facePhotoUrl =
                 data["13_foto_rostro"]?.url ||
@@ -403,7 +403,7 @@ export const getGuideRequest = async (req: Request, res: Response) => {
             const doc = aprobadosSnapshot.docs[0]!;
             const data = doc.data() as any;
             
-            console.log("✅ Guía aprobado encontrado para UID:", uid);
+            console.log("Guía aprobado encontrado para UID:", uid);
             
             const facePhotoUrl =
                 data["13_foto_rostro"]?.url ||
@@ -430,14 +430,14 @@ export const getGuideRequest = async (req: Request, res: Response) => {
         }
 
         // Si no se encontró en ninguna colección
-        console.log("ℹ️ No se encontró solicitud para UID:", uid);
+        console.log("No se encontró solicitud para UID:", uid);
         return res.status(404).json({ 
             success: false,
             message: 'No se encontró solicitud de guía para este usuario' 
         });
 
     } catch (error: any) {
-        console.error("❌ Error al obtener solicitud de guía:", error);
+        console.error("Error al obtener solicitud de guía:", error);
         return res.status(500).json({ 
             success: false,
             message: 'Error interno al obtener solicitud'
@@ -456,7 +456,7 @@ export const getGuidePublicProfile = async (req: Request, res: Response) => {
             });
         }
 
-        console.log("📋 Obteniendo perfil público del guía:", uid);
+        console.log("Obteniendo perfil público del guía:", uid);
 
         // Buscar el guía en la colección de verificados
         const guidesSnapshot = await db.collection('usuarios')
@@ -467,7 +467,7 @@ export const getGuidePublicProfile = async (req: Request, res: Response) => {
             .get();
 
         if (guidesSnapshot.empty) {
-            console.log("ℹ️ No se encontró el guía con UID:", uid);
+            console.log("No se encontró el guía con UID:", uid);
             return res.status(404).json({ 
                 success: false,
                 message: 'Guía no encontrado' 
@@ -500,7 +500,7 @@ export const getGuidePublicProfile = async (req: Request, res: Response) => {
             empresaPagina: data.empresaPagina || "",
         };
 
-        console.log(`✅ Perfil del guía encontrado:`, guideProfile.nombre);
+        console.log(`Perfil del guía encontrado:`, guideProfile.nombre);
         
         return res.status(200).json({ 
             success: true,
@@ -508,7 +508,7 @@ export const getGuidePublicProfile = async (req: Request, res: Response) => {
         });
 
     } catch (error: any) {
-        console.error("❌ Error al obtener perfil público del guía:", error);
+        console.error("Error al obtener perfil público del guía:", error);
         return res.status(500).json({ 
             success: false,
             message: 'Error interno al obtener perfil del guía'

@@ -41,6 +41,10 @@ export const createTour = async (req: RequestWithUser, res: Response) => {
     const esGuia = !!guiaId;
 
     if (esGuia) {
+      if (guiaId !== ownerUid) {
+        return res.status(403).json({ success: false, message: "No puedes publicar tours para otro guía" });
+      }
+
       // Verificar guía en Firebase
       const guiaSnap = await db.collection("usuarios").doc("guias").collection("lista")
         .where("uid", "==", ownerUid).limit(1).get();
@@ -48,7 +52,7 @@ export const createTour = async (req: RequestWithUser, res: Response) => {
       const guiaDoc = guiaSnap.docs[0];
       if (!guiaDoc) return res.status(403).json({ success: false, message: "No eres un guía verificado" });
       const guiaData = guiaDoc.data();
-      propietarioId = guiaId;
+      propietarioId = ownerUid;
       propietarioNombre = guiaData?.empresaNombre || guiaData?.["01_nombre"] || "";
       propietarioLogo = guiaData?.empresaLogo || guiaData?.["14_foto_perfil"]?.url || "";
     } else {
@@ -189,9 +193,15 @@ export const updateTour = async (req: RequestWithUser, res: Response) => {
     const empresaId = tourData?.empresaId;
 
     if (guiaId) {
+      if (guiaId !== ownerUid) {
+        return res.status(403).json({ success: false, message: "No tienes permiso para editar este tour" });
+      }
+
       const guiaSnap = await db.collection("usuarios").doc("guias").collection("lista")
         .where("uid", "==", ownerUid).limit(1).get();
-      if (guiaSnap.empty) return res.status(403).json({ success: false });
+      if (guiaSnap.empty) {
+        return res.status(403).json({ success: false, message: "No eres un guía verificado" });
+      }
     } else if (empresaId) {
       const empresaSnap = await db.collection("negocios").doc("Activos").collection("items").doc(empresaId).get();
       const empData = empresaSnap.data();
@@ -250,8 +260,20 @@ export const deleteTour = async (req: RequestWithUser, res: Response) => {
     if (!snap.exists) return res.status(404).json({ success: false });
 
     const tourData = snap.data();
+    const guiaId = tourData?.guiaId;
     const empresaId = tourData?.empresaId;
-    if (empresaId) {
+
+    if (guiaId) {
+      if (guiaId !== ownerUid) {
+        return res.status(403).json({ success: false, message: "No tienes permiso para eliminar este tour" });
+      }
+
+      const guiaSnap = await db.collection("usuarios").doc("guias").collection("lista")
+        .where("uid", "==", ownerUid).limit(1).get();
+      if (guiaSnap.empty) {
+        return res.status(403).json({ success: false, message: "No eres un guía verificado" });
+      }
+    } else if (empresaId) {
       const empresaSnap = await db.collection("negocios").doc("Activos").collection("items").doc(empresaId).get();
       const empresaData = empresaSnap.data();
       const empresaOwnerUid = empresaData?.ownerUid || empresaData?.business?.owner || empresaData?.owner;

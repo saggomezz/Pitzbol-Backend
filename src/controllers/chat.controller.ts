@@ -47,6 +47,20 @@ export const getMessages = async (req: Request, res: Response) => {
       });
     }
 
+    const chat = await ChatService.getChatById(chatId);
+
+    if (!chat) {
+      return res.status(404).json({
+        success: false,
+        msg: 'Chat no encontrado',
+      });
+    }
+
+    const authUid = (req as any).user?.uid;
+    if (!authUid || (chat.touristId !== authUid && chat.guideId !== authUid)) {
+      return res.status(403).json({ success: false, msg: 'No autorizado' });
+    }
+
     const messages = await ChatService.getMessages(chatId, limit);
     
     res.status(200).json({

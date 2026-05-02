@@ -9,6 +9,17 @@ cloudinary.config({
 
 export type ImageType = 'perfil' | 'ine_frente' | 'ine_reverso' | 'rostro';
 
+export interface CloudinaryUploadResult {
+  secureUrl: string;
+  publicId: string;
+}
+
+const ensureCloudinaryConfigured = () => {
+  if (!process.env.CLOUDINARY_CLOUD_NAME || !process.env.CLOUDINARY_API_KEY || !process.env.CLOUDINARY_API_SECRET) {
+    throw new Error('Cloudinary no esta configurado en el servidor');
+  }
+};
+
 /**
  * Sube una imagen a Cloudinary con la estructura correcta de carpetas
  * Estructura: pitzbol/usuarios/{uid}/{imageType}/
@@ -65,8 +76,10 @@ export const uploadImageStreamToCloudinary = async (
   buffer: Buffer,
   uid: string,
   imageType: ImageType
-): Promise<string> => {
+): Promise<CloudinaryUploadResult> => {
   try {
+    ensureCloudinaryConfigured();
+
     const folderPath = `pitzbol/usuarios/${uid}/${imageType}`;
     const publicId = `${uid}_${imageType}_${Date.now()}`;
 
@@ -84,7 +97,12 @@ export const uploadImageStreamToCloudinary = async (
         },
         (error, result) => {
           if (error) reject(error);
-          else if (result?.secure_url) resolve(result.secure_url);
+          else if (result?.secure_url && result.public_id) {
+            resolve({
+              secureUrl: result.secure_url,
+              publicId: result.public_id,
+            });
+          }
           else reject(new Error('No se pudo obtener la URL de Cloudinary'));
         }
       );

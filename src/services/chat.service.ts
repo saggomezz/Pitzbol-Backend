@@ -274,7 +274,7 @@ export class ChatService {
       
       await batch.commit();
       
-      console.log(`✅ Chat ${chatId} y sus mensajes eliminados correctamente`);
+      console.log(`Chat ${chatId} y sus mensajes eliminados correctamente`);
       return true;
     } catch (error) {
       console.error('Error al eliminar chat:', error);

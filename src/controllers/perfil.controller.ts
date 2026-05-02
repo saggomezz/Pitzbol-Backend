@@ -102,7 +102,7 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
 
     // 📤 SUBIR A CLOUDINARY CON LA ESTRUCTURA CORRECTA: pitzbol/usuarios/{uid}/perfil
     console.log('📸 Subiendo foto de perfil a Cloudinary con estructura correcta...');
-    const fotoPerfil = await uploadImageStreamToCloudinary(optimizedBuffer, uid, 'perfil');
+    const { secureUrl: fotoPerfil, publicId: fotoPerfilCloudinary } = await uploadImageStreamToCloudinary(optimizedBuffer, uid, 'perfil');
     console.log('✅ Foto de perfil subida:', fotoPerfil);
 
     // ACTUALIZAR EN FIRESTORE - Buscar en TODAS las colecciones
@@ -210,16 +210,12 @@ export const subirFotoPerfil = async (req: any, res: Response) => {
       }
     }
 
-    // Extraer public_id de la URL de Cloudinary para la nueva foto
-    // URL formato: https://res.cloudinary.com/{cloud_name}/image/upload/v{version}/{folder}/{public_id}.{format}
-    const publicIdFull = `pitzbol/usuarios/${uid}/perfil/${uid}_perfil_${Date.now()}`;
-
     // Actualizar TODAS las referencias encontradas
     const fotoData = {
       fotoPerfil: fotoPerfil,
-      "14_foto_perfil": { url: fotoPerfil, cloudinary_id: publicIdFull, subida_en: new Date().toISOString() },
+      "14_foto_perfil": { url: fotoPerfil, cloudinary_id: fotoPerfilCloudinary, subida_en: new Date().toISOString() },
       fotoPerfilSubidaEn: new Date().toISOString(),
-      fotoPerfilCloudinary: publicIdFull
+      fotoPerfilCloudinary
     };
 
     console.log(`🔄 Actualizando foto en ${userDocRefs.length} ubicación(es): ${ubicacionesActualizadas.join(', ')}`);

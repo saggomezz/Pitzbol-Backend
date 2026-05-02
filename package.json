@@ -8,7 +8,8 @@
     "dev": "tsx src/server.ts",
     "dev:front": "cd ../Pitzbol-Frontend && npm install && npm run dev",
     "dev:all": "npm install && concurrently -k \"npm run dev\" \"npm run dev:front\"",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "vitest run --reporter=verbose",
+    "test:watch": "vitest"
   },
   "repository": {
     "type": "git",
@@ -61,7 +62,8 @@
     "nodemon": "^3.1.14",
     "ts-node": "^10.9.2",
     "tsx": "^4.21.0",
-    "typescript": "^6.0.2"
+    "typescript": "^6.0.2",
+    "vitest": "^3.2.4"
   },
   "overrides": {
     "node-fetch": "^2.7.0",
