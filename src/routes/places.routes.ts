@@ -1,8 +1,16 @@
-import { Router } from 'express';
+import { Router, Response, NextFunction } from 'express';
 import * as placesController from '../controllers/places.controller';
-import { authMiddleware } from '../middlewares/auth.middleware';
+import { authMiddleware, AuthRequest } from '../middlewares/auth.middleware';
 import { requireAdmin } from '../middlewares/admin.middleware';
 import { upload } from '../middleware/uploadMiddleware';
+
+const EMAIL_ADMIN_LUGARES = 'cua@hotmail.com';
+const requireEmailAdminLugares = (req: AuthRequest, res: Response, next: NextFunction) => {
+  if (req.user?.email !== EMAIL_ADMIN_LUGARES) {
+    return res.status(403).json({ success: false, msg: 'No autorizado' });
+  }
+  next();
+};
 
 const router = Router();
 
@@ -36,11 +44,10 @@ router.get('/', placesController.getAllPlaces);
 // Esta ruta debe ir DESPUÉS de /geocode para no capturarla
 router.get('/:nombre', placesController.getPlaceByName);
 
-// POST /api/lugares - Crear un lugar nuevo (admin)
+// POST /api/lugares - Crear un lugar nuevo (usuario autenticado)
 router.post(
   '/',
   authMiddleware,
-  requireAdmin,
   placesController.createPlace
 );
 
@@ -68,8 +75,8 @@ router.patch('/:nombre/fotos', authMiddleware, placesController.setPlaceFotos);
 // PATCH /api/lugares/:nombre/categorias - Reemplazar categorías (solo auth, no admin)
 router.patch('/:nombre/categorias', authMiddleware, placesController.setPlaceCategorias);
 
-// PATCH /api/lugares/:nombre/info - Actualizar tiempoEstancia/costoEstimado (solo auth, no admin)
-router.patch('/:nombre/info', authMiddleware, placesController.setPlaceInfo);
+// PATCH /api/lugares/:nombre/info - Actualizar info del lugar (público, control por UI)
+router.patch('/:nombre/info', placesController.setPlaceInfo);
 
 // DELETE /api/lugares/:nombre - Eliminar lugar completo (solo auth, no admin)
 router.delete('/:nombre', authMiddleware, placesController.deletePlace);
