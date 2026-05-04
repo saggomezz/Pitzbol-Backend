@@ -19,11 +19,13 @@ function parseJ<T>(value: unknown): T | null {
   try { return JSON.parse(value as string) as T; } catch { return null; }
 }
 
-// GET /api/paquetes — todos los paquetes activos (público)
+// GET /api/paquetes — todos los paquetes públicos (status "activo" o sin status)
 export const getPublicPaquetes = async (_req: ExpressRequest, res: Response) => {
   try {
-    const snap = await db.collection("paquetes").where("status", "==", "activo").get();
-    const paquetes = snap.docs.map(d => ({ id: d.id, ...d.data() }));
+    const snap = await db.collection("paquetes").get();
+    const paquetes = snap.docs
+      .map(d => ({ id: d.id, ...d.data() }))
+      .filter((p: any) => !p.status || p.status === "activo");
     res.json({ success: true, paquetes });
   } catch (e: any) {
     res.status(500).json({ success: false, message: e.message });
