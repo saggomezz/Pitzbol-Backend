@@ -18,8 +18,8 @@ router.get("/guia/:guiaId", getPaquetesByGuia);
 router.get("/:id", getPaqueteById);
 
 // Protegidos
-router.post("/", authMiddleware, upload.fields([{ name: "foto", maxCount: 1 }]), createPaquete);
-router.patch("/:id", authMiddleware, upload.fields([{ name: "foto", maxCount: 1 }]), updatePaquete);
+router.post("/", authMiddleware, upload.fields([{ name: "fotos", maxCount: 3 }]), createPaquete);
+router.patch("/:id", authMiddleware, upload.fields([{ name: "fotos", maxCount: 3 }]), updatePaquete);
 router.delete("/:id", authMiddleware, deletePaquete);
 
 export default router;

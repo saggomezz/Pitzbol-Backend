@@ -68,12 +68,11 @@ export const createPaquete = async (req: RequestWithUser, res: Response) => {
     if (guiaSnap.empty) return res.status(403).json({ success: false, message: "No eres un guía verificado" });
     const guiaData = guiaSnap.docs[0].data();
 
-    // Subir foto
+    // Subir hasta 3 fotos
     const filesObj = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
-    let fotoPrincipal = "";
-    const fotoFiles = filesObj?.["foto"] || [];
-    if (fotoFiles[0]) {
-      fotoPrincipal = await new Promise<string>((resolve, reject) => {
+    const fotoFiles = filesObj?.["fotos"] || [];
+    const uploadFoto = (file: Express.Multer.File): Promise<string> =>
+      new Promise((resolve, reject) => {
         const stream = cloudinary.uploader.upload_stream(
           { folder: `pitzbol/paquetes/${ownerUid}`, resource_type: "image" },
           (error, result) => {
@@ -81,9 +80,12 @@ export const createPaquete = async (req: RequestWithUser, res: Response) => {
             resolve(result.secure_url);
           }
         );
-        stream.end(fotoFiles[0].buffer);
+        stream.end(file.buffer);
       });
-    }
+    const fotos = fotoFiles.length > 0
+      ? await Promise.all(fotoFiles.slice(0, 3).map(uploadFoto))
+      : [];
+    const fotoPrincipal = fotos[0] || "";
 
     const ref = db.collection("paquetes").doc();
     const data = {
@@ -100,6 +102,7 @@ export const createPaquete = async (req: RequestWithUser, res: Response) => {
       queIncluye: parseJ<string[]>(queIncluye) || [],
       puntoSalida: puntoSalida || "",
       capacidad: capacidad || "",
+      fotos,
       fotoPrincipal,
       status: "activo",
       createdAt: new Date().toISOString(),
@@ -134,18 +137,21 @@ export const updatePaquete = async (req: RequestWithUser, res: Response) => {
     if (status !== undefined) updates.status = status;
 
     const filesObj = req.files as { [fieldname: string]: Express.Multer.File[] } | undefined;
-    const fotoFiles = filesObj?.["foto"] || [];
-    if (fotoFiles[0]) {
-      updates.fotoPrincipal = await new Promise<string>((resolve, reject) => {
-        const stream = cloudinary.uploader.upload_stream(
-          { folder: `pitzbol/paquetes/${ownerUid}`, resource_type: "image" },
-          (error, result) => {
-            if (error || !result?.secure_url) return reject(error || new Error("Sin URL"));
-            resolve(result.secure_url);
-          }
-        );
-        stream.end(fotoFiles[0].buffer);
-      });
+    const fotoFiles = filesObj?.["fotos"] || [];
+    if (fotoFiles.length > 0) {
+      const uploadFoto = (file: Express.Multer.File): Promise<string> =>
+        new Promise((resolve, reject) => {
+          const stream = cloudinary.uploader.upload_stream(
+            { folder: `pitzbol/paquetes/${ownerUid}`, resource_type: "image" },
+            (error, result) => {
+              if (error || !result?.secure_url) return reject(error || new Error("Sin URL"));
+              resolve(result.secure_url);
+            }
+          );
+          stream.end(file.buffer);
+        });
+      updates.fotos = await Promise.all(fotoFiles.slice(0, 3).map(uploadFoto));
+      updates.fotoPrincipal = updates.fotos[0];
     }
 
     await db.collection("paquetes").doc(req.params.id).update(updates);
