@@ -28,6 +28,7 @@ import walletRoutes from './routes/wallet.routes';
 import itinerariosRoutes from './routes/itinerarios.routes';
 import aiRoutes from "./routes/ai.routes";
 import toursRoutes from "./routes/tours.routes";
+import paquetesRoutes from "./routes/paquetes.routes";
 import { ChatService } from './services/chat.service';
 import { setSocketServer } from './socket';
 import { startBusinessWatcher } from './services/businessWatcher';
@@ -181,6 +182,7 @@ app.use('/api/wallet', walletRoutes);
 app.use('/api/itinerarios', itinerariosRoutes);
 app.use('/api', aiRoutes);
 app.use('/api/tours', toursRoutes);
+app.use('/api/paquetes', paquetesRoutes);
 
 app.use('/api', (req, res) => {
   console.warn(`Ruta no encontrada: [${req.method}] ${req.url}`);
