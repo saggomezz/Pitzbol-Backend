@@ -256,6 +256,51 @@ export class PaymentService {
     }
   }
 
+  static async finalizePaymentIntent(paymentIntentId: string, userId: string): Promise<{
+    success: boolean;
+    paymentIntentId: string;
+    status: string;
+  }> {
+    try {
+      const paymentQuery = await db.collection('payments')
+        .where('paymentIntentId', '==', paymentIntentId)
+        .where('userId', '==', userId)
+        .limit(1)
+        .get();
+
+      if (paymentQuery.empty || !paymentQuery.docs[0]) {
+        throw new Error('Pago no encontrado o no autorizado');
+      }
+
+      const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
+      const paymentDoc = paymentQuery.docs[0];
+      const paymentData = paymentDoc.data() as PaymentRecord;
+
+      if (paymentIntent.status === 'succeeded') {
+        await this.finalizeSuccessfulPayment(paymentDoc, paymentData, paymentIntent.id, {
+          paymentMethodId:
+            typeof paymentIntent.payment_method === 'string'
+              ? paymentIntent.payment_method
+              : paymentData.paymentMethodId || '',
+        });
+      } else {
+        await paymentDoc.ref.update({
+          status: paymentIntent.status,
+          updatedAt: new Date(),
+        });
+      }
+
+      return {
+        success: paymentIntent.status === 'succeeded',
+        paymentIntentId: paymentIntent.id,
+        status: paymentIntent.status,
+      };
+    } catch (error) {
+      console.error('Error al finalizar Payment Intent:', error);
+      throw error;
+    }
+  }
+
   // Obtener estado del pago
   static async getPaymentStatus(paymentIntentId: string): Promise<{
     status: string;

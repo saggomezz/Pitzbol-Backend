@@ -4,6 +4,7 @@ import { db } from '../config/firebase';
 import {
   createPaymentIntent,
   confirmPaymentWithSavedCard,
+  finalizePaymentIntent,
   getPaymentStatus,
   cancelPayment,
   getUserPayments,
@@ -18,6 +19,9 @@ router.post('/create-payment-intent', authMiddleware, createPaymentIntent);
 
 // Confirmar pago con tarjeta guardada
 router.post('/confirm-with-saved-card', authMiddleware, confirmPaymentWithSavedCard);
+
+// Finalizar pago confirmado en frontend
+router.post('/finalize-payment-intent', authMiddleware, finalizePaymentIntent);
 
 // Obtener estado del pago
 router.get('/status/:paymentIntentId', authMiddleware, getPaymentStatus);

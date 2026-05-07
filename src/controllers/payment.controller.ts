@@ -96,6 +96,41 @@ export const confirmPaymentWithSavedCard = async (req: Request, res: Response) =
   }
 };
 
+export const finalizePaymentIntent = async (req: Request, res: Response) => {
+  try {
+    const { paymentIntentId, userId } = req.body;
+
+    if (!paymentIntentId || !userId) {
+      return res.status(400).json({
+        success: false,
+        message: 'paymentIntentId y userId son requeridos',
+      });
+    }
+
+    if ((req as any).user?.uid !== userId) {
+      return res.status(403).json({
+        success: false,
+        message: 'No autorizado',
+      });
+    }
+
+    const result = await PaymentService.finalizePaymentIntent(paymentIntentId, userId);
+
+    res.status(200).json({
+      ...result,
+      message: result.success
+        ? 'Pago finalizado exitosamente'
+        : 'Pago pendiente de confirmación',
+    });
+  } catch (error: any) {
+    console.error('Error al finalizar Payment Intent:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Error al finalizar el pago',
+    });
+  }
+};
+
 // Obtener estado del pago
 export const getPaymentStatus = async (req: Request, res: Response) => {
   try {
