@@ -58,21 +58,19 @@ export class AvailabilityService {
   }
 
   static async getGuideAvailabilities(guideId: string, desde?: string): Promise<GuideAvailability[]> {
+    // orderBy('fecha') + where() requeriría índice compuesto en Firestore.
+    // Filtramos por fecha en memoria para evitar el error de índice.
     let query = db.collection('guide_availability')
       .where('guideId', '==', guideId);
 
-    if (desde) {
-      query = query.where('fecha', '>=', desde);
-    }
+    const snapshot = await query.get();
 
-    const snapshot = await query
-      .orderBy('fecha', 'asc')
-      .get();
+    const results = snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }) as GuideAvailability)
+      .filter(a => !desde || a.fecha >= desde)
+      .sort((a, b) => a.fecha.localeCompare(b.fecha));
 
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as GuideAvailability[];
+    return results;
   }
 
   static async deleteAvailability(availabilityId: string): Promise<void> {
