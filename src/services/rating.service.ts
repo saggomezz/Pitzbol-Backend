@@ -50,16 +50,20 @@ export class RatingService {
   // Obtener calificaciones de un guía
   static async getGuideRatings(guideId: string, limit: number = 10): Promise<Rating[]> {
     const ratingsRef = db.collection('ratings');
+    // orderBy('createdAt') sobre un campo distinto al del where() requiere
+    // un índice compuesto en Firestore. Ordenamos en memoria para evitarlo.
     const snapshot = await ratingsRef
       .where('guideId', '==', guideId)
-      .orderBy('createdAt', 'desc')
       .limit(limit)
       .get();
 
-    return snapshot.docs.map(doc => ({
-      id: doc.id,
-      ...doc.data(),
-    })) as Rating[];
+    return snapshot.docs
+      .map(doc => ({ id: doc.id, ...doc.data() }) as Rating)
+      .sort((a: any, b: any) => {
+        const ta = a.createdAt?.toMillis?.() ?? new Date(a.createdAt).getTime();
+        const tb = b.createdAt?.toMillis?.() ?? new Date(b.createdAt).getTime();
+        return tb - ta;
+      });
   }
 
   // Obtener estadísticas de calificación de un guía
