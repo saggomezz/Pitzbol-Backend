@@ -2,6 +2,20 @@ import { Request, Response } from 'express';
 import { db } from '../config/firebase';
 import { upload } from '../middleware/uploadMiddleware';
 import { v2 as cloudinary } from 'cloudinary';
+import { 
+  getRoute, 
+  getRouteWithWaypoints, 
+  RoutingResponse 
+} from '../services/osrm.service';
+import { 
+  parseGeoPoint, 
+  isValidCoordinate,
+  isValidRadius,
+  isValidTransportMode,
+  calculateDistance,
+  isWithinRadius,
+  GeoPoint
+} from '../utils/geoValidation';
 
 // Cache en memoria para lista de lugares — TTL 1 hora
 let lugaresCache: { data: any[] | null; expiresAt: number } = { data: null, expiresAt: 0 };
@@ -1034,5 +1048,216 @@ export const deletePlace = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error eliminando lugar:', error);
     return res.status(500).json({ message: 'Error interno' });
+  }
+};
+
+/**
+ * POST /api/lugares/routing - Obtener ruta entre dos puntos
+ * Body: { origin: {lat, lng}, destination: {lat, lng}, mode?, departureHour?, waypoints? }
+ */
+export const getRouting = async (req: Request, res: Response) => {
+  try {
+    const { origin, destination, mode = 'driving', departureHour, waypoints } = req.body;
+
+    // Validar origen
+    if (!origin || !origin.lat || !origin.lng) {
+      return res.status(400).json({
+        success: false,
+        msg: 'Origen requerido con {lat, lng}'
+      });
+    }
+
+    // Validar destino
+    if (!destination || !destination.lat || !destination.lng) {
+      return res.status(400).json({
+        success: false,
+        msg: 'Destino requerido con {lat, lng}'
+      });
+    }
+
+    const originPoint = parseGeoPoint(origin.lat, origin.lng);
+    const destPoint = parseGeoPoint(destination.lat, destination.lng);
+
+    if (!originPoint || !destPoint) {
+      return res.status(400).json({
+        success: false,
+        msg: 'Coordenadas inválidas'
+      });
+    }
+
+    if (!isValidTransportMode(mode)) {
+      return res.status(400).json({
+        success: false,
+        msg: 'Modo de transporte inválido'
+      });
+    }
+
+    // Obtener ruta (con o sin waypoints)
+    let routeResult: RoutingResponse;
+
+    if (waypoints && Array.isArray(waypoints) && waypoints.length > 0) {
+      const waypointPoints: GeoPoint[] = [];
+      for (const wp of waypoints) {
+        const parsed = parseGeoPoint(wp.lat, wp.lng);
+        if (!parsed) {
+          return res.status(400).json({
+            success: false,
+            msg: 'Waypoint con coordenadas inválidas'
+          });
+        }
+        waypointPoints.push(parsed);
+      }
+      routeResult = await getRouteWithWaypoints(originPoint, destPoint, waypointPoints, mode, departureHour);
+    } else {
+      routeResult = await getRoute(originPoint, destPoint, mode, departureHour);
+    }
+
+    return res.status(routeResult.success ? 200 : 400).json(routeResult);
+  } catch (error: any) {
+    console.error('Error en endpoint de ruteo:', error);
+    return res.status(500).json({
+      success: false,
+      msg: 'Error interno al calcular ruta'
+    });
+  }
+};
+
+/**
+ * POST /api/lugares/search-radius - Buscar lugares dentro de un radio
+ * Body: { center: {lat, lng}, radiusKm, categories?: [...], limit?: 50 }
+ */
+export const searchRadius = async (req: Request, res: Response) => {
+  try {
+    const { center, radiusKm, categories, limit = 50 } = req.body;
+
+    // Validar centro
+    if (!center || !center.lat || !center.lng) {
+      return res.status(400).json({
+        success: false,
+        msg: 'Centro requerido con {lat, lng}'
+      });
+    }
+
+    const centerPoint = parseGeoPoint(center.lat, center.lng);
+    if (!centerPoint) {
+      return res.status(400).json({
+        success: false,
+        msg: 'Coordenadas de centro inválidas'
+      });
+    }
+
+    // Validar radio
+    if (!radiusKm || !isValidRadius(radiusKm)) {
+      return res.status(400).json({
+        success: false,
+        msg: 'radiusKm debe estar entre 0 y 50 km'
+      });
+    }
+
+    const limitNum = Math.min(Math.abs(Number(limit) || 50), 500);
+
+    // Definir tipo para lugares/negocios unificados
+    interface PlaceWithDistance {
+      id: string;
+      source: string;
+      nombre?: string;
+      latitud?: string | number;
+      longitud?: string | number;
+      categoria?: string;
+      descripcion?: string;
+      [key: string]: any; // Para propiedades adicionales de Firestore
+    }
+
+    const allPlaces: PlaceWithDistance[] = [];
+
+    // Lugares base de Firestore
+    const snapshot = await db.collection('lugares').get();
+    allPlaces.push(
+      ...snapshot.docs.map(doc => ({
+        id: doc.id,
+        source: 'lugar',
+        ...doc.data()
+      }))
+    );
+
+    // Negocios aprobados (integración)
+    try {
+      const businessSnapshot = await db
+        .collection('negocios')
+        .doc('Activos')
+        .collection('items')
+        .limit(500)
+        .get();
+
+      businessSnapshot.docs.forEach(doc => {
+        const business = doc.data().business || {};
+        const latStr = String(business.latitud || '').trim();
+        const lngStr = String(business.longitud || '').trim();
+
+        if (latStr && lngStr) {
+          allPlaces.push({
+            id: doc.id,
+            source: 'negocio',
+            nombre: business.name || 'Negocio',
+            categoria: business.category || 'Negocio',
+            latitud: latStr,
+            longitud: lngStr,
+            descripcion: business.description || ''
+          });
+        }
+      });
+    } catch {
+      // Ignorar si no hay negocios
+    }
+
+    // Filtrar por radio
+    const placesInRadius = allPlaces.filter(place => {
+      const latStr = String(place.latitud || '').trim();
+      const lngStr = String(place.longitud || '').trim();
+
+      if (!latStr || !lngStr) return false;
+
+      const placePoint = parseGeoPoint(parseFloat(latStr), parseFloat(lngStr));
+      if (!placePoint) return false;
+
+      // Filtrar por categoría si se especifica
+      if (categories && Array.isArray(categories) && categories.length > 0) {
+        const placeCategory = String(place.categoria || '').toLowerCase();
+        const matchesCategory = categories.some(cat =>
+          placeCategory.includes(String(cat).toLowerCase())
+        );
+        if (!matchesCategory) return false;
+      }
+
+      return isWithinRadius(centerPoint, placePoint, radiusKm);
+    });
+
+    // Ordenar por distancia y limitar
+    const sorted = placesInRadius
+      .map(place => ({
+        ...place,
+        distance: calculateDistance(
+          centerPoint,
+          parseGeoPoint(parseFloat(String(place.latitud).trim()), parseFloat(String(place.longitud).trim()))!
+        )
+      }))
+      .sort((a, b) => a.distance - b.distance)
+      .slice(0, limitNum)
+      .map(({ distance, ...place }) => ({ ...place, distance }));
+
+    return res.status(200).json({
+      success: true,
+      count: sorted.length,
+      total: placesInRadius.length,
+      center,
+      radiusKm,
+      places: sorted
+    });
+  } catch (error: any) {
+    console.error('Error en búsqueda por radio:', error);
+    return res.status(500).json({
+      success: false,
+      msg: 'Error interno al buscar lugares'
+    });
   }
 };
