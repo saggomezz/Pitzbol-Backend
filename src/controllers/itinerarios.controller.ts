@@ -5,6 +5,10 @@ interface AuthRequest extends Request {
   user?: { uid: string; email: string };
 }
 
+const ROLE_COLLECTIONS: Record<string, string> = {
+  turista: 'turistas', guia: 'guias', admin: 'admins', negociante: 'negocios',
+};
+
 const getUserDocRef = async (uid: string) => {
   const categorias = ['turistas', 'guias', 'admins', 'negocios'];
   for (const cat of categorias) {
@@ -14,6 +18,35 @@ const getUserDocRef = async (uid: string) => {
     if (doc) return doc.ref;
   }
   return null;
+};
+
+// GET /api/auth/itinerarios?uid=...&role=... — sin JWT, para el frontend de itinerarios
+export const obtenerItinerariosPublico = async (req: Request, res: Response) => {
+  try {
+    const { uid, role } = req.query as { uid?: string; role?: string };
+    if (!uid) return res.status(400).json({ error: 'uid requerido' });
+
+    const preferred = ROLE_COLLECTIONS[role || ''];
+    const categorias = preferred
+      ? [preferred, ...['turistas', 'guias', 'admins', 'negocios'].filter(c => c !== preferred)]
+      : ['turistas', 'guias', 'admins', 'negocios'];
+
+    for (const cat of categorias) {
+      const snap = await db.collection('usuarios').doc(cat).collection('lista')
+        .where('uid', '==', uid).limit(1).get();
+      if (!snap.empty && snap.docs[0]) {
+        const itSnap = await snap.docs[0].ref
+          .collection('itinerarios')
+          .orderBy('creadoEn', 'desc')
+          .get();
+        const docs = itSnap.docs.map(d => ({ id: d.id, ...d.data() }));
+        return res.json(docs);
+      }
+    }
+    return res.json([]);
+  } catch (err) {
+    res.status(500).json({ error: 'Error al obtener itinerarios' });
+  }
 };
 
 export const obtenerItinerarios = async (req: AuthRequest, res: Response) => {

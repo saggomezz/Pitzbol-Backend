@@ -7,6 +7,7 @@ import {
   solicitarGuia,
   refreshToken,
 } from "../controllers/auth.controller";
+import { obtenerItinerariosPublico } from "../controllers/itinerarios.controller";
 import { authMiddleware } from "../middlewares/auth.middleware";
 import { validateRegisterInput, validateLoginInput, validatePasswordRecoveryInput, validateProfileUpdate } from "../middlewares/validation.middleware";
 import { loginLimiter, registerLimiter, passwordLimiter } from "../middlewares/rateLimiter.middleware";
@@ -58,6 +59,9 @@ router.post(
     res.json({ msg: "Sesión cerrada correctamente" });
   }
 );
+
+// GET /api/auth/itinerarios?uid=...&role=... - Itinerarios del usuario (para página /itinerarios)
+router.get("/itinerarios", obtenerItinerariosPublico);
 
 // POST /api/auth/refresh-token - Renovar token expirado
 router.post("/refresh-token", refreshToken);
