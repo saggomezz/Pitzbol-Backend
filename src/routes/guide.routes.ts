@@ -19,7 +19,7 @@ router.post(
   addTourToGuide
 );
 
-router.put('/update', updateGuideProfile);
+router.put('/update', authMiddleware, isGuide, updateGuideProfile);
 
 export default router;
 

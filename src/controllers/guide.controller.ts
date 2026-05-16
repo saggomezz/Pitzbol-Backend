@@ -178,15 +178,21 @@ export const registerGuide = async (req: Request, res: Response) => {
 export const addTourToGuide = async (req: Request, res: Response) => {
     try {
         const { guideId, titulo, duracion, precio, maxPersonas } = req.body;
+        const authUid = (req as any).user?.uid as string | undefined;
+        const targetGuideId = authUid ?? guideId;
 
-        if (!guideId || !titulo || !duracion || !precio || !maxPersonas) {
+        if (!targetGuideId || !titulo || !duracion || !precio || !maxPersonas) {
             return res.status(400).json({ message: 'Todos los campos son obligatorios' });
+        }
+
+        if (authUid && guideId && guideId !== authUid) {
+            return res.status(403).json({ message: 'No puedes publicar tours para otro guía' });
         }
 
         const tourRef = db.collection('usuarios')
                           .doc('guias')
                           .collection('lista')
-                          .doc(guideId)
+                          .doc(targetGuideId)
                           .collection('tours_publicados');
 
         const nuevoTour = {
@@ -212,10 +218,16 @@ export const addTourToGuide = async (req: Request, res: Response) => {
 
 export const updateGuideProfile = async (req: Request, res: Response) => {
     try {
-        const uid = req.body.uid as string;
+        const requestedUid = req.body.uid as string | undefined;
+        const authUid = (req as any).user?.uid as string | undefined;
+        const uid = authUid ?? requestedUid;
         const categorias = req.body.categorias as string[];
 
         if (!uid) return res.status(400).json({ message: "UID obligatorio" });
+
+        if (authUid && requestedUid && requestedUid !== authUid) {
+            return res.status(403).json({ message: "No puedes actualizar el perfil de otro guía" });
+        }
 
         const config = [
             { ref: db.collection('usuarios').doc('guias').collection('lista'), field: "07_especialidades" },

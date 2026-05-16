@@ -2,6 +2,16 @@
 import { GuideAvailability, SetAvailabilityRequest, TimeSlot } from '../models/guide-availability.model';
 
 export class AvailabilityService {
+  static async getAvailabilityById(availabilityId: string): Promise<GuideAvailability | null> {
+    const doc = await db.collection('guide_availability').doc(availabilityId).get();
+
+    if (!doc.exists) {
+      return null;
+    }
+
+    return { id: doc.id, ...doc.data() } as GuideAvailability;
+  }
+
   static async setGuideAvailability(request: SetAvailabilityRequest): Promise<GuideAvailability> {
     const availabilityRef = db.collection('guide_availability');
 

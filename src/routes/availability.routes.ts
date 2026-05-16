@@ -7,11 +7,15 @@ import {
   checkTimeSlotAvailability,
 } from '../controllers/availability.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
+import { isGuide } from '../middlewares/guide.middleware';
 
 const router = Router();
 
 // Establecer disponibilidad (requiere autenticación - solo guías)
-router.post('/set', authMiddleware, setGuideAvailability);
+router.post('/set', authMiddleware, isGuide, setGuideAvailability);
+
+// Verificar disponibilidad de un horario específico (público)
+router.get('/check/timeslot', checkTimeSlotAvailability);
 
 // Obtener disponibilidad por fecha (público)
 router.get('/:guideId/:fecha', getGuideAvailabilityByDate);
@@ -19,10 +23,7 @@ router.get('/:guideId/:fecha', getGuideAvailabilityByDate);
 // Obtener todas las disponibilidades del guía (público)
 router.get('/:guideId', getGuideAvailabilities);
 
-// Verificar disponibilidad de un horario específico (público)
-router.get('/check/timeslot', checkTimeSlotAvailability);
-
 // Eliminar disponibilidad (requiere autenticación)
-router.delete('/:availabilityId', authMiddleware, deleteAvailability);
+router.delete('/:availabilityId', authMiddleware, isGuide, deleteAvailability);
 
 export default router;
