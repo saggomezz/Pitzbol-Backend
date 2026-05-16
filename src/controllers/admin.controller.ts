@@ -2066,15 +2066,10 @@ export const obtenerNotificacionesUsuario = async (req: Request, res: Response) 
     } catch (error: any) {
         console.error("❌ Error al obtener notificaciones:", error);
 
-        if (error?.code === 8 || /quota exceeded/i.test(error?.message || "")) {
-            return res.status(200).json({
-                success: true,
-                notificaciones: [],
-            });
-        }
-
-        res.status(500).json({ 
-            success: false
+        // Notificaciones no son críticas — siempre devolver vacío en lugar de 500
+        return res.status(200).json({
+            success: true,
+            notificaciones: [],
         });
     }
 };

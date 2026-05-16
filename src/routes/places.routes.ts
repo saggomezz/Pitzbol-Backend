@@ -3,6 +3,7 @@ import * as placesController from '../controllers/places.controller';
 import { authMiddleware, AuthRequest } from '../middlewares/auth.middleware';
 import { requireAdmin } from '../middlewares/admin.middleware';
 import { upload } from '../middleware/uploadMiddleware';
+import { geocodeLimiter, routingLimiter, geoSearchLimiter } from '../middlewares/rateLimiter.middleware';
 
 const EMAIL_ADMIN_LUGARES = 'cua@hotmail.com';
 const requireEmailAdminLugares = (req: AuthRequest, res: Response, next: NextFunction) => {
@@ -20,22 +21,36 @@ const router = Router();
 
 // IMPORTANTE: Las rutas específicas deben ir ANTES de las rutas con parámetros dinámicos
 
-// POST /api/lugares/geocode - Obtener coordenadas de una dirección (público)
+// POST /api/lugares/geocode - Obtener coordenadas de una dirección (público con rate limit)
 // Esta ruta debe ir ANTES de /:nombre para que no la capture
 if (!placesController.geocodeAddress) {
   console.error('ERROR: geocodeAddress no está disponible en placesController');
 } else {
   console.log('Registrando ruta POST /api/lugares/geocode');
-  router.post('/geocode', placesController.geocodeAddress);
+  router.post('/geocode', geocodeLimiter, placesController.geocodeAddress);
 }
 
-// POST /api/lugares/reverse-geocode - Obtener dirección desde coordenadas (público)
+// POST /api/lugares/reverse-geocode - Obtener dirección desde coordenadas (público con rate limit)
 if (!placesController.reverseGeocodeAddress) {
   console.error('ERROR: reverseGeocodeAddress no está disponible en placesController');
 } else {
   console.log('Registrando ruta POST /api/lugares/reverse-geocode');
-  router.post('/reverse-geocode', placesController.reverseGeocodeAddress);
+  router.post('/reverse-geocode', geocodeLimiter, placesController.reverseGeocodeAddress);
 }
+
+// POST /api/lugares/routing - Obtener ruta entre dos puntos (con rate limit)
+router.post(
+  '/routing',
+  routingLimiter,
+  placesController.getRouting
+);
+
+// POST /api/lugares/search-radius - Buscar lugares dentro de radio (con rate limit)
+router.post(
+  '/search-radius',
+  geoSearchLimiter,
+  placesController.searchRadius
+);
 
 // GET /api/lugares - Obtener todos los lugares (público)
 router.get('/', placesController.getAllPlaces);
@@ -75,8 +90,8 @@ router.patch('/:nombre/fotos', authMiddleware, placesController.setPlaceFotos);
 // PATCH /api/lugares/:nombre/categorias - Reemplazar categorías (solo auth, no admin)
 router.patch('/:nombre/categorias', authMiddleware, placesController.setPlaceCategorias);
 
-// PATCH /api/lugares/:nombre/info - Actualizar info del lugar (público, control por UI)
-router.patch('/:nombre/info', placesController.setPlaceInfo);
+// PATCH /api/lugares/:nombre/info - Actualizar info del lugar (requiere autenticación)
+router.patch('/:nombre/info', authMiddleware, placesController.setPlaceInfo);
 
 // DELETE /api/lugares/:nombre - Eliminar lugar completo (solo auth, no admin)
 router.delete('/:nombre', authMiddleware, placesController.deletePlace);

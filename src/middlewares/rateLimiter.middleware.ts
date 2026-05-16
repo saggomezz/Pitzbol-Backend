@@ -35,3 +35,39 @@ export const passwordLimiter = rateLimit({
     res.status(429).json({ success: false, msg: "Demasiados intentos de recuperación, intente más tarde" });
   }
 });
+
+// Rate limiter para geocodificación: 30 requests por minuto por IP
+export const geocodeLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 30,
+  message: JSON.stringify({ success: false, msg: "Demasiadas solicitudes de geocodificación. Intenta más tarde." }),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).json({ success: false, msg: "Demasiadas solicitudes de geocodificación. Intenta más tarde." });
+  }
+});
+
+// Rate limiter para ruteo/routing: 20 requests por minuto (más restrictivo, consulta costosa)
+export const routingLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 20,
+  message: JSON.stringify({ success: false, msg: "Demasiadas solicitudes de ruteo. Intenta más tarde." }),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).json({ success: false, msg: "Demasiadas solicitudes de ruteo. Intenta más tarde." });
+  }
+});
+
+// Rate limiter para búsqueda geográfica por radio: 40 requests por minuto
+export const geoSearchLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minuto
+  max: 40,
+  message: JSON.stringify({ success: false, msg: "Demasiadas búsquedas geográficas. Intenta más tarde." }),
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) => {
+    res.status(429).json({ success: false, msg: "Demasiadas búsquedas geográficas. Intenta más tarde." });
+  }
+});

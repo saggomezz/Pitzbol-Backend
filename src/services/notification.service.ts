@@ -98,34 +98,40 @@ export async function getUserNotifications(userId: string) {
   }
 
   const inFlight = (async () => {
-    const collections = getNotificationCollections(db, targetBucket);
-    const snapshots = await Promise.all(
-      collections.map((col) => col.orderBy('fecha', 'desc').limit(50).get())
-    );
+    try {
+      const collections = getNotificationCollections(db, targetBucket);
+      const snapshots = await Promise.all(
+        collections.map((col) => col.orderBy('fecha', 'desc').limit(50).get())
+      );
 
-    const merged = snapshots.flatMap((snap) =>
-      snap.docs
-        .filter((doc) => doc.id !== 'items')
-        .map((doc) => ({ id: doc.id, ...doc.data() }))
-    );
+      const merged = snapshots.flatMap((snap) =>
+        snap.docs
+          .filter((doc) => doc.id !== 'items')
+          .map((doc) => ({ id: doc.id, ...doc.data() }))
+      );
 
-    const seen = new Set<string>();
-    const result = merged
-      .filter((item: any) => {
-        const key = `${item?.id || ''}|${item?.tipo || ''}|${item?.negocioId || ''}|${item?.fecha || ''}`;
-        if (seen.has(key)) return false;
-        seen.add(key);
-        return true;
-      })
-      .sort((a: any, b: any) => new Date(b?.fecha || 0).getTime() - new Date(a?.fecha || 0).getTime())
-      .slice(0, 50);
+      const seen = new Set<string>();
+      const result = merged
+        .filter((item: any) => {
+          const key = `${item?.id || ''}|${item?.tipo || ''}|${item?.negocioId || ''}|${item?.fecha || ''}`;
+          if (seen.has(key)) return false;
+          seen.add(key);
+          return true;
+        })
+        .sort((a: any, b: any) => new Date(b?.fecha || 0).getTime() - new Date(a?.fecha || 0).getTime())
+        .slice(0, 50);
 
-    notificationCache.set(cacheKey, {
-      data: result,
-      expiresAt: Date.now() + NOTIFICATION_CACHE_TTL_MS,
-    });
+      notificationCache.set(cacheKey, {
+        data: result,
+        expiresAt: Date.now() + NOTIFICATION_CACHE_TTL_MS,
+      });
 
-    return result;
+      return result;
+    } catch (err) {
+      // On failure, evict the cache entry so the next request retries fresh
+      notificationCache.delete(cacheKey);
+      throw err;
+    }
   })();
 
   notificationCache.set(cacheKey, {
