@@ -8,6 +8,28 @@ type CachedNotificationEntry = {
 };
 
 const NOTIFICATION_CACHE_TTL_MS = 15000;
+/**
+ * How long to serve stale/empty data after a Firestore failure before retrying.
+ * Prevents hammering an unreachable Firestore on every polling request.
+ */
+const NOTIFICATION_ERROR_COOLDOWN_MS = 12000;
+/**
+ * Hard timeout for Firestore queries. gRPC connections to a firewalled host can
+ * hang silently for 30-60 s before failing, which causes the Express response to
+ * arrive AFTER the Next.js proxy has already given up and returned a 500 to the
+ * browser. Failing fast (< 8 s) ensures the handler always responds in time.
+ */
+const FIRESTORE_QUERY_TIMEOUT_MS = 8000;
+
+const withQueryTimeout = <T>(promise: Promise<T>): Promise<T> => {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(
+      () => reject(new Error('Firestore query timed out — host unreachable or firewalled')),
+      FIRESTORE_QUERY_TIMEOUT_MS,
+    ),
+  );
+  return Promise.race([promise, timeout]);
+};
 const notificationCache = new Map<string, CachedNotificationEntry>();
 
 const getCacheKey = (bucketId: string) => bucketId.trim();
@@ -100,8 +122,11 @@ export async function getUserNotifications(userId: string) {
   const inFlight = (async () => {
     try {
       const collections = getNotificationCollections(db, targetBucket);
-      const snapshots = await Promise.all(
-        collections.map((col) => col.orderBy('fecha', 'desc').limit(50).get())
+      // withQueryTimeout ensures we fail fast (< 8 s) when Firestore is
+      // unreachable, so the Express response always arrives before the
+      // Next.js proxy timeout (which would otherwise return a 500 to the browser).
+      const snapshots = await withQueryTimeout(
+        Promise.all(collections.map((col) => col.orderBy('fecha', 'desc').limit(50).get()))
       );
 
       const merged = snapshots.flatMap((snap) =>
@@ -128,8 +153,13 @@ export async function getUserNotifications(userId: string) {
 
       return result;
     } catch (err) {
-      // On failure, evict the cache entry so the next request retries fresh
-      notificationCache.delete(cacheKey);
+      // Keep a short-lived cache entry with empty data so the next request
+      // (e.g. the 10 s frontend polling interval) doesn't immediately retry
+      // and hang again — it will serve [] until the cooldown expires.
+      notificationCache.set(cacheKey, {
+        data: cached?.data || [],
+        expiresAt: Date.now() + NOTIFICATION_ERROR_COOLDOWN_MS,
+      });
       throw err;
     }
   })();

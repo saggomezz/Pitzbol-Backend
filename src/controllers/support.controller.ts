@@ -5,6 +5,19 @@ import { DocumentData, QueryDocumentSnapshot } from "@google-cloud/firestore";
 
 const ADMIN_EMAIL = process.env.ADMIN_EMAIL || "pitzbol2026@gmail.com";
 const SUPPORT_NOTIFICATIONS_CACHE_TTL_MS = 15000;
+const SUPPORT_NOTIFICATIONS_ERROR_COOLDOWN_MS = 12000;
+/** Same fast-fail timeout as notification.service.ts (see comment there). */
+const FIRESTORE_QUERY_TIMEOUT_MS = 8000;
+
+const withQueryTimeout = <T>(promise: Promise<T>): Promise<T> => {
+  const timeout = new Promise<never>((_, reject) =>
+    setTimeout(
+      () => reject(new Error('Firestore query timed out — host unreachable or firewalled')),
+      FIRESTORE_QUERY_TIMEOUT_MS,
+    ),
+  );
+  return Promise.race([promise, timeout]);
+};
 
 type SupportNotificationsCacheEntry = {
   expiresAt: number;
@@ -15,6 +28,29 @@ type SupportNotificationsCacheEntry = {
 const supportNotificationsCache = new Map<string, SupportNotificationsCacheEntry>();
 
 const getSupportNotificationsCacheKey = (bucketId: string) => bucketId.trim();
+
+/**
+ * Returns true for Firestore/network errors that should be swallowed gracefully
+ * (return an empty list) instead of propagating a 500 to the client.
+ *
+ * Covered cases:
+ *  - gRPC code  8 = RESOURCE_EXHAUSTED  (quota exceeded)
+ *  - gRPC code 14 = UNAVAILABLE         (Firestore unreachable, EHOSTUNREACH, etc.)
+ *  - gRPC code  4 = DEADLINE_EXCEEDED
+ *  - gRPC code  2 = UNKNOWN
+ *  - Node.js network codes: EHOSTUNREACH, ECONNREFUSED, ECONNRESET, ETIMEDOUT
+ */
+const isFirestoreNetworkError = (error: any): boolean => {
+  const code = error?.code;
+  if (code === 8 || code === 14 || code === 4 || code === 2) return true;
+  const nodeCode = (error?.message || "").toUpperCase();
+  if (/QUOTA.EXCEEDED/i.test(nodeCode)) return true;
+  if (/EHOSTUNREACH|ECONNREFUSED|ECONNRESET|ETIMEDOUT|UNAVAILABLE/i.test(nodeCode)) return true;
+  // Sometimes the Node.js network code is on a nested `cause`
+  const causeCode = (error?.cause?.code || "").toUpperCase();
+  if (/EHOSTUNREACH|ECONNREFUSED|ECONNRESET|ETIMEDOUT/.test(causeCode)) return true;
+  return false;
+};
 
 // Configurar el transporter de email (Gmail con App Password)
 const getEmailTransporter = () => {
@@ -263,27 +299,34 @@ export const getCallRequests = async (req: Request, res: Response) => {
  * GET /api/support/notifications
  */
 export const getSupportNotifications = async (req: Request, res: Response) => {
+  const cacheKey = getSupportNotificationsCacheKey("admin-support");
   try {
-    // Primero hacemos el where, luego el sort en memoria para evitar índices compuestos
-    const cacheKey = getSupportNotificationsCacheKey("admin-support");
     const cached = supportNotificationsCache.get(cacheKey);
     const now = Date.now();
 
+    // Serve from cache while still fresh
     if (cached?.data && cached.expiresAt > now) {
       return res.status(200).json({ success: true, notificaciones: [...cached.data] });
     }
 
+    // Piggyback on an already-running Firestore request
     if (cached?.inFlight) {
-      const notifications = await cached.inFlight;
-      return res.status(200).json({ success: true, notificaciones: [...notifications] });
+      try {
+        const notifications = await cached.inFlight;
+        return res.status(200).json({ success: true, notificaciones: [...notifications] });
+      } catch {
+        // inFlight failed — fall through to issue a fresh request below
+      }
     }
 
     const inFlight = (async () => {
-      const snapshot = await db
-        .collection("notificaciones")
-        .where("usuarioId", "==", "admin")
-        .limit(50)
-        .get();
+      const snapshot = await withQueryTimeout(
+        db
+          .collection("notificaciones")
+          .where("usuarioId", "==", "admin")
+          .limit(50)
+          .get()
+      );
 
       return snapshot.docs
         .map((doc) => ({
@@ -297,35 +340,43 @@ export const getSupportNotifications = async (req: Request, res: Response) => {
         });
     })();
 
+    // Store inFlight so concurrent requests can piggyback
     supportNotificationsCache.set(cacheKey, {
       data: cached?.data || [],
       expiresAt: cached?.expiresAt || 0,
       inFlight,
     });
 
-    const notifications = await inFlight;
+    let notifications: any[];
+    try {
+      notifications = await inFlight;
+    } catch (fetchError: any) {
+      // Replace the inFlight entry with a short cooldown so the next request
+      // (e.g. the 10 s polling interval) doesn't immediately retry and hang.
+      supportNotificationsCache.set(cacheKey, {
+        data: cached?.data || [],
+        expiresAt: Date.now() + SUPPORT_NOTIFICATIONS_ERROR_COOLDOWN_MS,
+      });
+      throw fetchError;
+    }
+
     supportNotificationsCache.set(cacheKey, {
       data: notifications,
       expiresAt: Date.now() + SUPPORT_NOTIFICATIONS_CACHE_TTL_MS,
     });
 
-    res.status(200).json({
-      success: true,
-      notificaciones: [...notifications],
-    });
+    return res.status(200).json({ success: true, notificaciones: [...notifications] });
   } catch (error: any) {
-    console.error("❌ Error al obtener notificaciones:", error);
+    console.error("❌ Error al obtener notificaciones de soporte:", error);
 
-    if (error?.code === 8 || /quota exceeded/i.test(error?.message || "")) {
-      return res.status(200).json({
-        success: true,
-        notificaciones: [],
-      });
+    if (isFirestoreNetworkError(error)) {
+      // Firestore is unreachable locally or quota exceeded — return empty list
+      // so the frontend doesn't show an error to the user
+      const fallback = supportNotificationsCache.get(cacheKey)?.data || [];
+      return res.status(200).json({ success: true, notificaciones: [...fallback] });
     }
-    res.status(500).json({
-      success: false,
-      msg: "Error al obtener notificaciones",
-    });
+
+    return res.status(500).json({ success: false, msg: "Error al obtener notificaciones" });
   }
 };
 
