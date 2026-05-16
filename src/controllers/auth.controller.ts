@@ -32,7 +32,7 @@ const getTransporter = () => {
 //REGISTRO DE USUARIO
 export const register = async (req: Request, res: Response) => {
   try {
-    const { email, password, nombre, apellido, telefono, nacionalidad, role } = req.body;
+    const { email, password, nombre, apellido, nacionalidad, role } = req.body;
 
     const userRecord = await auth.createUser({
       email,
@@ -57,7 +57,6 @@ export const register = async (req: Request, res: Response) => {
         "03_rol": "turista",
         "04_correo": email,
         "05_nacionalidad": nacionalidad || "",
-        "06_telefono": telefono || "",
         "07_especialidades": [],
         role: "turista", 
         solicitudStatus: (aspiracion === "guia") ? "pendiente" : "ninguno",
