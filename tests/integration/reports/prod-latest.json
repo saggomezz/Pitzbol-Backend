@@ -1,0 +1,1008 @@
+{
+  "timestamp": "2026-05-16T15:00:49.835512",
+  "frontend": "https://www.pitzbol.me",
+  "backend": "https://api.pitzbol.me",
+  "ia": "https://ia.pitzbol.me",
+  "duration_ms": 24511,
+  "summary": {
+    "total": 110,
+    "passed": 53,
+    "failed": 41,
+    "warning": 4,
+    "skipped": 10,
+    "info": 2,
+    "success_rate": 53
+  },
+  "results": [
+    {
+      "status": "PASSED",
+      "id": "AUT-001",
+      "name": "Página /login carga sin autenticación",
+      "http": 200,
+      "ms": 437,
+      "detail": "HTTP 200",
+      "module": "AUTENTICACIÓN"
+    },
+    {
+      "status": "PASSED",
+      "id": "AUT-009",
+      "name": "Página /forgot-password carga",
+      "http": 200,
+      "ms": 244,
+      "detail": "HTTP 200",
+      "module": "AUTENTICACIÓN"
+    },
+    {
+      "status": "PASSED",
+      "id": "AUT-010",
+      "name": "Página /reset-password carga",
+      "http": 200,
+      "ms": 268,
+      "detail": "HTTP 200",
+      "module": "AUTENTICACIÓN"
+    },
+    {
+      "status": "FAILED",
+      "id": "AUT-001b",
+      "name": "Registro sin datos → 400",
+      "http": 525,
+      "ms": 204,
+      "detail": "Esperado 400, recibido 525",
+      "module": "AUTENTICACIÓN"
+    },
+    {
+      "status": "FAILED",
+      "id": "AUT-002",
+      "name": "Registro email inválido → 400",
+      "http": 525,
+      "ms": 154,
+      "detail": "Esperado 400, recibido 525",
+      "module": "AUTENTICACIÓN"
+    },
+    {
+      "status": "FAILED",
+      "id": "AUT-006",
+      "name": "Login credenciales incorrectas → 401",
+      "http": 525,
+      "ms": 155,
+      "detail": "Esperado 401, recibido 525",
+      "module": "AUTENTICACIÓN"
+    },
+    {
+      "status": "FAILED",
+      "id": "AUT-009b",
+      "name": "Recuperar contraseña email inexistente → 200",
+      "http": 525,
+      "ms": 225,
+      "detail": "Esperado 200, recibido 525",
+      "module": "AUTENTICACIÓN"
+    },
+    {
+      "status": "FAILED",
+      "id": "AUT-011",
+      "name": "Actualizar perfil sin token → 401",
+      "http": 525,
+      "ms": 150,
+      "detail": "Esperado 401, recibido 525",
+      "module": "AUTENTICACIÓN"
+    },
+    {
+      "status": "FAILED",
+      "id": "AUT-007",
+      "name": "Logout sin token → 401",
+      "http": 525,
+      "ms": 189,
+      "detail": "Esperado 401, recibido 525",
+      "module": "AUTENTICACIÓN"
+    },
+    {
+      "status": "PASSED",
+      "id": "AUT-011b",
+      "name": "Página / principal carga sin auth",
+      "http": 200,
+      "ms": 145,
+      "detail": "HTTP 200",
+      "module": "AUTENTICACIÓN"
+    },
+    {
+      "status": "PASSED",
+      "id": "GUI-001",
+      "name": "Página /explora carga sin autenticación",
+      "http": 200,
+      "ms": 281,
+      "detail": "HTTP 200",
+      "module": "DESCUBRIMIENTO GUÍAS"
+    },
+    {
+      "status": "FAILED",
+      "id": "GUI-002",
+      "name": "GET /api/guides/verified → listado guías activos",
+      "http": 525,
+      "ms": 167,
+      "detail": "Esperado 200, recibido 525",
+      "module": "DESCUBRIMIENTO GUÍAS"
+    },
+    {
+      "status": "SKIPPED",
+      "id": "GUI-005",
+      "name": "GET /api/guides/profile/:uid",
+      "http": null,
+      "ms": 0,
+      "detail": "No se obtuvo UID de guía",
+      "module": "DESCUBRIMIENTO GUÍAS"
+    },
+    {
+      "status": "SKIPPED",
+      "id": "GUI-005b",
+      "name": "Página /perfil/[uid]",
+      "http": null,
+      "ms": 0,
+      "detail": "No se obtuvo UID de guía",
+      "module": "DESCUBRIMIENTO GUÍAS"
+    },
+    {
+      "status": "SKIPPED",
+      "id": "PER-006",
+      "name": "GET /api/ratings/guide/:uid",
+      "http": null,
+      "ms": 0,
+      "detail": "No se obtuvo UID de guía",
+      "module": "DESCUBRIMIENTO GUÍAS"
+    },
+    {
+      "status": "SKIPPED",
+      "id": "PER-007",
+      "name": "GET /api/ratings/guide/:uid/stats",
+      "http": null,
+      "ms": 0,
+      "detail": "No se obtuvo UID de guía",
+      "module": "DESCUBRIMIENTO GUÍAS"
+    },
+    {
+      "status": "SKIPPED",
+      "id": "PER-004",
+      "name": "GET /api/availability/:guideId",
+      "http": null,
+      "ms": 0,
+      "detail": "Sin UID de guía",
+      "module": "PERFIL GUÍA"
+    },
+    {
+      "status": "SKIPPED",
+      "id": "PER-009",
+      "name": "GET /api/tours/guia/:uid",
+      "http": null,
+      "ms": 0,
+      "detail": "Sin UID de guía",
+      "module": "PERFIL GUÍA"
+    },
+    {
+      "status": "SKIPPED",
+      "id": "PER-001b",
+      "name": "Página /guia/empresa/[uid]",
+      "http": null,
+      "ms": 0,
+      "detail": "Sin UID de guía",
+      "module": "PERFIL GUÍA"
+    },
+    {
+      "status": "FAILED",
+      "id": "PER-010",
+      "name": "POST /api/bookings/create sin auth → 401",
+      "http": 525,
+      "ms": 160,
+      "detail": "Esperado 401, recibido 525",
+      "module": "PERFIL GUÍA"
+    },
+    {
+      "status": "PASSED",
+      "id": "PER-011",
+      "name": "Página /perfil (protegida) acceso controlado",
+      "http": 200,
+      "ms": 275,
+      "detail": "HTTP 200",
+      "module": "PERFIL GUÍA"
+    },
+    {
+      "status": "FAILED",
+      "id": "BOO-001",
+      "name": "GET /api/bookings/tourist/:id sin token → 401",
+      "http": 525,
+      "ms": 176,
+      "detail": "Esperado 401, recibido 525",
+      "module": "BOOKING"
+    },
+    {
+      "status": "FAILED",
+      "id": "BOO-010",
+      "name": "POST /api/bookings/create sin token → 401",
+      "http": 525,
+      "ms": 180,
+      "detail": "Esperado 401, recibido 525",
+      "module": "BOOKING"
+    },
+    {
+      "status": "SKIPPED",
+      "id": "BOO-001b",
+      "name": "Página /tours/reservar/[uid]",
+      "http": null,
+      "ms": 0,
+      "detail": "Sin UID",
+      "module": "BOOKING"
+    },
+    {
+      "status": "PASSED",
+      "id": "BOO-011",
+      "name": "Página /tours/confirmacion/[bookingId] carga",
+      "http": 200,
+      "ms": 419,
+      "detail": "HTTP 200",
+      "module": "BOOKING"
+    },
+    {
+      "status": "PASSED",
+      "id": "BOO-013",
+      "name": "Página /tours/pago/[bookingId] carga",
+      "http": 200,
+      "ms": 313,
+      "detail": "HTTP 200",
+      "module": "BOOKING"
+    },
+    {
+      "status": "FAILED",
+      "id": "BOO-011b",
+      "name": "GET /api/ratings/can-rate/:id sin token → 401",
+      "http": 525,
+      "ms": 178,
+      "detail": "Esperado 401, recibido 525",
+      "module": "BOOKING"
+    },
+    {
+      "status": "FAILED",
+      "id": "BOO-013b",
+      "name": "POST /api/payments/create-payment-intent sin token → 401",
+      "http": 525,
+      "ms": 169,
+      "detail": "Esperado 401, recibido 525",
+      "module": "BOOKING"
+    },
+    {
+      "status": "FAILED",
+      "id": "LUG-001",
+      "name": "GET /api/lugares → catálogo",
+      "http": 525,
+      "ms": 151,
+      "detail": "Esperado 200, recibido 525",
+      "module": "LUGARES"
+    },
+    {
+      "status": "FAILED",
+      "id": "LUG-008",
+      "name": "GET /api/lugares/:nombre",
+      "http": 525,
+      "ms": 182,
+      "detail": "Esperado 200, recibido 525",
+      "module": "LUGARES"
+    },
+    {
+      "status": "PASSED",
+      "id": "LUG-006a",
+      "name": "Página /cultura carga",
+      "http": 200,
+      "ms": 245,
+      "detail": "HTTP 200",
+      "module": "LUGARES"
+    },
+    {
+      "status": "PASSED",
+      "id": "LUG-006b",
+      "name": "Página /gastronomia carga",
+      "http": 200,
+      "ms": 282,
+      "detail": "HTTP 200",
+      "module": "LUGARES"
+    },
+    {
+      "status": "PASSED",
+      "id": "LUG-006c",
+      "name": "Página /arte carga",
+      "http": 200,
+      "ms": 265,
+      "detail": "HTTP 200",
+      "module": "LUGARES"
+    },
+    {
+      "status": "PASSED",
+      "id": "LUG-006d",
+      "name": "Página /futbol carga",
+      "http": 200,
+      "ms": 270,
+      "detail": "HTTP 200",
+      "module": "LUGARES"
+    },
+    {
+      "status": "PASSED",
+      "id": "LUG-007",
+      "name": "Página /mapa carga",
+      "http": 200,
+      "ms": 373,
+      "detail": "HTTP 200",
+      "module": "LUGARES"
+    },
+    {
+      "status": "SKIPPED",
+      "id": "LUG-008b",
+      "name": "Página /informacion/[nombre]",
+      "http": null,
+      "ms": 0,
+      "detail": "Sin nombre de lugar",
+      "module": "LUGARES"
+    },
+    {
+      "status": "SKIPPED",
+      "id": "LUG-012",
+      "name": "GET /api/place-ratings/:nombre/stats",
+      "http": null,
+      "ms": 0,
+      "detail": "Sin nombre",
+      "module": "LUGARES"
+    },
+    {
+      "status": "PASSED",
+      "id": "IA-002",
+      "name": "GET /api/places (pitzbol-web IA)",
+      "http": 200,
+      "ms": 2841,
+      "detail": "Catálogo IA disponible",
+      "module": "LUGARES"
+    },
+    {
+      "status": "FAILED",
+      "id": "TOU-001",
+      "name": "GET /api/tours → listado",
+      "http": 525,
+      "ms": 180,
+      "detail": "Esperado 200, recibido 525",
+      "module": "TOURS"
+    },
+    {
+      "status": "FAILED",
+      "id": "TOU-002",
+      "name": "GET /api/paquetes → paquetes",
+      "http": 525,
+      "ms": 174,
+      "detail": "Esperado 200, recibido 525",
+      "module": "TOURS"
+    },
+    {
+      "status": "PASSED",
+      "id": "TOU-001b",
+      "name": "Página /tours carga",
+      "http": 200,
+      "ms": 359,
+      "detail": "HTTP 200",
+      "module": "TOURS"
+    },
+    {
+      "status": "PASSED",
+      "id": "TOU-002b",
+      "name": "Página /tours/paquetes carga",
+      "http": 200,
+      "ms": 351,
+      "detail": "HTTP 200",
+      "module": "TOURS"
+    },
+    {
+      "status": "PASSED",
+      "id": "TOU-009",
+      "name": "Página /itinerario carga",
+      "http": 200,
+      "ms": 260,
+      "detail": "HTTP 200",
+      "module": "TOURS"
+    },
+    {
+      "status": "PASSED",
+      "id": "TOU-009b",
+      "name": "Página /itinerario/manual carga",
+      "http": 200,
+      "ms": 233,
+      "detail": "HTTP 200",
+      "module": "TOURS"
+    },
+    {
+      "status": "FAILED",
+      "id": "TOU-004",
+      "name": "GET /api/tours/:id (demo)",
+      "http": 525,
+      "ms": 232,
+      "detail": "Esperado 200, recibido 525",
+      "module": "TOURS"
+    },
+    {
+      "status": "PASSED",
+      "id": "IA-001",
+      "name": "pitzbol-web raíz accesible",
+      "http": 200,
+      "ms": 601,
+      "detail": "HTTP 200",
+      "module": "TOURS"
+    },
+    {
+      "status": "FAILED",
+      "id": "IA-008a",
+      "name": "GET /api/ai → info motor IA",
+      "http": 525,
+      "ms": 176,
+      "detail": "Esperado 200, recibido 525",
+      "module": "MOTOR IA"
+    },
+    {
+      "status": "FAILED",
+      "id": "IA-008b",
+      "name": "POST /api/itinerary — genera itinerario",
+      "http": 400,
+      "ms": 443,
+      "detail": "Esperado 200, recibido 400",
+      "module": "MOTOR IA"
+    },
+    {
+      "status": "PASSED",
+      "id": "IA-003",
+      "name": "POST /api/itinerary — sin intereses → 400",
+      "http": 400,
+      "ms": 384,
+      "detail": "HTTP 400",
+      "module": "MOTOR IA"
+    },
+    {
+      "status": "INFO",
+      "id": "IA-017b",
+      "name": "Coherencia geográfica KNN",
+      "http": null,
+      "ms": 0,
+      "detail": "Requiere inspección manual del resultado generado",
+      "module": "MOTOR IA"
+    },
+    {
+      "status": "FAILED",
+      "id": "USU-001",
+      "name": "GET /api/favorites sin token → 401",
+      "http": 525,
+      "ms": 174,
+      "detail": "Esperado 401, recibido 525",
+      "module": "PANEL USUARIO"
+    },
+    {
+      "status": "FAILED",
+      "id": "USU-003",
+      "name": "GET /api/bookings/tourist sin token → 401",
+      "http": 525,
+      "ms": 235,
+      "detail": "Esperado 401, recibido 525",
+      "module": "PANEL USUARIO"
+    },
+    {
+      "status": "FAILED",
+      "id": "USU-009",
+      "name": "GET /api/perfil/foto-perfil sin token → 401",
+      "http": 525,
+      "ms": 177,
+      "detail": "Esperado 401, recibido 525",
+      "module": "PANEL USUARIO"
+    },
+    {
+      "status": "FAILED",
+      "id": "USU-009b",
+      "name": "GET /api/perfil/wallet sin token → 401",
+      "http": 525,
+      "ms": 162,
+      "detail": "Esperado 401, recibido 525",
+      "module": "PANEL USUARIO"
+    },
+    {
+      "status": "FAILED",
+      "id": "USU-013",
+      "name": "GET /api/itinerarios/itinerarios sin token → 401",
+      "http": 525,
+      "ms": 504,
+      "detail": "Esperado 401, recibido 525",
+      "module": "PANEL USUARIO"
+    },
+    {
+      "status": "FAILED",
+      "id": "USU-013b",
+      "name": "GET /api/itinerarios/notas sin token → 401",
+      "http": 525,
+      "ms": 164,
+      "detail": "Esperado 401, recibido 525",
+      "module": "PANEL USUARIO"
+    },
+    {
+      "status": "PASSED",
+      "id": "USU-001b",
+      "name": "Página /perfil acceso controlado",
+      "http": 200,
+      "ms": 173,
+      "detail": "HTTP 200",
+      "module": "PANEL USUARIO"
+    },
+    {
+      "status": "PASSED",
+      "id": "USU-001c",
+      "name": "Página /favoritos acceso controlado",
+      "http": 200,
+      "ms": 258,
+      "detail": "HTTP 200",
+      "module": "PANEL USUARIO"
+    },
+    {
+      "status": "PASSED",
+      "id": "USU-001d",
+      "name": "Página /mensajes acceso controlado",
+      "http": 200,
+      "ms": 337,
+      "detail": "HTTP 200",
+      "module": "PANEL USUARIO"
+    },
+    {
+      "status": "FAILED",
+      "id": "GUI-P01",
+      "name": "GET /api/guides/my-request sin token → 401",
+      "http": 525,
+      "ms": 157,
+      "detail": "Esperado 401, recibido 525",
+      "module": "PANEL GUÍA"
+    },
+    {
+      "status": "FAILED",
+      "id": "GUI-P09",
+      "name": "POST /api/availability/set sin token → 401",
+      "http": 525,
+      "ms": 154,
+      "detail": "Esperado 401, recibido 525",
+      "module": "PANEL GUÍA"
+    },
+    {
+      "status": "FAILED",
+      "id": "GUI-P03",
+      "name": "GET /api/bookings/guide sin token → 401",
+      "http": 525,
+      "ms": 144,
+      "detail": "Esperado 401, recibido 525",
+      "module": "PANEL GUÍA"
+    },
+    {
+      "status": "FAILED",
+      "id": "GUI-P12",
+      "name": "POST /api/tours sin token → 401",
+      "http": 525,
+      "ms": 176,
+      "detail": "Esperado 401, recibido 525",
+      "module": "PANEL GUÍA"
+    },
+    {
+      "status": "FAILED",
+      "id": "GUI-P11",
+      "name": "POST /api/guides/add-tour sin token → 401",
+      "http": 525,
+      "ms": 144,
+      "detail": "Esperado 401, recibido 525",
+      "module": "PANEL GUÍA"
+    },
+    {
+      "status": "PASSED",
+      "id": "GUI-P01b",
+      "name": "Página /guide/estatus acceso controlado",
+      "http": 200,
+      "ms": 277,
+      "detail": "HTTP 200",
+      "module": "PANEL GUÍA"
+    },
+    {
+      "status": "PASSED",
+      "id": "GUI-P01c",
+      "name": "Página /guide/solicitudes acceso controlado",
+      "http": 200,
+      "ms": 388,
+      "detail": "HTTP 200",
+      "module": "PANEL GUÍA"
+    },
+    {
+      "status": "FAILED",
+      "id": "ADM-001",
+      "name": "GET /api/admin/negocios sin token → 401",
+      "http": 525,
+      "ms": 180,
+      "detail": "Esperado 401, recibido 525",
+      "module": "PANEL ADMIN"
+    },
+    {
+      "status": "FAILED",
+      "id": "ADM-008",
+      "name": "GET /api/admin/negocios/pendientes sin token → 401",
+      "http": 525,
+      "ms": 151,
+      "detail": "Esperado 401, recibido 525",
+      "module": "PANEL ADMIN"
+    },
+    {
+      "status": "FAILED",
+      "id": "ADM-005",
+      "name": "GET /api/admin/guias/pendientes sin token → 401",
+      "http": 525,
+      "ms": 157,
+      "detail": "Esperado 401, recibido 525",
+      "module": "PANEL ADMIN"
+    },
+    {
+      "status": "FAILED",
+      "id": "ADM-006",
+      "name": "GET /api/admin/guias/aprobados sin token → 401",
+      "http": 525,
+      "ms": 153,
+      "detail": "Esperado 401, recibido 525",
+      "module": "PANEL ADMIN"
+    },
+    {
+      "status": "FAILED",
+      "id": "ADM-001b",
+      "name": "GET /api/admin/solicitudes-pendientes sin token → 401",
+      "http": 525,
+      "ms": 183,
+      "detail": "Esperado 401, recibido 525",
+      "module": "PANEL ADMIN"
+    },
+    {
+      "status": "FAILED",
+      "id": "ADM-011",
+      "name": "GET /api/admin/usuarios-gestionables sin token → 401",
+      "http": 525,
+      "ms": 153,
+      "detail": "Esperado 401, recibido 525",
+      "module": "PANEL ADMIN"
+    },
+    {
+      "status": "PASSED",
+      "id": "ADM-001c",
+      "name": "Página /admin acceso controlado",
+      "http": 200,
+      "ms": 336,
+      "detail": "HTTP 200",
+      "module": "PANEL ADMIN"
+    },
+    {
+      "status": "PASSED",
+      "id": "ADM-005b",
+      "name": "Página /admin/guias acceso controlado",
+      "http": 200,
+      "ms": 292,
+      "detail": "HTTP 200",
+      "module": "PANEL ADMIN"
+    },
+    {
+      "status": "PASSED",
+      "id": "ADM-008b",
+      "name": "Página /admin/negocios acceso controlado",
+      "http": 200,
+      "ms": 281,
+      "detail": "HTTP 200",
+      "module": "PANEL ADMIN"
+    },
+    {
+      "status": "PASSED",
+      "id": "ADM-012",
+      "name": "Página /admin/lugares acceso controlado",
+      "http": 200,
+      "ms": 252,
+      "detail": "HTTP 200",
+      "module": "PANEL ADMIN"
+    },
+    {
+      "status": "PASSED",
+      "id": "RES-012",
+      "name": "PWA Manifest disponible",
+      "http": 200,
+      "ms": 160,
+      "detail": "HTTP 200",
+      "module": "RESPONSIVIDAD"
+    },
+    {
+      "status": "PASSED",
+      "id": "RES-001",
+      "name": "Favicon disponible",
+      "http": 200,
+      "ms": 323,
+      "detail": "HTTP 200",
+      "module": "RESPONSIVIDAD"
+    },
+    {
+      "status": "FAILED",
+      "id": "PER-008",
+      "name": "Service Worker /sw.js disponible",
+      "http": 404,
+      "ms": 359,
+      "detail": "HTTP 404 inesperado",
+      "module": "RESPONSIVIDAD"
+    },
+    {
+      "status": "PASSED",
+      "id": "RES-003a",
+      "name": "Mobile UA — Página principal",
+      "http": 200,
+      "ms": 142,
+      "detail": "HTTP 200",
+      "module": "RESPONSIVIDAD"
+    },
+    {
+      "status": "PASSED",
+      "id": "RES-003b",
+      "name": "Mobile UA — /explora",
+      "http": 200,
+      "ms": 147,
+      "detail": "HTTP 200",
+      "module": "RESPONSIVIDAD"
+    },
+    {
+      "status": "PASSED",
+      "id": "RES-003c",
+      "name": "Mobile UA — /tours",
+      "http": 200,
+      "ms": 170,
+      "detail": "HTTP 200",
+      "module": "RESPONSIVIDAD"
+    },
+    {
+      "status": "PASSED",
+      "id": "SEC-001a",
+      "name": "SSL/HTTPS válido — www.pitzbol.me",
+      "http": "-",
+      "ms": 0,
+      "detail": "Certificado válido, expira: Jul 15 02:43:48 2026 GMT",
+      "module": "SEGURIDAD"
+    },
+    {
+      "status": "PASSED",
+      "id": "SEC-001b",
+      "name": "SSL/HTTPS válido — api.pitzbol.me",
+      "http": "-",
+      "ms": 0,
+      "detail": "Certificado válido, expira: Jul 15 02:43:48 2026 GMT",
+      "module": "SEGURIDAD"
+    },
+    {
+      "status": "PASSED",
+      "id": "SEC-001c",
+      "name": "HSTS header presente",
+      "http": "-",
+      "ms": 0,
+      "detail": "Presente: max-age=63072000; includeSubDomains; preload",
+      "module": "SEGURIDAD"
+    },
+    {
+      "status": "PASSED",
+      "id": "SEC-001d",
+      "name": "X-Frame-Options header",
+      "http": "-",
+      "ms": 0,
+      "detail": "Presente: DENY",
+      "module": "SEGURIDAD"
+    },
+    {
+      "status": "PASSED",
+      "id": "SEC-001e",
+      "name": "X-Content-Type-Options header",
+      "http": "-",
+      "ms": 0,
+      "detail": "Presente: nosniff",
+      "module": "SEGURIDAD"
+    },
+    {
+      "status": "PASSED",
+      "id": "SEC-001f",
+      "name": "Content-Security-Policy header",
+      "http": "-",
+      "ms": 0,
+      "detail": "Presente: default-src 'self'; script-src 'self' 'unsafe-inline' 'unsafe-eval' https://js.s",
+      "module": "SEGURIDAD"
+    },
+    {
+      "status": "PASSED",
+      "id": "SEC-001g",
+      "name": "Permissions-Policy header",
+      "http": "-",
+      "ms": 0,
+      "detail": "Presente: camera=(self), microphone=(), geolocation=(self)",
+      "module": "SEGURIDAD"
+    },
+    {
+      "status": "WARNING",
+      "id": "SEC-005",
+      "name": "CORS — header ausente o restrictivo",
+      "http": 525,
+      "ms": 151,
+      "detail": "No se encontró Access-Control-Allow-Origin",
+      "module": "SEGURIDAD"
+    },
+    {
+      "status": "PASSED",
+      "id": "PER-001",
+      "name": "Página principal carga <3s",
+      "http": 200,
+      "ms": 141,
+      "detail": "141ms < 3000ms ✓",
+      "module": "PERFORMANCE"
+    },
+    {
+      "status": "PASSED",
+      "id": "PER-002",
+      "name": "Página /explora carga <3s",
+      "http": 200,
+      "ms": 141,
+      "detail": "141ms < 3000ms ✓",
+      "module": "PERFORMANCE"
+    },
+    {
+      "status": "PASSED",
+      "id": "PER-003",
+      "name": "Página /tours carga <3s",
+      "http": 200,
+      "ms": 150,
+      "detail": "150ms < 3000ms ✓",
+      "module": "PERFORMANCE"
+    },
+    {
+      "status": "PASSED",
+      "id": "PER-004",
+      "name": "Página /mapa carga <5s",
+      "http": 200,
+      "ms": 161,
+      "detail": "161ms < 5000ms ✓",
+      "module": "PERFORMANCE"
+    },
+    {
+      "status": "PASSED",
+      "id": "PER-005a",
+      "name": "Backend health <2s",
+      "http": 525,
+      "ms": 222,
+      "detail": "222ms < 2000ms ✓",
+      "module": "PERFORMANCE"
+    },
+    {
+      "status": "PASSED",
+      "id": "PER-005b",
+      "name": "GET /api/guides/verified <4s",
+      "http": 525,
+      "ms": 145,
+      "detail": "145ms < 4000ms ✓",
+      "module": "PERFORMANCE"
+    },
+    {
+      "status": "PASSED",
+      "id": "PER-005c",
+      "name": "GET /api/lugares <3s",
+      "http": 525,
+      "ms": 155,
+      "detail": "155ms < 3000ms ✓",
+      "module": "PERFORMANCE"
+    },
+    {
+      "status": "PASSED",
+      "id": "PER-005d",
+      "name": "GET /api/tours <3s",
+      "http": 525,
+      "ms": 175,
+      "detail": "175ms < 3000ms ✓",
+      "module": "PERFORMANCE"
+    },
+    {
+      "status": "PASSED",
+      "id": "PER-005e",
+      "name": "GET /api/paquetes <3s",
+      "http": 525,
+      "ms": 157,
+      "detail": "157ms < 3000ms ✓",
+      "module": "PERFORMANCE"
+    },
+    {
+      "status": "PASSED",
+      "id": "PER-005f",
+      "name": "Tiempo promedio de respuesta API",
+      "http": null,
+      "ms": 170,
+      "detail": "Promedio: 170ms",
+      "module": "PERFORMANCE"
+    },
+    {
+      "status": "FAILED",
+      "id": "ERR-003",
+      "name": "Ruta inexistente → 404 con JSON",
+      "http": 525,
+      "ms": 161,
+      "detail": "HTTP 525",
+      "module": "ERRORES EDGE"
+    },
+    {
+      "status": "PASSED",
+      "id": "ERR-003b",
+      "name": "Página 404 frontend devuelve respuesta",
+      "http": 404,
+      "ms": 237,
+      "detail": "HTTP 404",
+      "module": "ERRORES EDGE"
+    },
+    {
+      "status": "WARNING",
+      "id": "ERR-001",
+      "name": "Body JSON malformado manejo",
+      "http": 525,
+      "ms": 227,
+      "detail": "HTTP 525",
+      "module": "ERRORES EDGE"
+    },
+    {
+      "status": "INFO",
+      "id": "AUT-013",
+      "name": "Rate limiting en /api/auth/login",
+      "http": null,
+      "ms": 0,
+      "detail": "Configurado: loginLimiter 20/15min (código fuente)",
+      "module": "ERRORES EDGE"
+    },
+    {
+      "status": "FAILED",
+      "id": "INT-001",
+      "name": "Firebase Auth — endpoint login accesible",
+      "http": 525,
+      "ms": 145,
+      "detail": "Esperado 401, recibido 525",
+      "module": "INTEGRACIONES"
+    },
+    {
+      "status": "FAILED",
+      "id": "INT-002",
+      "name": "Firestore lee datos — GET /api/guides retorna datos",
+      "http": 525,
+      "ms": 167,
+      "detail": "Esperado 200, recibido 525",
+      "module": "INTEGRACIONES"
+    },
+    {
+      "status": "WARNING",
+      "id": "INT-003",
+      "name": "Firestore accesible — POST /api/business/validate-uniqueness",
+      "http": 525,
+      "ms": 173,
+      "detail": "HTTP 525",
+      "module": "INTEGRACIONES"
+    },
+    {
+      "status": "WARNING",
+      "id": "INT-004",
+      "name": "Stripe — endpoint payment-intent",
+      "http": 525,
+      "ms": 204,
+      "detail": "HTTP 525",
+      "module": "INTEGRACIONES"
+    },
+    {
+      "status": "PASSED",
+      "id": "INT-006",
+      "name": "Mapa Leaflet — página /mapa carga correctamente",
+      "http": 200,
+      "ms": 145,
+      "detail": "HTML retornado, Leaflet inicializa en browser",
+      "module": "INTEGRACIONES"
+    },
+    {
+      "status": "FAILED",
+      "id": "INT-007",
+      "name": "GET /api/support/contact-forms (protegido) → 401",
+      "http": 525,
+      "ms": 233,
+      "detail": "Esperado 401, recibido 525",
+      "module": "INTEGRACIONES"
+    }
+  ]
+}

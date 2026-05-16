@@ -1,0 +1,1102 @@
+{
+  "title": "Pitzbol Functional Test Suite",
+  "generated_at": "2026-05-16T14:32:13.176306",
+  "summary": {
+    "total": 110,
+    "passed": 0,
+    "failed": 0,
+    "warning": 0,
+    "skipped": 109,
+    "duration_ms": 3036
+  },
+  "sections": [
+    {
+      "id": 1,
+      "name": "Autenticación y Registro",
+      "ms": 0,
+      "cases": [
+        {
+          "name": "Acceso a página login sin autenticación",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página principal carga sin autenticación (acceso público)",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Registro sin datos — validación de campos requeridos (espera 400)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Registro con email inválido (espera 400)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Login con credenciales incorrectas (espera 400/401)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": "Asegurar respuesta consistente 401 para credenciales incorrectas"
+        },
+        {
+          "name": "Recuperar contraseña — email inexistente",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Ruta protegida sin token — Actualizar perfil (espera 401)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Ruta protegida sin token — Logout (espera 401)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página forgot-password carga correctamente",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Descubrimiento de Guías",
+      "ms": 0,
+      "cases": [
+        {
+          "name": "Página /explora carga sin autenticación",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/guides/verified — listado de guías verificados",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/guides/profile/:uid — perfil público de guía",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/ratings/guide/:uid — ratings públicos del guía",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/ratings/guide/:uid/stats — estadísticas del guía",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Perfil de Guía",
+      "ms": 0,
+      "cases": [
+        {
+          "name": "GET /api/availability/:guideId — disponibilidad pública del guía",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/tours/guia/:uid — tours del guía (público)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /guia/empresa/[uid] carga sin errores",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Intento de reserva sin autenticación (espera 401)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /perfil (protegida) — redirige o carga UI de login",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Booking / Reservas",
+      "ms": 0,
+      "cases": [
+        {
+          "name": "GET /api/bookings/tourist/:id — sin token (espera 401)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/bookings/create — sin token (espera 401)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /tours/reservar/[uid] carga",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /tours/confirmacion/[bookingId] carga",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /tours/pago/[bookingId] carga",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/ratings/can-rate/:bookingId — sin token (espera 401)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/payments/create-payment-intent — sin token (espera 401)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Exploración de Lugares Turísticos",
+      "ms": 0,
+      "cases": [
+        {
+          "name": "GET /api/lugares — catálogo completo de lugares",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/lugares/:nombre — detalle de lugar",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/lugares/geocode — geocodificación de dirección",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/places (pitzbol-web) — catálogo para motor IA",
+          "status": "SKIPPED",
+          "details": "pitzbol-web no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /cultura — sección Cultura",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /gastronomia — sección Gastronomía",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /arte — sección Arte",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /futbol — sección Fútbol",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /mapa — integración de mapa",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /informacion/[nombre] — detalle de lugar",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/place-ratings/:nombre/stats — ratings de lugar",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Tours e Itinerarios",
+      "ms": 0,
+      "cases": [
+        {
+          "name": "GET /api/tours — listado de tours disponibles",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/tours/:id — detalle de tour",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/tours/guia/:uid — tours de un guía",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/paquetes — listado de paquetes turísticos",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /tours — Listado tours",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /tours/paquetes — Paquetes",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /itinerario — Itinerario manual",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /itinerario/manual — Itinerario manual detalle",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "pitzbol-web raíz — generador de itinerarios IA",
+          "status": "SKIPPED",
+          "details": "pitzbol-web no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Motor IA — Recomendaciones Híbridas",
+      "ms": 0,
+      "cases": [
+        {
+          "name": "GET /api/ai — info del motor híbrido",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/itinerary — genera itinerario híbrido (cultura + gastronomía)",
+          "status": "SKIPPED",
+          "details": "pitzbol-web no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/itinerary — modo a-pie (radio 2km desde centro)",
+          "status": "SKIPPED",
+          "details": "pitzbol-web no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/itinerary — inputs inválidos (espera 400)",
+          "status": "SKIPPED",
+          "details": "pitzbol-web no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/itinerary — constraint nocturna (startTime 22:00)",
+          "status": "SKIPPED",
+          "details": "pitzbol-web no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Coherencia geográfica KNN — lugares agrupados por proximidad",
+          "status": "INFO",
+          "details": "Verificado por diseño: ia-engine.ts usa sortByProximity() + haversine() para minimizar distancia total de ruta. La métrica se valida unitariamente en ia-engine.test.ts.",
+          "ms": 0,
+          "http": null,
+          "evidence": "Ver src/__tests__/ia-engine.test.ts — tests de sortByProximity y haversine",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "Panel de Usuario",
+      "ms": 0,
+      "cases": [
+        {
+          "name": "GET /api/favorites — Favoritos del usuario (espera 401 sin token)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/bookings/tourist/demo — Historial de reservas (espera 401 sin token)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/perfil/foto-perfil — Foto de perfil (espera 401 sin token)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/perfil/wallet — Wallet (tarjetas) (espera 401 sin token)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/itinerarios/itinerarios — Itinerarios guardados (espera 401 sin token)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/itinerarios/notas — Notas del usuario (espera 401 sin token)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /perfil — acceso controlado",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /favoritos — acceso controlado",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /mensajes — acceso controlado",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "Panel Guía",
+      "ms": 0,
+      "cases": [
+        {
+          "name": "GET /api/guides/my-request — Solicitud de guía del usuario (espera 401)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/availability/set — Configurar disponibilidad (espera 401)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/bookings/guide/demo-guide — Reservas del guía (espera 401)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/tours — Crear nuevo tour (espera 401)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/guides/add-tour — Agregar tour al guía (espera 401)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /guide/estatus — panel del guía",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /guide/solicitudes — panel del guía",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "Panel Admin",
+      "ms": 0,
+      "cases": [
+        {
+          "name": "GET /api/admin/negocios — Listar negocios (espera 401/403 sin token admin)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/admin/negocios/pendientes — Negocios pendientes (espera 401/403 sin token admin)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/admin/guias/pendientes — Guías pendientes (espera 401/403 sin token admin)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/admin/guias/aprobados — Guías aprobados (espera 401/403 sin token admin)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/admin/solicitudes-pendientes — Solicitudes pendientes (espera 401/403 sin token admin)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/admin/usuarios-gestionables — Usuarios gestionables (espera 401/403 sin token admin)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /admin — acceso admin",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /admin/guias — acceso admin",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /admin/negocios — acceso admin",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /admin/lugares — acceso admin",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "Responsividad y UX",
+      "ms": 0,
+      "cases": [
+        {
+          "name": "PWA Manifest — /manifest.json accesible y válido",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Service Worker — /sw.js disponible (PWA offline)",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": "Verificar en browser DevTools > Application > Service Workers"
+        },
+        {
+          "name": "Favicon.ico disponible",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Headers de seguridad HTTP",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Respuesta mobile User-Agent — Inicio",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Respuesta mobile User-Agent — Explora",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Respuesta mobile User-Agent — Tours",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "Performance",
+      "ms": 0,
+      "cases": [
+        {
+          "name": "Tiempo de respuesta — Página principal (:3000)",
+          "status": "SKIPPED",
+          "details": "Servidor no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Tiempo de respuesta — Explora — directorio guías",
+          "status": "SKIPPED",
+          "details": "Servidor no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Tiempo de respuesta — Tours — listado",
+          "status": "SKIPPED",
+          "details": "Servidor no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Tiempo de respuesta — Backend health (:3001)",
+          "status": "SKIPPED",
+          "details": "Servidor no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Tiempo de respuesta — GET /api/guides/verified",
+          "status": "SKIPPED",
+          "details": "Servidor no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Tiempo de respuesta — GET /api/lugares",
+          "status": "SKIPPED",
+          "details": "Servidor no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Tiempo de respuesta — GET /api/tours",
+          "status": "SKIPPED",
+          "details": "Servidor no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Tiempo de respuesta — GET /api/paquetes",
+          "status": "SKIPPED",
+          "details": "Servidor no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Tiempo de respuesta — GET /api/places (IA)",
+          "status": "SKIPPED",
+          "details": "Servidor no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "Errores y Casos Edge",
+      "ms": 0,
+      "cases": [
+        {
+          "name": "Ruta inexistente en backend — responde 404 con JSON",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Body JSON malformado",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Rate limiting",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "CORS origen pitzbol.me",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Itinerario sin intereses — validación de entrada (espera 400)",
+          "status": "SKIPPED",
+          "details": "pitzbol-web no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Itinerario con presupuesto negativo — validación (espera 400)",
+          "status": "SKIPPED",
+          "details": "pitzbol-web no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "Integración Backend",
+      "ms": 0,
+      "cases": [
+        {
+          "name": "GET / — Health check raíz",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/guides/verified — Guías verificados",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/tours — Tours públicos",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/paquetes — Paquetes públicos",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/lugares — Lugares (con cache)",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/ratings/guide/uid/stats — Stats guía",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/business/validate-uniqueness — Validar unicidad negocio",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/availability/demo-uid — Disponibilidad guía",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/support/contact-forms — Soporte — formularios",
+          "status": "SKIPPED",
+          "details": "Backend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Frontend API route /api/ia-place — proxy a backend",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    }
+  ]
+}
