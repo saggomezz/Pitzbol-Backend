@@ -17,12 +17,16 @@ import {
   GeoPoint
 } from '../utils/geoValidation';
 
-// Cache en memoria para lista de lugares — TTL 1 hora
+// Cache en memoria para lista de lugares — TTL 5 minutos
+const LUGARES_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+const CACHE_CONTROL_HEADER = 'public, max-age=300, stale-while-revalidate=60';
+
 let lugaresCache: { data: any[] | null; expiresAt: number } = { data: null, expiresAt: 0 };
-const LUGARES_CACHE_TTL = 60 * 60 * 1000; // 1 hora
+let lugaresCacheConNegocios: { data: any[] | null; expiresAt: number } = { data: null, expiresAt: 0 };
 
 function invalidateLugaresCache() {
   lugaresCache = { data: null, expiresAt: 0 };
+  lugaresCacheConNegocios = { data: null, expiresAt: 0 };
 }
 
 // Configurar Cloudinary con validación
@@ -203,9 +207,14 @@ export const getAllPlaces = async (req: Request, res: Response) => {
   try {
     const includeBusinesses = shouldIncludeApprovedBusinesses(req.query.includeApprovedBusinesses);
 
-    // Servir desde cache si está vigente (solo para la vista sin negocios)
+    // Servir desde caché si está vigente
     if (!includeBusinesses && lugaresCache.data && lugaresCache.expiresAt > Date.now()) {
+      res.set('Cache-Control', CACHE_CONTROL_HEADER);
       return res.status(200).json({ lugares: lugaresCache.data });
+    }
+    if (includeBusinesses && lugaresCacheConNegocios.data && lugaresCacheConNegocios.expiresAt > Date.now()) {
+      res.set('Cache-Control', CACHE_CONTROL_HEADER);
+      return res.status(200).json({ lugares: lugaresCacheConNegocios.data });
     }
 
     const snapshot = await db.collection('lugares').get();
@@ -217,6 +226,7 @@ export const getAllPlaces = async (req: Request, res: Response) => {
 
     if (!includeBusinesses) {
       lugaresCache = { data: lugares, expiresAt: Date.now() + LUGARES_CACHE_TTL };
+      res.set('Cache-Control', CACHE_CONTROL_HEADER);
       return res.status(200).json({ lugares });
     }
 
@@ -250,7 +260,10 @@ export const getAllPlaces = async (req: Request, res: Response) => {
       }
     }
 
-    return res.status(200).json({ lugares: Array.from(mergedByName.values()) });
+    const mergedList = Array.from(mergedByName.values());
+    lugaresCacheConNegocios = { data: mergedList, expiresAt: Date.now() + LUGARES_CACHE_TTL };
+    res.set('Cache-Control', CACHE_CONTROL_HEADER);
+    return res.status(200).json({ lugares: mergedList });
   } catch (error: any) {
     console.error('Error obteniendo lugares:', error);
     return res.status(500).json({ message: 'Error interno' });
