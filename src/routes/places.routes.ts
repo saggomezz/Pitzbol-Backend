@@ -23,34 +23,16 @@ const router = Router();
 
 // POST /api/lugares/geocode - Obtener coordenadas de una dirección (público con rate limit)
 // Esta ruta debe ir ANTES de /:nombre para que no la capture
-if (!placesController.geocodeAddress) {
-  console.error('ERROR: geocodeAddress no está disponible en placesController');
-} else {
-  console.log('Registrando ruta POST /api/lugares/geocode');
-  router.post('/geocode', geocodeLimiter, placesController.geocodeAddress);
-}
+router.post('/geocode', geocodeLimiter, placesController.geocodeAddress);
 
 // POST /api/lugares/reverse-geocode - Obtener dirección desde coordenadas (público con rate limit)
-if (!placesController.reverseGeocodeAddress) {
-  console.error('ERROR: reverseGeocodeAddress no está disponible en placesController');
-} else {
-  console.log('Registrando ruta POST /api/lugares/reverse-geocode');
-  router.post('/reverse-geocode', geocodeLimiter, placesController.reverseGeocodeAddress);
-}
+router.post('/reverse-geocode', geocodeLimiter, placesController.reverseGeocodeAddress);
 
 // POST /api/lugares/routing - Obtener ruta entre dos puntos (con rate limit)
-if (!placesController.getRouting) {
-  console.error('ERROR: getRouting no está disponible en placesController — ruta /routing no registrada');
-} else {
-  router.post('/routing', routingLimiter, placesController.getRouting);
-}
+router.post('/routing', routingLimiter, placesController.getRouting);
 
 // POST /api/lugares/search-radius - Buscar lugares dentro de radio (con rate limit)
-if (!placesController.searchRadius) {
-  console.error('ERROR: searchRadius no está disponible en placesController — ruta /search-radius no registrada');
-} else {
-  router.post('/search-radius', geoSearchLimiter, placesController.searchRadius);
-}
+router.post('/search-radius', geoSearchLimiter, placesController.searchRadius);
 
 // GET /api/lugares - Obtener todos los lugares (público)
 router.get('/', placesController.getAllPlaces);
