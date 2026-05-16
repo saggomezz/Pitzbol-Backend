@@ -39,18 +39,18 @@ if (!placesController.reverseGeocodeAddress) {
 }
 
 // POST /api/lugares/routing - Obtener ruta entre dos puntos (con rate limit)
-router.post(
-  '/routing',
-  routingLimiter,
-  placesController.getRouting
-);
+if (!placesController.getRouting) {
+  console.error('ERROR: getRouting no está disponible en placesController — ruta /routing no registrada');
+} else {
+  router.post('/routing', routingLimiter, placesController.getRouting);
+}
 
 // POST /api/lugares/search-radius - Buscar lugares dentro de radio (con rate limit)
-router.post(
-  '/search-radius',
-  geoSearchLimiter,
-  placesController.searchRadius
-);
+if (!placesController.searchRadius) {
+  console.error('ERROR: searchRadius no está disponible en placesController — ruta /search-radius no registrada');
+} else {
+  router.post('/search-radius', geoSearchLimiter, placesController.searchRadius);
+}
 
 // GET /api/lugares - Obtener todos los lugares (público)
 router.get('/', placesController.getAllPlaces);
