@@ -267,36 +267,23 @@ export const updateGuideProfile = async (req: Request, res: Response) => {
 
 export const getVerifiedGuides = async (req: Request, res: Response) => {
     try {
-        console.log("Obteniendo guías verificados...");
-
         const guidesSnapshot = await db.collection('usuarios')
             .doc('guias')
             .collection('lista')
+            .where('status', '==', 'activo')
             .get();
 
         if (guidesSnapshot.empty) {
-            console.log("No hay guías verificados registrados");
-            return res.status(200).json({ guides: [] });
+            return res.status(200).json({ guides: [], total: 0 });
         }
 
         const guides = guidesSnapshot.docs.map(doc => {
             const data = doc.data() as any;
             const nombre = (data["01_nombre"] as string) || data.nombre || "";
             const apellido = (data["02_apellido"] as string) || data.apellido || "";
-            const nombreCompleto = `${nombre} ${apellido}`.trim();
-            
-            // Log para debug
-            console.log(`Guía ${doc.id}:`, {
-                "01_nombre": data["01_nombre"],
-                "02_apellido": data["02_apellido"],
-                "nombre": data.nombre,
-                "apellido": data.apellido,
-                "nombreCompleto": nombreCompleto
-            });
-            
-            const guideData = {
+            return {
                 uid: data.uid,
-                nombre: nombreCompleto,
+                nombre: `${nombre} ${apellido}`.trim(),
                 fotoPerfil: data["14_foto_perfil"]?.url || data.fotoPerfil || "",
                 descripcion: data["15_descripcion"] || data.descripcion || "",
                 idiomas: data["09_idiomas"] || data.idiomas || [],
@@ -306,36 +293,15 @@ export const getVerifiedGuides = async (req: Request, res: Response) => {
                 email: data["04_correo"] || data.email || "",
                 telefono: data["06_telefono"] || data.telefono || "",
                 calificacion: data.calificacion || 0,
-                numeroResenas: data.numeroResenas || 0
+                numeroResenas: data.numeroResenas || 0,
             };
-            
-            return guideData;
         });
 
-        console.log(`Se encontraron ${guides.length} guías verificados`);
-        
-        // Log detallado del primer guía
-        if (guides.length > 0) {
-            const firstGuide = guides[0]!;
-            console.log("Ejemplo de guía devuelto:", {
-                uid: firstGuide.uid,
-                nombre: firstGuide.nombre,
-                descripcion: firstGuide.descripcion?.substring(0, 50) + "...",
-                idiomas: firstGuide.idiomas,
-                especialidades: firstGuide.especialidades
-            });
-        }
-        
-        return res.status(200).json({ 
-            guides,
-            total: guides.length 
-        });
+        return res.status(200).json({ guides, total: guides.length });
 
     } catch (error: any) {
         console.error("Error al obtener guías verificados:", error);
-        return res.status(500).json({ 
-            message: 'Error interno al obtener guías'
-        });
+        return res.status(500).json({ message: 'Error interno al obtener guías' });
     }
 };
 

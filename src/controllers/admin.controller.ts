@@ -1589,9 +1589,10 @@ export const gestionarSolicitudGuia = async (req: Request, res: Response) => {
                 .set({
                     ...data,
                     uid: String(uid),
-                    "03_rol": "guia", 
+                    "03_rol": "guia",
                     status: 'activo',
                     guide_status: 'aprobado',
+                    perfilPublico: true,
                     approvedAt: new Date().toISOString()
                 });
 

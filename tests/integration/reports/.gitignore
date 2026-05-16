@@ -1,0 +1,6 @@
+# Reportes generados automáticamente — no versionar
+pitzbol-report-*.md
+pitzbol-report-*.json
+
+# Mantener el directorio en el repo pero ignorar los reportes dinámicos
+!.gitignore

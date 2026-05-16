@@ -9,7 +9,9 @@
     "dev:front": "cd ../Pitzbol-Frontend && npm install && npm run dev",
     "dev:all": "npm install && concurrently -k \"npm run dev\" \"npm run dev:front\"",
     "test": "vitest run --reporter=verbose",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "test:integration": "tsx tests/integration/pitzbol-suite.ts",
+    "test:integration:prod": "tsx tests/integration/pitzbol-suite.ts --prod"
   },
   "repository": {
     "type": "git",

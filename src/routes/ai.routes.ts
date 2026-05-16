@@ -1,47 +1,19 @@
-import axios from "axios";
 import { Request, Response, Router } from "express";
 
 const router = Router();
 
-router.get("/ai", (req: Request, res: Response) => {
+router.get("/ai", (_req: Request, res: Response) => {
   res.status(200).json({
     success: true,
-    msg: "Endpoint GET /api/ai activo. Usa POST para IA.",
+    motor: "hybrid",
+    descripcion: "Algoritmo híbrido constraint-based + KNN — ia-engine.ts (pitzbol-web :3003). Ollama eliminado.",
+    endpoints: {
+      places: "GET http://localhost:3003/api/places — datos para el motor híbrido",
+      generateItinerary: "ia-engine.ts → generateItinerary(places, opts)",
+      knn: "ia-engine.ts → sortByProximity() + haversine()",
+      addStop: "ia-engine.ts → pickAddStop() / pickReplaceStop()",
+    },
   });
-});
-
-router.post("/ai", async (req: Request, res: Response) => {
-  const { prompt } = req.body;
-
-  if (!prompt) {
-    return res.status(400).json({
-      success: false,
-      msg: "El prompt es requerido",
-    });
-  }
-
-  try {
-    const response = await axios.post(
-      "http://localhost:11434/api/generate",
-      {
-        model: "mundial-ai",
-        prompt: prompt,
-        stream: false
-      }
-    );
-
-    return res.status(200).json({
-      success: true,
-      output: response.data.response,
-    });
-
-  } catch (error: any) {
-    console.error("Error Ollama:", error.response?.data || error.message);
-    return res.status(500).json({
-      success: false,
-      msg: "Error generando respuesta IA",
-    });
-  }
 });
 
 export default router;
