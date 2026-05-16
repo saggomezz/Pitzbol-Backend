@@ -217,4 +217,12 @@ router.delete(
   adminController.eliminarNotificacion
 );
 
+// Eliminar lugar del dataset de la IA (requiere admin)
+router.post(
+  '/delete-lugar',
+  authMiddleware,
+  requireAdmin,
+  adminController.deleteLugarFromIA
+);
+
 export default router;

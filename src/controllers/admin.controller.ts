@@ -2174,3 +2174,32 @@ const resolveNotificationBucket = (req: Request, uid: string) => {
     if (role === 'admin' && (!uid || uid === requestUid)) return 'admin';
     return uid;
 };
+
+// ── Eliminar lugar del dataset de la IA (marca en Firebase para que /api/places lo filtre) ──
+function normalizeLugarId(nombre: string): string {
+    return nombre
+        .toLowerCase()
+        .normalize('NFD')
+        .replace(/[̀-ͯ]/g, '')
+        .replace(/[^a-z0-9]/g, '_')
+        .replace(/_+/g, '_')
+        .replace(/^_|_$/g, '');
+}
+
+export const deleteLugarFromIA = async (req: Request, res: Response) => {
+    try {
+        const { nombre } = req.body;
+        if (!nombre) return res.status(400).json({ message: 'nombre requerido' });
+
+        const id = normalizeLugarId(String(nombre));
+        await db.collection('lugares_eliminados').doc(id).set({
+            nombre: String(nombre),
+            eliminadoEn: new Date().toISOString(),
+        });
+
+        return res.status(200).json({ ok: true });
+    } catch (err: any) {
+        console.error('Error en deleteLugarFromIA:', err);
+        return res.status(500).json({ message: err.message || 'Error interno' });
+    }
+};
