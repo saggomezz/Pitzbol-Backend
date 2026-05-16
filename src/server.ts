@@ -118,6 +118,11 @@ io.engine.on('headers', (headers, req) => {
 
 const PORT = Number(process.env.PORT) || 3001;
 
+// Trust the immediate upstream proxy (Nginx / Vercel edge) so that
+// express-rate-limit reads the real client IP from X-Forwarded-For
+// instead of the proxy's IP, restoring per-user rate limiting.
+app.set('trust proxy', 1);
+
 // Helmet: security headers (CSP, HSTS, X-Frame-Options, etc.)
 app.use(helmet({
   contentSecurityPolicy: {
