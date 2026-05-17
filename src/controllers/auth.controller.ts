@@ -148,10 +148,28 @@ export const login = async (req: Request, res: Response) => {
           }
       }
     } catch (firestoreErr: any) {
-      // Firestore quota agotado — login con datos mínimos de Firebase Auth
-      console.warn("⚠️ Firestore quota exceeded en login, usando fallback:", firestoreErr?.details || firestoreErr?.message);
-      userData = { uid: localId, email };
-      userRole = "turista";
+      // Firestore quota agotado — usar Firebase Auth Admin para obtener datos del usuario
+      console.warn("⚠️ Firestore quota exceeded en login, usando Firebase Auth fallback:", firestoreErr?.details || firestoreErr?.message);
+      try {
+        const authUser = await auth.getUser(localId);
+        const displayName = authUser.displayName || "";
+        const [nombre, ...apellidoParts] = displayName.split(" ");
+        const customRole = (authUser.customClaims as any)?.role || "turista";
+        userData = {
+          uid: localId,
+          email,
+          nombre: nombre || "",
+          "01_nombre": nombre || "",
+          "02_apellido": apellidoParts.join(" ") || "",
+          apellido: apellidoParts.join(" ") || "",
+          role: customRole,
+          fotoPerfil: authUser.photoURL || "",
+        };
+        userRole = customRole;
+      } catch {
+        userData = { uid: localId, email, nombre: "", role: "turista" };
+        userRole = "turista";
+      }
     }
 
     if (!userData) {
