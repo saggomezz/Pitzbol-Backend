@@ -1922,6 +1922,9 @@ export const marcarNotificacionComoLeida = async (req: Request, res: Response) =
         const userUid = typeof uid === 'string' ? uid : '';
 
         const bucketId = resolveNotificationBucket(req, userUid);
+        if (!bucketId) {
+            return res.status(403).json({ success: false, message: "No autorizado" });
+        }
         console.log(`📝 Marcando notificación como leída: ${notifId} en bucket ${bucketId}`);
 
         const docRefs = getNotifCollections(bucketId).map((col) => col.doc(notifId));
@@ -1974,6 +1977,9 @@ export const eliminarNotificacion = async (req: Request, res: Response) => {
         const userUid = typeof uid === 'string' ? uid : '';
 
         const bucketId = resolveNotificationBucket(req, userUid);
+        if (!bucketId) {
+            return res.status(403).json({ success: false, message: "No autorizado" });
+        }
         console.log(`🗑️ Eliminando notificación: ${notifId} en bucket ${bucketId}`);
 
         const docRefs = getNotifCollections(bucketId).map((col) => col.doc(notifId));
@@ -2011,6 +2017,9 @@ export const limpiarNotificacionesUsuario = async (req: Request, res: Response) 
         }
 
         const bucketId = resolveNotificationBucket(req, uid);
+        if (!bucketId) {
+            return res.status(403).json({ success: false, message: "No autorizado" });
+        }
         console.log(`🗑️ Limpiando todas las notificaciones del bucket: ${bucketId}`);
 
         const [newSnapshot, legacySnapshot, legacyNestedSnapshot] = await Promise.all([
@@ -2056,6 +2065,9 @@ export const obtenerNotificacionesUsuario = async (req: Request, res: Response) 
         }
 
         const bucketId = resolveNotificationBucket(req, uid);
+        if (!bucketId) {
+            return res.status(403).json({ success: false, message: "No autorizado" });
+        }
         console.log(`🔍 Obteniendo notificaciones para bucket: ${bucketId}`);
 
         const notificaciones = await getUserNotifications(bucketId);
@@ -2170,9 +2182,16 @@ const resolveNotificationBucket = (req: Request, uid: string) => {
     const requestUser = (req as any)?.user || {};
     const requestUid = (requestUser?.uid || '').toString();
     const role = (requestUser?.role || '').toString().toLowerCase();
-    if (uid === 'admin') return 'admin';
-    if (role === 'admin' && (!uid || uid === requestUid)) return 'admin';
-    return uid;
+    const requestedUid = (uid || '').toString().trim();
+    const isAdmin = role === 'admin';
+
+    if (isAdmin) {
+        if (!requestedUid || requestedUid === requestUid || requestedUid === 'admin') return 'admin';
+        return requestedUid;
+    }
+
+    if (!requestedUid || requestedUid === 'admin' || requestedUid !== requestUid) return '';
+    return requestedUid;
 };
 
 // ── Eliminar lugar del dataset de la IA (marca en Firebase para que /api/places lo filtre) ──
@@ -2180,7 +2199,7 @@ function normalizeLugarId(nombre: string): string {
     return nombre
         .toLowerCase()
         .normalize('NFD')
-        .replace(/[̀-ͯ]/g, '')
+        .replace(/[\u0300-\u036f]/g, '')
         .replace(/[^a-z0-9]/g, '_')
         .replace(/_+/g, '_')
         .replace(/^_|_$/g, '');

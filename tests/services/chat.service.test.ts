@@ -206,6 +206,10 @@ describe("chat.service", () => {
 
   it("saves a message and updates the chat summary", async () => {
     messagesAddMock.mockResolvedValue({ id: "message-1" });
+    chatDocGetMock.mockResolvedValue({
+      exists: true,
+      data: () => ({ touristId: "tourist-1", guideId: "guide-1" }),
+    });
 
     const message = await ChatService.saveMessage({
       chatId: "chat-1",
@@ -220,7 +224,14 @@ describe("chat.service", () => {
     expect(messagesAddMock).toHaveBeenCalled();
     expect(chatDocUpdateMock).toHaveBeenCalledWith(
       "chat-1",
-      expect.objectContaining({ lastMessage: "Hola" })
+      expect.objectContaining({
+        lastMessage: "Hola",
+        "unreadByUser.guide-1": expect.anything(),
+        "unreadSummaryByUser.guide-1": expect.objectContaining({
+          lastMessage: "Hola",
+          senderName: "Ana",
+        }),
+      })
     );
     expect(message.id).toBe("message-1");
   });
@@ -275,19 +286,23 @@ describe("chat.service", () => {
   });
 
   it("marks unread messages as read and resets the unread counter", async () => {
-    markAsReadGetMock.mockResolvedValue(
-      createQuerySnapshot([
-        { id: "m1", data: () => ({}), ref: { id: "m1" } },
-        { id: "m2", data: () => ({}), ref: { id: "m2" } },
-      ])
-    );
-    batchCommitMock.mockResolvedValue(undefined);
+    chatDocGetMock.mockResolvedValue({
+      exists: true,
+      data: () => ({ touristId: "tourist-1", guideId: "guide-1" }),
+    });
 
     await ChatService.markAsRead("chat-1", "tourist-1");
 
-    expect(batchUpdateMock).toHaveBeenCalledTimes(2);
-    expect(chatDocUpdateMock).toHaveBeenCalledWith("chat-1", { unreadCount: 0 });
-    expect(batchCommitMock).toHaveBeenCalledTimes(1);
+    expect(batchUpdateMock).not.toHaveBeenCalled();
+    expect(chatDocUpdateMock).toHaveBeenCalledWith(
+      "chat-1",
+      expect.objectContaining({
+        unreadCount: 0,
+        "unreadByUser.tourist-1": 0,
+        "unreadSummaryByUser.tourist-1": expect.anything(),
+      })
+    );
+    expect(batchCommitMock).not.toHaveBeenCalled();
   });
 
   it("returns messages sorted by timestamp and limited", async () => {
@@ -313,37 +328,43 @@ describe("chat.service", () => {
   it("aggregates unread messages that were sent by the other participant", async () => {
     chatsByUserGetMock.mockResolvedValue(
       createQuerySnapshot([
-        { id: "chat-1", data: () => ({}) },
-        { id: "chat-2", data: () => ({}) },
+        {
+          id: "chat-1",
+          data: () => ({
+            guideName: "Luis",
+            unreadByUser: { "tourist-1": 1 },
+            unreadSummaryByUser: {
+              "tourist-1": {
+                lastMessage: "Hola",
+                senderName: "Luis",
+                timestamp: createTimestamp(new Date("2026-04-29T11:00:00.000Z")),
+              },
+            },
+          }),
+        },
+        {
+          id: "chat-2",
+          data: () => ({
+            guideName: "Maria",
+            unreadByUser: { "tourist-1": 1 },
+            unreadSummaryByUser: {
+              "tourist-1": {
+                lastMessage: "Nuevo",
+                senderName: "Maria",
+                timestamp: createTimestamp(new Date("2026-04-29T12:00:00.000Z")),
+              },
+            },
+          }),
+        },
       ])
     );
-    unreadMessagesGetMock.mockImplementation(async (chatId: unknown) => {
-      if (chatId === "chat-1") {
-        return createQuerySnapshot([
-          {
-            id: "m1",
-            data: () => ({ senderId: "guide-1", senderName: "Luis", content: "Hola", timestamp: createTimestamp(new Date("2026-04-29T11:00:00.000Z")) }),
-          },
-          {
-            id: "m2",
-            data: () => ({ senderId: "tourist-1", senderName: "Ana", content: "Propio", timestamp: createTimestamp(new Date("2026-04-29T11:05:00.000Z")) }),
-          },
-        ]);
-      }
-
-      return createQuerySnapshot([
-        {
-          id: "m3",
-          data: () => ({ senderId: "guide-2", senderName: "Maria", content: "Nuevo", timestamp: createTimestamp(new Date("2026-04-29T12:00:00.000Z")) }),
-        },
-      ]);
-    });
 
     const unread = await ChatService.getUnreadMessages("tourist-1", "tourist");
 
     expect(unread.totalUnread).toBe(2);
     expect(unread.chats).toHaveLength(2);
-    expect(unread.chats[0]?.chatId).toBe("chat-1");
+    expect(unread.chats[0]?.chatId).toBe("chat-2");
+    expect(unreadMessagesGetMock).not.toHaveBeenCalled();
   });
 
   it("deletes a chat and all its messages in a batch", async () => {

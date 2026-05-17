@@ -18,6 +18,12 @@ export interface Chat {
   lastMessage?: string;
   lastMessageTime?: Date;
   unreadCount: number;
+  unreadByUser?: Record<string, number>;
+  unreadSummaryByUser?: Record<string, {
+    lastMessage?: string;
+    senderName?: string;
+    timestamp?: Date;
+  }>;
   createdAt: Date;
   updatedAt: Date;
 }
