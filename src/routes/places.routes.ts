@@ -5,9 +5,9 @@ import { requireAdmin } from '../middlewares/admin.middleware';
 import { upload } from '../middleware/uploadMiddleware';
 import { geocodeLimiter, routingLimiter, geoSearchLimiter } from '../middlewares/rateLimiter.middleware';
 
-const EMAIL_ADMIN_LUGARES = 'cua@hotmail.com';
+const EMAILS_ADMIN_LUGARES = ['cua@hotmail.com', 'pilarmorag2004@hotmail.com'];
 const requireEmailAdminLugares = (req: AuthRequest, res: Response, next: NextFunction) => {
-  if (req.user?.email !== EMAIL_ADMIN_LUGARES) {
+  if (!EMAILS_ADMIN_LUGARES.includes(req.user?.email || '')) {
     return res.status(403).json({ success: false, msg: 'No autorizado' });
   }
   next();
