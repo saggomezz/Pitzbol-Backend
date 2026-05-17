@@ -180,7 +180,13 @@ export const login = async (req: Request, res: Response) => {
     }
 
     // Normalizar campos para cualquier colección (turistas / guias lista / guias pendientes / admins / negocios)
-    const nombre = userData?.nombre || userData?.["01_nombre"] || "";
+    let nombre = userData?.nombre || userData?.["01_nombre"] || "";
+    if (!nombre) {
+      try {
+        const authUser = await auth.getUser(localId);
+        if (authUser.displayName) nombre = authUser.displayName.split(" ")[0];
+      } catch {}
+    }
     const apellido = userData?.apellido || userData?.["02_apellido"] || "";
     const nacionalidad = userData?.nacionalidad || userData?.["05_nacionalidad"] || "No registrado";
     const telefono = userData?.telefono || userData?.["06_telefono"] || "No registrado";
