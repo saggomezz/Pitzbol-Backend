@@ -143,6 +143,11 @@ function mapApprovedBusinessToPlace(doc: FirebaseFirestore.QueryDocumentSnapshot
     photos.unshift(logo);
   }
 
+  // categorias[] incluye la categoría principal + subcategorías para que getMergedPlaces()
+  // lo trate como autoritativo y el negocio aparezca en todos los filtros correctos
+  const categoriasArray = [categoria, ...subcategories]
+    .filter((c, i, a) => c && a.indexOf(c) === i);
+
   return {
     id: `negocio_${doc.id}`,
     negocioId: doc.id,
@@ -150,6 +155,7 @@ function mapApprovedBusinessToPlace(doc: FirebaseFirestore.QueryDocumentSnapshot
     status: 'aprobado',
     nombre,
     categoria,
+    categorias: categoriasArray,
     descripcion,
     ubicacion,
     latitud,
