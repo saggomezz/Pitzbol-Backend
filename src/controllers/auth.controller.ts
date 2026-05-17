@@ -256,7 +256,7 @@ export const login = async (req: Request, res: Response) => {
 // Recuperar contraseña
 export const recoverPassword = async (req: Request, res: Response) => {
   console.log("🚀 Petición de recuperación recibida para:", req.body.email);
-  
+
   try {
     const { email } = req.body;
 
@@ -264,43 +264,18 @@ export const recoverPassword = async (req: Request, res: Response) => {
       return res.status(400).json({ msg: "El correo es obligatorio" });
     }
 
-    const categorias = ["turistas", "admins", "negocios"];
-    let usuarioEncontrado = false;
-
-    for (const cat of categorias) {
-      const snap = await db.collection("usuarios")
-        .doc(cat)
-        .collection("lista")
-        .where("email", "==", email)
-        .limit(1)
-        .get();
-      
-      if (!snap.empty) {
-        usuarioEncontrado = true;
-        break;
-      }
-    }
-
-    if (!usuarioEncontrado) {
-      const guiaSnapshot = await db.collection("usuarios")
-        .doc("guias")
-        .collection("lista")
-        .where("04_correo", "==", email)
-        .limit(1)
-        .get();
-      
-      if (!guiaSnapshot.empty) {
-        usuarioEncontrado = true;
-      }
-    }
-    
-    if (!usuarioEncontrado) {
+    // Usamos Firebase Auth directamente — sin query a Firestore para evitar consumo de cuota.
+    // generatePasswordResetLink lanza error si el email no existe en Firebase Auth.
+    let resetLink: string;
+    try {
+      resetLink = await auth.generatePasswordResetLink(email, {
+        url: process.env.FRONTEND_URL || "https://www.pitzbol.me/reset-password",
+      });
+    } catch {
+      // Email no registrado — respondemos igual para no revelar si existe
+      console.log(`Correo no encontrado en Firebase Auth: ${email}`);
       return res.json({ msg: "Si el correo existe, recibirás un enlace de recuperación." });
     }
-
-    const resetLink = await auth.generatePasswordResetLink(email, {
-      url: process.env.FRONTEND_URL || "http://localhost:3000/reset-password",
-    });
 
     const mailOptions = {
       from: '"PITZBOL" <pitzbol2026@gmail.com>',
