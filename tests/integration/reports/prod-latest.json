@@ -1,17 +1,17 @@
 {
-  "timestamp": "2026-05-17T07:12:31.775135",
+  "timestamp": "2026-05-17T13:40:27.343086",
   "frontend": "https://www.pitzbol.me",
   "backend": "https://api.pitzbol.me",
   "ia": "https://ia.pitzbol.me",
-  "duration_ms": 33758,
+  "duration_ms": 27897,
   "summary": {
     "total": 111,
-    "passed": 103,
-    "failed": 3,
+    "passed": 106,
+    "failed": 2,
     "warning": 0,
-    "skipped": 2,
+    "skipped": 0,
     "info": 3,
-    "success_rate": 94
+    "success_rate": 95
   },
   "results": [
     {
@@ -19,7 +19,7 @@
       "id": "AUT-001",
       "name": "Página /login carga sin autenticación",
       "http": 200,
-      "ms": 1203,
+      "ms": 837,
       "detail": "HTTP 200",
       "module": "AUTENTICACIÓN"
     },
@@ -28,7 +28,7 @@
       "id": "AUT-009",
       "name": "Página /forgot-password carga",
       "http": 200,
-      "ms": 400,
+      "ms": 919,
       "detail": "HTTP 200",
       "module": "AUTENTICACIÓN"
     },
@@ -37,7 +37,7 @@
       "id": "AUT-010",
       "name": "Página /reset-password carga",
       "http": 200,
-      "ms": 311,
+      "ms": 269,
       "detail": "HTTP 200",
       "module": "AUTENTICACIÓN"
     },
@@ -46,7 +46,7 @@
       "id": "AUT-001b",
       "name": "Registro sin datos → 400",
       "http": 400,
-      "ms": 506,
+      "ms": 350,
       "detail": "HTTP 400",
       "module": "AUTENTICACIÓN"
     },
@@ -55,7 +55,7 @@
       "id": "AUT-002",
       "name": "Registro email inválido → 400",
       "http": 400,
-      "ms": 204,
+      "ms": 467,
       "detail": "HTTP 400",
       "module": "AUTENTICACIÓN"
     },
@@ -64,7 +64,7 @@
       "id": "AUT-006",
       "name": "Login credenciales incorrectas → 401",
       "http": 401,
-      "ms": 413,
+      "ms": 688,
       "detail": "HTTP 401",
       "module": "AUTENTICACIÓN"
     },
@@ -73,7 +73,7 @@
       "id": "AUT-009b",
       "name": "Recuperar contraseña email inexistente → 200",
       "http": 200,
-      "ms": 713,
+      "ms": 856,
       "detail": "HTTP 200",
       "module": "AUTENTICACIÓN"
     },
@@ -82,7 +82,7 @@
       "id": "AUT-011",
       "name": "Actualizar perfil sin token → 401",
       "http": 401,
-      "ms": 152,
+      "ms": 199,
       "detail": "HTTP 401",
       "module": "AUTENTICACIÓN"
     },
@@ -91,7 +91,7 @@
       "id": "AUT-007",
       "name": "Logout sin token → 401",
       "http": 401,
-      "ms": 164,
+      "ms": 160,
       "detail": "HTTP 401",
       "module": "AUTENTICACIÓN"
     },
@@ -100,7 +100,7 @@
       "id": "AUT-011b",
       "name": "Página / principal carga sin auth",
       "http": 200,
-      "ms": 254,
+      "ms": 157,
       "detail": "HTTP 200",
       "module": "AUTENTICACIÓN"
     },
@@ -109,7 +109,7 @@
       "id": "GUI-001",
       "name": "Página /explora carga sin autenticación",
       "http": 200,
-      "ms": 249,
+      "ms": 245,
       "detail": "HTTP 200",
       "module": "DESCUBRIMIENTO GUÍAS"
     },
@@ -118,7 +118,7 @@
       "id": "GUI-002",
       "name": "GET /api/guides/verified → listado guías activos",
       "http": 200,
-      "ms": 1201,
+      "ms": 1243,
       "detail": "HTTP 200",
       "module": "DESCUBRIMIENTO GUÍAS"
     },
@@ -127,7 +127,7 @@
       "id": "GUI-002b",
       "name": "Guías encontrados: 5",
       "http": 200,
-      "ms": 1201,
+      "ms": 1243,
       "detail": "Primer guía UID: tfMO51nJFJaIKygjk3xoUniuVkj1",
       "module": "DESCUBRIMIENTO GUÍAS"
     },
@@ -136,7 +136,7 @@
       "id": "GUI-005",
       "name": "GET /api/guides/profile/:uid → perfil público",
       "http": 200,
-      "ms": 474,
+      "ms": 349,
       "detail": "HTTP 200",
       "module": "DESCUBRIMIENTO GUÍAS"
     },
@@ -145,7 +145,7 @@
       "id": "GUI-005b",
       "name": "Página /perfil/[uid] carga",
       "http": 200,
-      "ms": 1209,
+      "ms": 242,
       "detail": "HTTP 200",
       "module": "DESCUBRIMIENTO GUÍAS"
     },
@@ -154,7 +154,7 @@
       "id": "PER-006",
       "name": "GET /api/ratings/guide/:uid",
       "http": 200,
-      "ms": 266,
+      "ms": 223,
       "detail": "HTTP 200",
       "module": "DESCUBRIMIENTO GUÍAS"
     },
@@ -163,7 +163,7 @@
       "id": "PER-007",
       "name": "GET /api/ratings/guide/:uid/stats",
       "http": 200,
-      "ms": 290,
+      "ms": 196,
       "detail": "HTTP 200",
       "module": "DESCUBRIMIENTO GUÍAS"
     },
@@ -172,7 +172,7 @@
       "id": "PER-004",
       "name": "GET /api/availability/:guideId → disponibilidad",
       "http": 200,
-      "ms": 297,
+      "ms": 263,
       "detail": "HTTP 200",
       "module": "PERFIL GUÍA"
     },
@@ -181,7 +181,7 @@
       "id": "PER-009",
       "name": "GET /api/tours/guia/:uid → tours del guía",
       "http": 200,
-      "ms": 225,
+      "ms": 215,
       "detail": "HTTP 200",
       "module": "PERFIL GUÍA"
     },
@@ -190,7 +190,7 @@
       "id": "PER-001b",
       "name": "Página /guia/empresa/[uid] carga",
       "http": 200,
-      "ms": 341,
+      "ms": 235,
       "detail": "HTTP 200",
       "module": "PERFIL GUÍA"
     },
@@ -199,7 +199,7 @@
       "id": "PER-010",
       "name": "POST /api/bookings/create sin auth → 401",
       "http": 401,
-      "ms": 167,
+      "ms": 145,
       "detail": "HTTP 401",
       "module": "PERFIL GUÍA"
     },
@@ -208,7 +208,7 @@
       "id": "PER-011",
       "name": "Página /perfil (protegida) acceso controlado",
       "http": 200,
-      "ms": 165,
+      "ms": 178,
       "detail": "HTTP 200",
       "module": "PERFIL GUÍA"
     },
@@ -217,7 +217,7 @@
       "id": "BOO-001",
       "name": "GET /api/bookings/tourist/:id sin token → 401",
       "http": 401,
-      "ms": 155,
+      "ms": 139,
       "detail": "HTTP 401",
       "module": "BOOKING"
     },
@@ -226,7 +226,7 @@
       "id": "BOO-010",
       "name": "POST /api/bookings/create sin token → 401",
       "http": 401,
-      "ms": 156,
+      "ms": 143,
       "detail": "HTTP 401",
       "module": "BOOKING"
     },
@@ -235,7 +235,7 @@
       "id": "BOO-001b",
       "name": "Página /tours/reservar/[uid] carga",
       "http": 200,
-      "ms": 419,
+      "ms": 190,
       "detail": "HTTP 200",
       "module": "BOOKING"
     },
@@ -244,7 +244,7 @@
       "id": "BOO-011",
       "name": "Página /tours/confirmacion/[bookingId] carga",
       "http": 200,
-      "ms": 220,
+      "ms": 205,
       "detail": "HTTP 200",
       "module": "BOOKING"
     },
@@ -253,7 +253,7 @@
       "id": "BOO-013",
       "name": "Página /tours/pago/[bookingId] carga",
       "http": 200,
-      "ms": 310,
+      "ms": 193,
       "detail": "HTTP 200",
       "module": "BOOKING"
     },
@@ -262,7 +262,7 @@
       "id": "BOO-011b",
       "name": "GET /api/ratings/can-rate/:id sin token → 401",
       "http": 401,
-      "ms": 150,
+      "ms": 196,
       "detail": "HTTP 401",
       "module": "BOOKING"
     },
@@ -271,7 +271,7 @@
       "id": "BOO-013b",
       "name": "POST /api/payments/create-payment-intent sin token → 401",
       "http": 401,
-      "ms": 164,
+      "ms": 152,
       "detail": "HTTP 401",
       "module": "BOOKING"
     },
@@ -280,17 +280,8 @@
       "id": "LUG-001",
       "name": "GET /api/lugares → catálogo",
       "http": 200,
-      "ms": 303,
+      "ms": 329,
       "detail": "HTTP 200",
-      "module": "LUGARES"
-    },
-    {
-      "status": "FAILED",
-      "id": "LUG-008",
-      "name": "GET /api/lugares/:nombre",
-      "http": 404,
-      "ms": 230,
-      "detail": "Esperado 200, recibido 404",
       "module": "LUGARES"
     },
     {
@@ -298,7 +289,7 @@
       "id": "LUG-006a",
       "name": "Página /cultura carga",
       "http": 200,
-      "ms": 257,
+      "ms": 171,
       "detail": "HTTP 200",
       "module": "LUGARES"
     },
@@ -316,7 +307,7 @@
       "id": "LUG-006c",
       "name": "Página /arte carga",
       "http": 200,
-      "ms": 180,
+      "ms": 190,
       "detail": "HTTP 200",
       "module": "LUGARES"
     },
@@ -325,7 +316,7 @@
       "id": "LUG-006d",
       "name": "Página /futbol carga",
       "http": 200,
-      "ms": 162,
+      "ms": 148,
       "detail": "HTTP 200",
       "module": "LUGARES"
     },
@@ -334,26 +325,35 @@
       "id": "LUG-007",
       "name": "Página /mapa carga",
       "http": 200,
-      "ms": 163,
+      "ms": 154,
       "detail": "HTTP 200",
       "module": "LUGARES"
     },
     {
-      "status": "SKIPPED",
-      "id": "LUG-008b",
-      "name": "Página /informacion/[nombre]",
-      "http": null,
-      "ms": 0,
-      "detail": "Sin nombre de lugar",
+      "status": "PASSED",
+      "id": "LUG-008",
+      "name": "GET /api/lugares/:nombre",
+      "http": 200,
+      "ms": 227,
+      "detail": "HTTP 200",
       "module": "LUGARES"
     },
     {
-      "status": "SKIPPED",
+      "status": "PASSED",
+      "id": "LUG-008b",
+      "name": "Página /informacion/[nombre] carga",
+      "http": 200,
+      "ms": 193,
+      "detail": "HTTP 200",
+      "module": "LUGARES"
+    },
+    {
+      "status": "PASSED",
       "id": "LUG-012",
       "name": "GET /api/place-ratings/:nombre/stats",
-      "http": null,
-      "ms": 0,
-      "detail": "Sin nombre",
+      "http": 200,
+      "ms": 212,
+      "detail": "HTTP 200",
       "module": "LUGARES"
     },
     {
@@ -361,7 +361,7 @@
       "id": "IA-002",
       "name": "GET /api/places (pitzbol-web IA)",
       "http": 200,
-      "ms": 2019,
+      "ms": 248,
       "detail": "Catálogo IA disponible",
       "module": "LUGARES"
     },
@@ -370,7 +370,7 @@
       "id": "TOU-001",
       "name": "GET /api/tours → listado",
       "http": 200,
-      "ms": 465,
+      "ms": 278,
       "detail": "HTTP 200",
       "module": "TOURS"
     },
@@ -379,7 +379,7 @@
       "id": "TOU-002",
       "name": "GET /api/paquetes → paquetes",
       "http": 200,
-      "ms": 408,
+      "ms": 190,
       "detail": "HTTP 200",
       "module": "TOURS"
     },
@@ -388,7 +388,7 @@
       "id": "TOU-001b",
       "name": "Página /tours carga",
       "http": 200,
-      "ms": 512,
+      "ms": 191,
       "detail": "HTTP 200",
       "module": "TOURS"
     },
@@ -397,7 +397,7 @@
       "id": "TOU-002b",
       "name": "Página /tours/paquetes carga",
       "http": 200,
-      "ms": 816,
+      "ms": 159,
       "detail": "HTTP 200",
       "module": "TOURS"
     },
@@ -406,7 +406,7 @@
       "id": "TOU-009",
       "name": "Página /itinerario carga",
       "http": 200,
-      "ms": 307,
+      "ms": 149,
       "detail": "HTTP 200",
       "module": "TOURS"
     },
@@ -415,7 +415,7 @@
       "id": "TOU-009b",
       "name": "Página /itinerario/manual carga",
       "http": 200,
-      "ms": 202,
+      "ms": 172,
       "detail": "HTTP 200",
       "module": "TOURS"
     },
@@ -424,7 +424,7 @@
       "id": "TOU-004",
       "name": "GET /api/tours/:id",
       "http": 200,
-      "ms": 267,
+      "ms": 243,
       "detail": "HTTP 200",
       "module": "TOURS"
     },
@@ -433,7 +433,7 @@
       "id": "IA-001",
       "name": "pitzbol-web raíz accesible",
       "http": 200,
-      "ms": 228,
+      "ms": 219,
       "detail": "HTTP 200",
       "module": "TOURS"
     },
@@ -442,7 +442,7 @@
       "id": "IA-008a",
       "name": "GET /api/ai → info motor IA",
       "http": 200,
-      "ms": 143,
+      "ms": 150,
       "detail": "HTTP 200",
       "module": "MOTOR IA"
     },
@@ -450,9 +450,9 @@
       "status": "FAILED",
       "id": "IA-008b",
       "name": "POST /api/itinerary — genera itinerario",
-      "http": 400,
-      "ms": 343,
-      "detail": "Esperado 200, recibido 400",
+      "http": 503,
+      "ms": 552,
+      "detail": "Esperado 200, recibido 503",
       "module": "MOTOR IA"
     },
     {
@@ -460,7 +460,7 @@
       "id": "IA-003",
       "name": "POST /api/itinerary — sin intereses → 400",
       "http": 400,
-      "ms": 369,
+      "ms": 310,
       "detail": "HTTP 400",
       "module": "MOTOR IA"
     },
@@ -478,7 +478,7 @@
       "id": "USU-001",
       "name": "GET /api/favorites sin token → 401",
       "http": 401,
-      "ms": 140,
+      "ms": 145,
       "detail": "HTTP 401",
       "module": "PANEL USUARIO"
     },
@@ -487,7 +487,7 @@
       "id": "USU-003",
       "name": "GET /api/bookings/tourist sin token → 401",
       "http": 401,
-      "ms": 156,
+      "ms": 139,
       "detail": "HTTP 401",
       "module": "PANEL USUARIO"
     },
@@ -496,7 +496,7 @@
       "id": "USU-009",
       "name": "GET /api/perfil/foto-perfil sin token → 401",
       "http": 401,
-      "ms": 183,
+      "ms": 150,
       "detail": "HTTP 401",
       "module": "PANEL USUARIO"
     },
@@ -505,7 +505,7 @@
       "id": "USU-009b",
       "name": "GET /api/perfil/wallet sin token → 401",
       "http": 401,
-      "ms": 135,
+      "ms": 176,
       "detail": "HTTP 401",
       "module": "PANEL USUARIO"
     },
@@ -514,7 +514,7 @@
       "id": "USU-013",
       "name": "GET /api/itinerarios/itinerarios sin token → 401",
       "http": 401,
-      "ms": 146,
+      "ms": 155,
       "detail": "HTTP 401",
       "module": "PANEL USUARIO"
     },
@@ -523,7 +523,7 @@
       "id": "USU-013b",
       "name": "GET /api/itinerarios/notas sin token → 401",
       "http": 401,
-      "ms": 150,
+      "ms": 136,
       "detail": "HTTP 401",
       "module": "PANEL USUARIO"
     },
@@ -532,7 +532,7 @@
       "id": "USU-001b",
       "name": "Página /perfil acceso controlado",
       "http": 200,
-      "ms": 143,
+      "ms": 161,
       "detail": "HTTP 200",
       "module": "PANEL USUARIO"
     },
@@ -541,7 +541,7 @@
       "id": "USU-001c",
       "name": "Página /favoritos acceso controlado",
       "http": 200,
-      "ms": 165,
+      "ms": 162,
       "detail": "HTTP 200",
       "module": "PANEL USUARIO"
     },
@@ -550,7 +550,7 @@
       "id": "USU-001d",
       "name": "Página /mensajes acceso controlado",
       "http": 200,
-      "ms": 262,
+      "ms": 146,
       "detail": "HTTP 200",
       "module": "PANEL USUARIO"
     },
@@ -559,7 +559,7 @@
       "id": "GUI-P01",
       "name": "GET /api/guides/my-request sin token → 401",
       "http": 401,
-      "ms": 131,
+      "ms": 137,
       "detail": "HTTP 401",
       "module": "PANEL GUÍA"
     },
@@ -568,7 +568,7 @@
       "id": "GUI-P09",
       "name": "POST /api/availability/set sin token → 401",
       "http": 401,
-      "ms": 151,
+      "ms": 146,
       "detail": "HTTP 401",
       "module": "PANEL GUÍA"
     },
@@ -577,7 +577,7 @@
       "id": "GUI-P03",
       "name": "GET /api/bookings/guide sin token → 401",
       "http": 401,
-      "ms": 137,
+      "ms": 129,
       "detail": "HTTP 401",
       "module": "PANEL GUÍA"
     },
@@ -586,7 +586,7 @@
       "id": "GUI-P12",
       "name": "POST /api/tours sin token → 401",
       "http": 401,
-      "ms": 154,
+      "ms": 151,
       "detail": "HTTP 401",
       "module": "PANEL GUÍA"
     },
@@ -595,7 +595,7 @@
       "id": "GUI-P11",
       "name": "POST /api/guides/add-tour sin token → 401",
       "http": 401,
-      "ms": 188,
+      "ms": 144,
       "detail": "HTTP 401",
       "module": "PANEL GUÍA"
     },
@@ -604,7 +604,7 @@
       "id": "GUI-P01b",
       "name": "Página /guide/estatus acceso controlado",
       "http": 200,
-      "ms": 161,
+      "ms": 148,
       "detail": "HTTP 200",
       "module": "PANEL GUÍA"
     },
@@ -613,7 +613,7 @@
       "id": "GUI-P01c",
       "name": "Página /guide/solicitudes acceso controlado",
       "http": 200,
-      "ms": 153,
+      "ms": 162,
       "detail": "HTTP 200",
       "module": "PANEL GUÍA"
     },
@@ -622,7 +622,7 @@
       "id": "ADM-001",
       "name": "GET /api/admin/negocios sin token → 401",
       "http": 401,
-      "ms": 147,
+      "ms": 133,
       "detail": "HTTP 401",
       "module": "PANEL ADMIN"
     },
@@ -631,7 +631,7 @@
       "id": "ADM-008",
       "name": "GET /api/admin/negocios/pendientes sin token → 401",
       "http": 401,
-      "ms": 141,
+      "ms": 142,
       "detail": "HTTP 401",
       "module": "PANEL ADMIN"
     },
@@ -640,7 +640,7 @@
       "id": "ADM-005",
       "name": "GET /api/admin/guias/pendientes sin token → 401",
       "http": 401,
-      "ms": 137,
+      "ms": 138,
       "detail": "HTTP 401",
       "module": "PANEL ADMIN"
     },
@@ -649,7 +649,7 @@
       "id": "ADM-006",
       "name": "GET /api/admin/guias/aprobados sin token → 401",
       "http": 401,
-      "ms": 148,
+      "ms": 127,
       "detail": "HTTP 401",
       "module": "PANEL ADMIN"
     },
@@ -658,7 +658,7 @@
       "id": "ADM-001b",
       "name": "GET /api/admin/solicitudes-pendientes sin token → 401",
       "http": 401,
-      "ms": 137,
+      "ms": 200,
       "detail": "HTTP 401",
       "module": "PANEL ADMIN"
     },
@@ -667,7 +667,7 @@
       "id": "ADM-011",
       "name": "GET /api/admin/usuarios-gestionables sin token → 401",
       "http": 401,
-      "ms": 166,
+      "ms": 152,
       "detail": "HTTP 401",
       "module": "PANEL ADMIN"
     },
@@ -676,7 +676,7 @@
       "id": "ADM-001c",
       "name": "Página /admin acceso controlado",
       "http": 200,
-      "ms": 169,
+      "ms": 171,
       "detail": "HTTP 200",
       "module": "PANEL ADMIN"
     },
@@ -685,7 +685,7 @@
       "id": "ADM-005b",
       "name": "Página /admin/guias acceso controlado",
       "http": 200,
-      "ms": 142,
+      "ms": 145,
       "detail": "HTTP 200",
       "module": "PANEL ADMIN"
     },
@@ -694,7 +694,7 @@
       "id": "ADM-008b",
       "name": "Página /admin/negocios acceso controlado",
       "http": 200,
-      "ms": 167,
+      "ms": 159,
       "detail": "HTTP 200",
       "module": "PANEL ADMIN"
     },
@@ -703,7 +703,7 @@
       "id": "ADM-012",
       "name": "Página /admin/lugares acceso controlado",
       "http": 200,
-      "ms": 157,
+      "ms": 164,
       "detail": "HTTP 200",
       "module": "PANEL ADMIN"
     },
@@ -712,7 +712,7 @@
       "id": "RES-012",
       "name": "PWA Manifest disponible",
       "http": 200,
-      "ms": 159,
+      "ms": 148,
       "detail": "HTTP 200",
       "module": "RESPONSIVIDAD"
     },
@@ -721,7 +721,7 @@
       "id": "RES-001",
       "name": "Favicon disponible",
       "http": 200,
-      "ms": 243,
+      "ms": 157,
       "detail": "HTTP 200",
       "module": "RESPONSIVIDAD"
     },
@@ -730,7 +730,7 @@
       "id": "PER-008",
       "name": "Service Worker /sw.js disponible",
       "http": 404,
-      "ms": 251,
+      "ms": 146,
       "detail": "HTTP 404 inesperado",
       "module": "RESPONSIVIDAD"
     },
@@ -739,7 +739,7 @@
       "id": "RES-003a",
       "name": "Mobile UA — Página principal",
       "http": 200,
-      "ms": 164,
+      "ms": 156,
       "detail": "HTTP 200",
       "module": "RESPONSIVIDAD"
     },
@@ -748,7 +748,7 @@
       "id": "RES-003b",
       "name": "Mobile UA — /explora",
       "http": 200,
-      "ms": 143,
+      "ms": 150,
       "detail": "HTTP 200",
       "module": "RESPONSIVIDAD"
     },
@@ -757,7 +757,7 @@
       "id": "RES-003c",
       "name": "Mobile UA — /tours",
       "http": 200,
-      "ms": 142,
+      "ms": 149,
       "detail": "HTTP 200",
       "module": "RESPONSIVIDAD"
     },
@@ -829,7 +829,7 @@
       "id": "SEC-005",
       "name": "CORS — API acepta origen pitzbol.me",
       "http": 200,
-      "ms": 1014,
+      "ms": 998,
       "detail": "Access-Control-Allow-Origin: https://www.pitzbol.me",
       "module": "SEGURIDAD"
     },
@@ -847,8 +847,8 @@
       "id": "PER-002",
       "name": "Página /explora carga <3s",
       "http": 200,
-      "ms": 177,
-      "detail": "177ms < 3000ms ✓",
+      "ms": 159,
+      "detail": "159ms < 3000ms ✓",
       "module": "PERFORMANCE"
     },
     {
@@ -856,8 +856,8 @@
       "id": "PER-003",
       "name": "Página /tours carga <3s",
       "http": 200,
-      "ms": 149,
-      "detail": "149ms < 3000ms ✓",
+      "ms": 159,
+      "detail": "159ms < 3000ms ✓",
       "module": "PERFORMANCE"
     },
     {
@@ -865,8 +865,8 @@
       "id": "PER-004",
       "name": "Página /mapa carga <5s",
       "http": 200,
-      "ms": 158,
-      "detail": "158ms < 5000ms ✓",
+      "ms": 152,
+      "detail": "152ms < 5000ms ✓",
       "module": "PERFORMANCE"
     },
     {
@@ -874,8 +874,8 @@
       "id": "PER-005a",
       "name": "Backend health <2s",
       "http": 200,
-      "ms": 165,
-      "detail": "165ms < 2000ms ✓",
+      "ms": 156,
+      "detail": "156ms < 2000ms ✓",
       "module": "PERFORMANCE"
     },
     {
@@ -883,8 +883,8 @@
       "id": "PER-005b",
       "name": "GET /api/guides/verified <4s",
       "http": 200,
-      "ms": 966,
-      "detail": "966ms < 4000ms ✓",
+      "ms": 972,
+      "detail": "972ms < 4000ms ✓",
       "module": "PERFORMANCE"
     },
     {
@@ -892,8 +892,8 @@
       "id": "PER-005c",
       "name": "GET /api/lugares <3s",
       "http": 200,
-      "ms": 161,
-      "detail": "161ms < 3000ms ✓",
+      "ms": 174,
+      "detail": "174ms < 3000ms ✓",
       "module": "PERFORMANCE"
     },
     {
@@ -901,8 +901,8 @@
       "id": "PER-005d",
       "name": "GET /api/tours <3s",
       "http": 200,
-      "ms": 214,
-      "detail": "214ms < 3000ms ✓",
+      "ms": 227,
+      "detail": "227ms < 3000ms ✓",
       "module": "PERFORMANCE"
     },
     {
@@ -910,8 +910,8 @@
       "id": "PER-005e",
       "name": "GET /api/paquetes <3s",
       "http": 200,
-      "ms": 220,
-      "detail": "220ms < 3000ms ✓",
+      "ms": 263,
+      "detail": "263ms < 3000ms ✓",
       "module": "PERFORMANCE"
     },
     {
@@ -919,8 +919,8 @@
       "id": "PER-005f",
       "name": "Tiempo promedio de respuesta API",
       "http": null,
-      "ms": 345,
-      "detail": "Promedio: 345ms",
+      "ms": 358,
+      "detail": "Promedio: 358ms",
       "module": "PERFORMANCE"
     },
     {
@@ -928,7 +928,7 @@
       "id": "ERR-003",
       "name": "Ruta inexistente → 404 con JSON",
       "http": 404,
-      "ms": 160,
+      "ms": 131,
       "detail": "Respuesta JSON estructurada",
       "module": "ERRORES EDGE"
     },
@@ -937,7 +937,7 @@
       "id": "ERR-003b",
       "name": "Página 404 frontend devuelve respuesta",
       "http": 404,
-      "ms": 165,
+      "ms": 153,
       "detail": "HTTP 404",
       "module": "ERRORES EDGE"
     },
@@ -946,7 +946,7 @@
       "id": "ERR-001",
       "name": "Body JSON malformado → 400",
       "http": 400,
-      "ms": 140,
+      "ms": 144,
       "detail": "Express rechaza JSON inválido",
       "module": "ERRORES EDGE"
     },
@@ -964,7 +964,7 @@
       "id": "INT-001",
       "name": "Firebase Auth — endpoint login accesible",
       "http": 401,
-      "ms": 224,
+      "ms": 244,
       "detail": "HTTP 401",
       "module": "INTEGRACIONES"
     },
@@ -973,7 +973,7 @@
       "id": "INT-002",
       "name": "Firestore lee datos — GET /api/guides retorna datos",
       "http": 200,
-      "ms": 875,
+      "ms": 845,
       "detail": "HTTP 200",
       "module": "INTEGRACIONES"
     },
@@ -982,7 +982,7 @@
       "id": "INT-003",
       "name": "Firestore accesible — POST /api/business/validate-uniqueness",
       "http": 200,
-      "ms": 176,
+      "ms": 134,
       "detail": "HTTP 200 — Firestore respondió",
       "module": "INTEGRACIONES"
     },
@@ -991,7 +991,7 @@
       "id": "INT-004",
       "name": "Stripe — endpoint payment-intent protegido y accesible",
       "http": 401,
-      "ms": 177,
+      "ms": 134,
       "detail": "Retorna 401 sin token (endpoint existe)",
       "module": "INTEGRACIONES"
     },
@@ -1000,7 +1000,7 @@
       "id": "INT-006",
       "name": "Mapa Leaflet — página /mapa carga correctamente",
       "http": 200,
-      "ms": 170,
+      "ms": 138,
       "detail": "HTML retornado, Leaflet inicializa en browser",
       "module": "INTEGRACIONES"
     },
@@ -1009,7 +1009,7 @@
       "id": "INT-007",
       "name": "GET /api/support/contact-forms (protegido) → 401",
       "http": 401,
-      "ms": 149,
+      "ms": 129,
       "detail": "HTTP 401",
       "module": "INTEGRACIONES"
     }

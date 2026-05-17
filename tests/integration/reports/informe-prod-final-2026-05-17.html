@@ -120,11 +120,17 @@
   .section-body.open { display: block; }
 
   /* TESTS TABLE */
-  .tests-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+  .tests-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; border: 1px solid #d1d5db; }
+  .tests-table thead tr { background: linear-gradient(90deg, #1e293b, #334155); }
+  .tests-table thead th { padding: 10px 14px; text-align: left; font-size: 0.76rem; font-weight: 700; color: #f1f5f9; text-transform: uppercase; letter-spacing: 0.6px; border-right: 1px solid rgba(255,255,255,0.15); white-space: nowrap; }
+  .tests-table thead th:last-child { border-right: none; }
+  .tests-table thead th:first-child { text-align: center; width: 36px; }
   .tests-table tr:last-child td { border-bottom: none; }
-  .tests-table td { padding: 9px 16px; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
-  .tests-table td:first-child { width: 32px; text-align: center; font-size: 0.95rem; }
-  .test-id   { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.78rem; color: #64748b; font-weight: 600; white-space: nowrap; }
+  .tests-table td { padding: 9px 14px; border-bottom: 1px solid #e2e8f0; border-right: 1px solid #f1f5f9; vertical-align: middle; }
+  .tests-table td:last-child { border-right: none; }
+  .tests-table td:first-child { width: 36px; text-align: center; font-size: 0.95rem; border-right: 1px solid #e2e8f0; }
+  .tests-table tbody tr:hover { background: #fafbff; }
+  .test-id   { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.78rem; color: #475569; font-weight: 700; white-space: nowrap; }
   .test-name { color: #334155; font-weight: 500; }
   .test-http { text-align: center; }
   .http-pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 0.78rem; font-weight: 700; font-family: monospace; }
@@ -132,11 +138,19 @@
   .http-4xx { background: var(--blue-bg);  color: #1d4ed8; }
   .http-5xx { background: var(--red-bg);   color: var(--red); }
   .http-na  { background: var(--gray-bg);  color: var(--gray); }
-  .test-ms     { color: #94a3b8; font-size: 0.8rem; text-align: right; white-space: nowrap; }
+  .test-ms     { color: #64748b; font-size: 0.8rem; text-align: right; white-space: nowrap; font-weight: 600; }
   .test-detail { color: #64748b; font-size: 0.82rem; max-width: 340px; }
   .row-fail { background: #fff8f8; }
   .row-skip { background: #fafafa; color: #9ca3af; }
-  .row-info { background: #f8faff; }
+  .row-info { background: #f0f7ff; }
+  @media print {
+    .section-body { display: block !important; }
+    .section-chevron { display: none; }
+    .section-header { cursor: default; }
+    body { background: white; }
+    .main { padding: 16px 8px; }
+    .tests-table thead th { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
 
   /* FOOTER */
   .footer { text-align: center; padding: 32px 24px; color: #94a3b8; font-size: 0.8rem; }
@@ -364,6 +378,17 @@
     </div>
     <div class="section-body">
       <table class="tests-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>ID</th>
+            <th>Prueba / Descripción</th>
+            <th>HTTP</th>
+            <th>Tiempo</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
         <tr><td>✅</td><td class="test-id">AUT-001</td><td class="test-name">Página /login carga sin autenticación</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">1203ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">AUT-009</td><td class="test-name">Página /forgot-password carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">400ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">AUT-010</td><td class="test-name">Página /reset-password carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">311ms</td><td class="test-detail">HTTP 200</td></tr>
@@ -374,6 +399,7 @@
         <tr><td>✅</td><td class="test-id">AUT-011</td><td class="test-name">Actualizar perfil sin token → 401</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">152ms</td><td class="test-detail">HTTP 401</td></tr>
         <tr><td>✅</td><td class="test-id">AUT-007</td><td class="test-name">Logout sin token → 401</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">164ms</td><td class="test-detail">HTTP 401</td></tr>
         <tr><td>✅</td><td class="test-id">AUT-011b</td><td class="test-name">Página / principal carga sin auth</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">254ms</td><td class="test-detail">HTTP 200</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
@@ -393,6 +419,17 @@
     </div>
     <div class="section-body">
       <table class="tests-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>ID</th>
+            <th>Prueba / Descripción</th>
+            <th>HTTP</th>
+            <th>Tiempo</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
         <tr><td>✅</td><td class="test-id">GUI-001</td><td class="test-name">Página /explora carga sin autenticación</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">249ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">GUI-002</td><td class="test-name">GET /api/guides/verified → listado guías activos</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">1201ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr class="row-info"><td>ℹ️</td><td class="test-id">GUI-002b</td><td class="test-name">Guías encontrados: 5</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">—</td><td class="test-detail">Primer UID: tfMO51nJFJaIKygjk3xoUniuVkj1</td></tr>
@@ -400,6 +437,7 @@
         <tr><td>✅</td><td class="test-id">GUI-005b</td><td class="test-name">Página /perfil/[uid] carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">1209ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">PER-006</td><td class="test-name">GET /api/ratings/guide/:uid</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">266ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">PER-007</td><td class="test-name">GET /api/ratings/guide/:uid/stats</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">290ms</td><td class="test-detail">HTTP 200</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
@@ -418,11 +456,23 @@
     </div>
     <div class="section-body">
       <table class="tests-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>ID</th>
+            <th>Prueba / Descripción</th>
+            <th>HTTP</th>
+            <th>Tiempo</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
         <tr><td>✅</td><td class="test-id">PER-004</td><td class="test-name">GET /api/availability/:guideId → disponibilidad</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">297ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">PER-009</td><td class="test-name">GET /api/tours/guia/:uid → tours del guía</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">225ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">PER-001b</td><td class="test-name">Página /guia/empresa/[uid] carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">341ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">PER-010</td><td class="test-name">POST /api/bookings/create sin auth → 401</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">167ms</td><td class="test-detail">HTTP 401</td></tr>
         <tr><td>✅</td><td class="test-id">PER-011</td><td class="test-name">Página /perfil (protegida) acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">165ms</td><td class="test-detail">HTTP 200</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
@@ -441,6 +491,17 @@
     </div>
     <div class="section-body">
       <table class="tests-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>ID</th>
+            <th>Prueba / Descripción</th>
+            <th>HTTP</th>
+            <th>Tiempo</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
         <tr><td>✅</td><td class="test-id">BOO-001</td><td class="test-name">GET /api/bookings/tourist/:id sin token → 401</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">155ms</td><td class="test-detail">HTTP 401</td></tr>
         <tr><td>✅</td><td class="test-id">BOO-010</td><td class="test-name">POST /api/bookings/create sin token → 401</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">156ms</td><td class="test-detail">HTTP 401</td></tr>
         <tr><td>✅</td><td class="test-id">BOO-001b</td><td class="test-name">Página /tours/reservar/[uid] carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">419ms</td><td class="test-detail">HTTP 200</td></tr>
@@ -448,6 +509,7 @@
         <tr><td>✅</td><td class="test-id">BOO-013</td><td class="test-name">Página /tours/pago/[bookingId] carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">310ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">BOO-011b</td><td class="test-name">GET /api/ratings/can-rate/:id sin token → 401</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">150ms</td><td class="test-detail">HTTP 401</td></tr>
         <tr><td>✅</td><td class="test-id">BOO-013b</td><td class="test-name">POST /api/payments/create-payment-intent sin token → 401</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">164ms</td><td class="test-detail">HTTP 401</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
@@ -468,6 +530,17 @@
     </div>
     <div class="section-body open">
       <table class="tests-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>ID</th>
+            <th>Prueba / Descripción</th>
+            <th>HTTP</th>
+            <th>Tiempo</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
         <tr><td>✅</td><td class="test-id">LUG-001</td><td class="test-name">GET /api/lugares → catálogo</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">303ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr class="row-fail"><td>❌</td><td class="test-id">LUG-008</td><td class="test-name">GET /api/lugares/:nombre</td><td class="test-http"><span class="http-pill http-4xx">404</span></td><td class="test-ms">230ms</td><td class="test-detail">Nombre de prueba no existe en BD actual</td></tr>
         <tr><td>✅</td><td class="test-id">LUG-006a</td><td class="test-name">Página /cultura carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">257ms</td><td class="test-detail">HTTP 200</td></tr>
@@ -478,6 +551,7 @@
         <tr><td>✅</td><td class="test-id">IA-002</td><td class="test-name">GET /api/places (pitzbol-web IA)</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">2019ms</td><td class="test-detail">Catálogo IA disponible</td></tr>
         <tr class="row-skip"><td>⏭️</td><td class="test-id">LUG-008b</td><td class="test-name">Página /informacion/[nombre]</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Saltado: depende de LUG-008</td></tr>
         <tr class="row-skip"><td>⏭️</td><td class="test-id">LUG-012</td><td class="test-name">GET /api/place-ratings/:nombre/stats</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Saltado: depende de LUG-008</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
@@ -496,6 +570,17 @@
     </div>
     <div class="section-body">
       <table class="tests-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>ID</th>
+            <th>Prueba / Descripción</th>
+            <th>HTTP</th>
+            <th>Tiempo</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
         <tr><td>✅</td><td class="test-id">TOU-001</td><td class="test-name">GET /api/tours → listado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">465ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">TOU-002</td><td class="test-name">GET /api/paquetes → paquetes</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">408ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">TOU-001b</td><td class="test-name">Página /tours carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">512ms</td><td class="test-detail">HTTP 200</td></tr>
@@ -504,6 +589,7 @@
         <tr><td>✅</td><td class="test-id">TOU-009b</td><td class="test-name">Página /itinerario/manual carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">202ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">TOU-004</td><td class="test-name">GET /api/tours/:id</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">267ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">IA-001</td><td class="test-name">pitzbol-web raíz accesible</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">228ms</td><td class="test-detail">HTTP 200</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
@@ -524,10 +610,22 @@
     </div>
     <div class="section-body open">
       <table class="tests-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>ID</th>
+            <th>Prueba / Descripción</th>
+            <th>HTTP</th>
+            <th>Tiempo</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
         <tr><td>✅</td><td class="test-id">IA-008a</td><td class="test-name">GET /api/ai → info motor IA</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">143ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">IA-003</td><td class="test-name">POST /api/itinerary — sin intereses → 400</td><td class="test-http"><span class="http-pill http-4xx">400</span></td><td class="test-ms">369ms</td><td class="test-detail">HTTP 400 (validación OK)</td></tr>
         <tr class="row-fail"><td>❌</td><td class="test-id">IA-008b</td><td class="test-name">POST /api/itinerary — genera itinerario</td><td class="test-http"><span class="http-pill http-4xx">400</span></td><td class="test-ms">343ms</td><td class="test-detail">Body del test no coincide con esquema esperado</td></tr>
         <tr class="row-info"><td>ℹ️</td><td class="test-id">IA-017b</td><td class="test-name">Coherencia geográfica KNN</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">—</td><td class="test-detail">Requiere inspección manual del resultado</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
@@ -546,6 +644,17 @@
     </div>
     <div class="section-body">
       <table class="tests-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>ID</th>
+            <th>Prueba / Descripción</th>
+            <th>HTTP</th>
+            <th>Tiempo</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
         <tr><td>✅</td><td class="test-id">USU-001</td><td class="test-name">GET /api/favorites sin token → 401</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">140ms</td><td class="test-detail">HTTP 401</td></tr>
         <tr><td>✅</td><td class="test-id">USU-003</td><td class="test-name">GET /api/bookings/tourist sin token → 401</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">156ms</td><td class="test-detail">HTTP 401</td></tr>
         <tr><td>✅</td><td class="test-id">USU-009</td><td class="test-name">GET /api/perfil/foto-perfil sin token → 401</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">183ms</td><td class="test-detail">HTTP 401</td></tr>
@@ -555,6 +664,7 @@
         <tr><td>✅</td><td class="test-id">USU-001b</td><td class="test-name">Página /perfil acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">143ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">USU-001c</td><td class="test-name">Página /favoritos acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">165ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">USU-001d</td><td class="test-name">Página /mensajes acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">262ms</td><td class="test-detail">HTTP 200</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
@@ -573,6 +683,17 @@
     </div>
     <div class="section-body">
       <table class="tests-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>ID</th>
+            <th>Prueba / Descripción</th>
+            <th>HTTP</th>
+            <th>Tiempo</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
         <tr><td>✅</td><td class="test-id">GUI-P01</td><td class="test-name">GET /api/guides/my-request sin token → 401</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">131ms</td><td class="test-detail">HTTP 401</td></tr>
         <tr><td>✅</td><td class="test-id">GUI-P09</td><td class="test-name">POST /api/availability/set sin token → 401</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">151ms</td><td class="test-detail">HTTP 401</td></tr>
         <tr><td>✅</td><td class="test-id">GUI-P03</td><td class="test-name">GET /api/bookings/guide sin token → 401</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">137ms</td><td class="test-detail">HTTP 401</td></tr>
@@ -580,6 +701,7 @@
         <tr><td>✅</td><td class="test-id">GUI-P11</td><td class="test-name">POST /api/guides/add-tour sin token → 401</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">188ms</td><td class="test-detail">HTTP 401</td></tr>
         <tr><td>✅</td><td class="test-id">GUI-P01b</td><td class="test-name">Página /guide/estatus acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">161ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">GUI-P01c</td><td class="test-name">Página /guide/solicitudes acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">153ms</td><td class="test-detail">HTTP 200</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
@@ -598,6 +720,17 @@
     </div>
     <div class="section-body">
       <table class="tests-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>ID</th>
+            <th>Prueba / Descripción</th>
+            <th>HTTP</th>
+            <th>Tiempo</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
         <tr><td>✅</td><td class="test-id">ADM-001</td><td class="test-name">GET /api/admin/negocios sin token → 401</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">147ms</td><td class="test-detail">HTTP 401</td></tr>
         <tr><td>✅</td><td class="test-id">ADM-008</td><td class="test-name">GET /api/admin/negocios/pendientes sin token → 401</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">141ms</td><td class="test-detail">HTTP 401</td></tr>
         <tr><td>✅</td><td class="test-id">ADM-005</td><td class="test-name">GET /api/admin/guias/pendientes sin token → 401</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">137ms</td><td class="test-detail">HTTP 401</td></tr>
@@ -608,6 +741,7 @@
         <tr><td>✅</td><td class="test-id">ADM-005b</td><td class="test-name">Página /admin/guias acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">142ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">ADM-008b</td><td class="test-name">Página /admin/negocios acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">167ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">ADM-012</td><td class="test-name">Página /admin/lugares acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">157ms</td><td class="test-detail">HTTP 200</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
@@ -627,12 +761,24 @@
     </div>
     <div class="section-body open">
       <table class="tests-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>ID</th>
+            <th>Prueba / Descripción</th>
+            <th>HTTP</th>
+            <th>Tiempo</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
         <tr><td>✅</td><td class="test-id">RES-012</td><td class="test-name">PWA Manifest disponible</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">159ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">RES-001</td><td class="test-name">Favicon disponible</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">243ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">RES-003a</td><td class="test-name">Mobile UA — Página principal</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">164ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">RES-003b</td><td class="test-name">Mobile UA — /explora</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">143ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">RES-003c</td><td class="test-name">Mobile UA — /tours</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">142ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr class="row-fail"><td>❌</td><td class="test-id">PER-008</td><td class="test-name">Service Worker /sw.js disponible</td><td class="test-http"><span class="http-pill http-4xx">404</span></td><td class="test-ms">251ms</td><td class="test-detail">Requiere nuevo deploy en Vercel con next-pwa</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
@@ -651,6 +797,17 @@
     </div>
     <div class="section-body">
       <table class="tests-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>ID</th>
+            <th>Prueba / Descripción</th>
+            <th>HTTP</th>
+            <th>Tiempo</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
         <tr><td>✅</td><td class="test-id">SEC-001a</td><td class="test-name">SSL/HTTPS válido — www.pitzbol.me</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">—</td><td class="test-detail">Certificado válido · expira Jul 15 2026</td></tr>
         <tr><td>✅</td><td class="test-id">SEC-001b</td><td class="test-name">SSL/HTTPS válido — api.pitzbol.me</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">—</td><td class="test-detail">Certificado válido · expira Jul 15 2026</td></tr>
         <tr><td>✅</td><td class="test-id">SEC-001c</td><td class="test-name">HSTS header presente</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">—</td><td class="test-detail">max-age=63072000; includeSubDomains; preload</td></tr>
@@ -659,6 +816,7 @@
         <tr><td>✅</td><td class="test-id">SEC-001f</td><td class="test-name">Content-Security-Policy header</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">—</td><td class="test-detail">default-src 'self'; script-src 'self' 'unsafe-inline'…</td></tr>
         <tr><td>✅</td><td class="test-id">SEC-001g</td><td class="test-name">Permissions-Policy header</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">—</td><td class="test-detail">camera=(self), microphone=(), geolocation=(self)</td></tr>
         <tr><td>✅</td><td class="test-id">SEC-005</td><td class="test-name">CORS — API acepta origen pitzbol.me</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">1014ms</td><td class="test-detail">Access-Control-Allow-Origin: https://www.pitzbol.me</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
@@ -677,6 +835,17 @@
     </div>
     <div class="section-body">
       <table class="tests-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>ID</th>
+            <th>Prueba / Descripción</th>
+            <th>HTTP</th>
+            <th>Tiempo</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
         <tr><td>✅</td><td class="test-id">PER-001</td><td class="test-name">Página principal carga &lt;3s</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">153ms</td><td class="test-detail">153ms &lt; 3000ms ✓</td></tr>
         <tr><td>✅</td><td class="test-id">PER-002</td><td class="test-name">Página /explora carga &lt;3s</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">177ms</td><td class="test-detail">177ms &lt; 3000ms ✓</td></tr>
         <tr><td>✅</td><td class="test-id">PER-003</td><td class="test-name">Página /tours carga &lt;3s</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">149ms</td><td class="test-detail">149ms &lt; 3000ms ✓</td></tr>
@@ -687,6 +856,7 @@
         <tr><td>✅</td><td class="test-id">PER-005d</td><td class="test-name">GET /api/tours &lt;3s</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">214ms</td><td class="test-detail">214ms &lt; 3000ms ✓</td></tr>
         <tr><td>✅</td><td class="test-id">PER-005e</td><td class="test-name">GET /api/paquetes &lt;3s</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">220ms</td><td class="test-detail">220ms &lt; 3000ms ✓</td></tr>
         <tr><td>✅</td><td class="test-id">PER-005f</td><td class="test-name">Tiempo promedio de respuesta API</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">345ms avg</td><td class="test-detail">Promedio: 345ms ✓</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
@@ -706,10 +876,22 @@
     </div>
     <div class="section-body">
       <table class="tests-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>ID</th>
+            <th>Prueba / Descripción</th>
+            <th>HTTP</th>
+            <th>Tiempo</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
         <tr><td>✅</td><td class="test-id">ERR-003</td><td class="test-name">Ruta inexistente → 404 con JSON</td><td class="test-http"><span class="http-pill http-4xx">404</span></td><td class="test-ms">160ms</td><td class="test-detail">Respuesta JSON estructurada</td></tr>
         <tr><td>✅</td><td class="test-id">ERR-003b</td><td class="test-name">Página 404 frontend devuelve respuesta</td><td class="test-http"><span class="http-pill http-4xx">404</span></td><td class="test-ms">165ms</td><td class="test-detail">HTTP 404</td></tr>
         <tr><td>✅</td><td class="test-id">ERR-001</td><td class="test-name">Body JSON malformado → 400</td><td class="test-http"><span class="http-pill http-4xx">400</span></td><td class="test-ms">140ms</td><td class="test-detail">Express rechaza JSON inválido</td></tr>
         <tr class="row-info"><td>ℹ️</td><td class="test-id">AUT-013</td><td class="test-name">Rate limiting en /api/auth/login</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">—</td><td class="test-detail">Configurado: loginLimiter 20/15min (código fuente)</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
@@ -728,12 +910,24 @@
     </div>
     <div class="section-body">
       <table class="tests-table">
+        <thead>
+          <tr>
+            <th></th>
+            <th>ID</th>
+            <th>Prueba / Descripción</th>
+            <th>HTTP</th>
+            <th>Tiempo</th>
+            <th>Detalle</th>
+          </tr>
+        </thead>
+        <tbody>
         <tr><td>✅</td><td class="test-id">INT-001</td><td class="test-name">Firebase Auth — endpoint login accesible</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">224ms</td><td class="test-detail">HTTP 401</td></tr>
         <tr><td>✅</td><td class="test-id">INT-002</td><td class="test-name">Firestore lee datos — GET /api/guides retorna datos</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">875ms</td><td class="test-detail">HTTP 200</td></tr>
         <tr><td>✅</td><td class="test-id">INT-003</td><td class="test-name">Firestore accesible — POST /api/business/validate-uniqueness</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">176ms</td><td class="test-detail">HTTP 200 — Firestore respondió</td></tr>
         <tr><td>✅</td><td class="test-id">INT-004</td><td class="test-name">Stripe — endpoint payment-intent protegido y accesible</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">177ms</td><td class="test-detail">Retorna 401 sin token (endpoint existe)</td></tr>
         <tr><td>✅</td><td class="test-id">INT-006</td><td class="test-name">Mapa Leaflet — página /mapa carga correctamente</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">170ms</td><td class="test-detail">HTML retornado, Leaflet inicializa en browser</td></tr>
         <tr><td>✅</td><td class="test-id">INT-007</td><td class="test-name">GET /api/support/contact-forms (protegido) → 401</td><td class="test-http"><span class="http-pill http-4xx">401</span></td><td class="test-ms">149ms</td><td class="test-detail">HTTP 401</td></tr>
+        </tbody>
       </table>
     </div>
   </div>
@@ -759,6 +953,10 @@ function toggleSection(header) {
     chevron.textContent = '▼';
   }
 }
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('.section-body').forEach(b => b.classList.add('open'));
+  document.querySelectorAll('.section-chevron').forEach(c => c.textContent = '▼');
+});
 </script>
 </body>
 </html>

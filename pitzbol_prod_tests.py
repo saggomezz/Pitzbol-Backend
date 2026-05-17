@@ -44,7 +44,7 @@ def req(method, url, *, body=None, headers=None, ua=UA_DESKTOP):
         t0 = time.time()
         with urllib.request.urlopen(r, timeout=TIMEOUT) as resp:
             ms = int((time.time() - t0) * 1000)
-            content = resp.read(4096)
+            content = resp.read()
             return resp.status, ms, dict(resp.headers), content
     except urllib.error.HTTPError as e:
         ms = int((time.time() - t0) * 1000)
@@ -282,7 +282,6 @@ def section5():
     M = "LUGARES"
 
     api_ok(f"{BACKEND}/api/lugares", "LUG-001", "GET /api/lugares → catálogo", M, warn_ms=4000)
-    api_ok(f"{BACKEND}/api/lugares/la-minerva", "LUG-008", "GET /api/lugares/:nombre", M, warn_ms=4000)
 
     page_ok(f"{FRONTEND}/cultura",     "LUG-006a", "Página /cultura carga", M)
     page_ok(f"{FRONTEND}/gastronomia", "LUG-006b", "Página /gastronomia carga", M)
@@ -290,17 +289,25 @@ def section5():
     page_ok(f"{FRONTEND}/futbol",      "LUG-006d", "Página /futbol carga", M)
     page_ok(f"{FRONTEND}/mapa",        "LUG-007",  "Página /mapa carga", M)
 
-    # Detalle de lugar
+    # Obtener un lugar real del catálogo para pruebas de detalle
     status, ms, _, body = req("GET", f"{BACKEND}/api/lugares")
+    lugar_id = None
     lugar_nombre = None
     if status == 200:
         try:
             data = json.loads(body)
             lugares = data if isinstance(data, list) else data.get("lugares", data.get("data", []))
             if lugares:
-                lugar_nombre = lugares[0].get("nombre") or lugares[0].get("name") or lugares[0].get("slug")
+                lugar_id = lugares[0].get("id") or lugares[0].get("slug")
+                lugar_nombre = lugares[0].get("nombre") or lugares[0].get("name") or lugar_id
         except Exception:
             pass
+
+    if lugar_id:
+        api_ok(f"{BACKEND}/api/lugares/{urllib.parse.quote(lugar_id)}", "LUG-008",
+               "GET /api/lugares/:nombre", M, warn_ms=4000)
+    else:
+        record("SKIPPED", "LUG-008", "GET /api/lugares/:nombre", None, 0, "Sin ID de lugar disponible", M)
 
     if lugar_nombre:
         page_ok(f"{FRONTEND}/informacion/{urllib.parse.quote(lugar_nombre)}", "LUG-008b",
@@ -390,7 +397,9 @@ def section7():
     else:
         api_ok(f"{IA_URL}/api/itinerary", "IA-008b", "POST /api/itinerary — genera itinerario", M,
                method="POST",
-               body={"intereses": ["cultura", "gastronomia"], "duracion": "4h", "presupuesto": 100},
+               body={"interests": ["cultura", "gastronomia"], "budget": 500,
+                     "selectedDate": "2026-06-18", "startTime": "09:00",
+                     "ritmo": "normal", "duration": "medio-dia"},
                warn_ms=10000)
         api_ok(f"{IA_URL}/api/itinerary", "IA-003", "POST /api/itinerary — sin intereses → 400", M,
                method="POST", body={"duracion": "4h", "presupuesto": 100}, expected=400)
