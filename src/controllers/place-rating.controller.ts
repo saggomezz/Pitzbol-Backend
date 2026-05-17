@@ -5,16 +5,27 @@ import { db } from '../config/firebase';
 // Cache en memoria para estadísticas de lugares — TTL 30 minutos
 const statsCache = new Map<string, { data: any; expiresAt: number }>();
 const STATS_CACHE_TTL = 30 * 60 * 1000; // 30 minutos
+const STATS_ERROR_COOLDOWN = 5 * 60 * 1000; // 5 minutos
 
-function getCachedStats(placeId: string) {
+const isQuotaExceeded = (error: any) => error?.code === 8 || /RESOURCE_EXHAUSTED|Quota exceeded/i.test(String(error?.message || error));
+
+function getDefaultStats() {
+  return {
+    averageRating: 0,
+    totalRatings: 0,
+    views: 0,
+  };
+}
+
+function getCachedStats(placeId: string, allowExpired = false) {
   const entry = statsCache.get(placeId);
-  if (entry && entry.expiresAt > Date.now()) return entry.data;
+  if (entry && (allowExpired || entry.expiresAt > Date.now())) return entry.data;
   statsCache.delete(placeId);
   return null;
 }
 
-function setCachedStats(placeId: string, data: any) {
-  statsCache.set(placeId, { data, expiresAt: Date.now() + STATS_CACHE_TTL });
+function setCachedStats(placeId: string, data: any, ttl = STATS_CACHE_TTL) {
+  statsCache.set(placeId, { data, expiresAt: Date.now() + ttl });
 }
 
 function invalidateStatsCache(placeId: string) {
@@ -305,14 +316,22 @@ async function getPlaceStatsFromDB(placeId: string) {
   const cached = getCachedStats(placeId);
   if (cached) return cached;
 
-  const placeDoc = await db.collection('lugares').doc(placeId).get();
+  let placeDoc;
+  try {
+    placeDoc = await db.collection('lugares').doc(placeId).get();
+  } catch (error) {
+    if (isQuotaExceeded(error)) {
+      const fallback = getCachedStats(placeId, true) || getDefaultStats();
+      setCachedStats(placeId, fallback, STATS_ERROR_COOLDOWN);
+      return fallback;
+    }
+    throw error;
+  }
 
   if (!placeDoc.exists) {
-    return {
-      averageRating: 0,
-      totalRatings: 0,
-      views: 0,
-    };
+    const stats = getDefaultStats();
+    setCachedStats(placeId, stats);
+    return stats;
   }
 
   const data = placeDoc.data();

@@ -62,6 +62,32 @@ function toStringOrEmpty(value: unknown): string {
   return String(value).trim();
 }
 
+function normalizeMediaUrl(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  if (/^(javascript|vbscript|file):/i.test(trimmed)) return null;
+
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (/^\/\//.test(trimmed)) return `https:${trimmed}`;
+  if (/^\//.test(trimmed) || /^\.\.?\//.test(trimmed)) return trimmed;
+  if (/^data:image\//i.test(trimmed) || /^blob:/i.test(trimmed)) return trimmed;
+
+  // Support saved host/path links without protocol (e.g. res.cloudinary.com/...)
+  if (/^([a-z0-9-]+\.)+[a-z]{2,}(\/|$)/i.test(trimmed)) {
+    return `https://${trimmed}`;
+  }
+
+  return null;
+}
+
+function normalizePhotoList(values: unknown[]): string[] {
+  return values
+    .map((value) => normalizeMediaUrl(value))
+    .filter((value): value is string => Boolean(value));
+}
+
 function getAddressFromBusinessData(business: any, rootData: any): string {
   const directLocation = firstNonEmptyString(business?.location, rootData?.location);
   if (directLocation) {
@@ -129,12 +155,13 @@ function mapApprovedBusinessToPlace(doc: FirebaseFirestore.QueryDocumentSnapshot
     subcategories[0]
   );
 
-  const photos = [
+  const photos = normalizePhotoList([
     ...(Array.isArray(business?.images) ? business.images : []),
     ...(Array.isArray(data?.images) ? data.images : []),
-  ].filter((url: unknown) => typeof url === 'string' && url.trim()) as string[];
+    ...(Array.isArray(data?.fotos) ? data.fotos : []),
+  ]);
 
-  const logo = firstNonEmptyString(business?.logo, data?.logo);
+  const logo = normalizeMediaUrl(firstNonEmptyString(business?.logo, data?.logo));
   if (logo) {
     photos.unshift(logo);
   }
@@ -226,9 +253,19 @@ export const getAllPlaces = async (req: Request, res: Response) => {
       .collection('items')
       .get();
 
-    const approvedBusinessPlaces = approvedBusinessesSnapshot.docs
-      .map(mapApprovedBusinessToPlace)
-      .filter(Boolean) as any[];
+    const approvedBusinessPlaces: any[] = [];
+
+    for (const businessDoc of approvedBusinessesSnapshot.docs) {
+      try {
+        const mapped = mapApprovedBusinessToPlace(businessDoc);
+        if (mapped) approvedBusinessPlaces.push(mapped);
+      } catch (mapError: any) {
+        console.warn(
+          `[getAllPlaces] Ignorando negocio malformado ${businessDoc.id}:`,
+          mapError?.message || mapError
+        );
+      }
+    }
 
     const mergedByName = new Map<string, any>();
 

@@ -1922,6 +1922,9 @@ export const marcarNotificacionComoLeida = async (req: Request, res: Response) =
         const userUid = typeof uid === 'string' ? uid : '';
 
         const bucketId = resolveNotificationBucket(req, userUid);
+        if (!bucketId) {
+            return res.status(403).json({ success: false, message: "No autorizado" });
+        }
         console.log(`📝 Marcando notificación como leída: ${notifId} en bucket ${bucketId}`);
 
         const docRefs = getNotifCollections(bucketId).map((col) => col.doc(notifId));
@@ -1974,6 +1977,9 @@ export const eliminarNotificacion = async (req: Request, res: Response) => {
         const userUid = typeof uid === 'string' ? uid : '';
 
         const bucketId = resolveNotificationBucket(req, userUid);
+        if (!bucketId) {
+            return res.status(403).json({ success: false, message: "No autorizado" });
+        }
         console.log(`🗑️ Eliminando notificación: ${notifId} en bucket ${bucketId}`);
 
         const docRefs = getNotifCollections(bucketId).map((col) => col.doc(notifId));
@@ -2011,6 +2017,9 @@ export const limpiarNotificacionesUsuario = async (req: Request, res: Response) 
         }
 
         const bucketId = resolveNotificationBucket(req, uid);
+        if (!bucketId) {
+            return res.status(403).json({ success: false, message: "No autorizado" });
+        }
         console.log(`🗑️ Limpiando todas las notificaciones del bucket: ${bucketId}`);
 
         const [newSnapshot, legacySnapshot, legacyNestedSnapshot] = await Promise.all([
@@ -2056,6 +2065,9 @@ export const obtenerNotificacionesUsuario = async (req: Request, res: Response) 
         }
 
         const bucketId = resolveNotificationBucket(req, uid);
+        if (!bucketId) {
+            return res.status(403).json({ success: false, message: "No autorizado" });
+        }
         console.log(`🔍 Obteniendo notificaciones para bucket: ${bucketId}`);
 
         const notificaciones = await getUserNotifications(bucketId);
@@ -2170,7 +2182,14 @@ const resolveNotificationBucket = (req: Request, uid: string) => {
     const requestUser = (req as any)?.user || {};
     const requestUid = (requestUser?.uid || '').toString();
     const role = (requestUser?.role || '').toString().toLowerCase();
-    if (uid === 'admin') return 'admin';
-    if (role === 'admin' && (!uid || uid === requestUid)) return 'admin';
-    return uid;
+    const requestedUid = (uid || '').toString().trim();
+    const isAdmin = role === 'admin';
+
+    if (isAdmin) {
+        if (!requestedUid || requestedUid === requestUid || requestedUid === 'admin') return 'admin';
+        return requestedUid;
+    }
+
+    if (!requestedUid || requestedUid === 'admin' || requestedUid !== requestUid) return '';
+    return requestedUid;
 };

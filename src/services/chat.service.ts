@@ -1,5 +1,43 @@
 import { db } from '../config/firebase';
 import { Chat, Message } from '../models/chat.model';
+import admin from 'firebase-admin';
+
+type UnreadMessagesSnapshot = {
+  totalUnread: number;
+  chats: Array<{
+    chatId: string;
+    count: number;
+    lastMessage: string;
+    senderName: string;
+    timestamp: Date;
+  }>;
+};
+
+const UNREAD_CACHE_TTL_MS = 30000;
+const unreadCache = new Map<string, { data: UnreadMessagesSnapshot; expiresAt: number }>();
+
+const getUnreadCacheKey = (userId: string, userType: 'tourist' | 'guide') => `${userType}:${userId}`;
+
+const invalidateUnreadCache = (userId?: string) => {
+  if (!userId) return;
+  for (const key of unreadCache.keys()) {
+    if (key.endsWith(`:${userId}`)) unreadCache.delete(key);
+  }
+};
+
+const isSafeFirestoreFieldSegment = (value: string) => /^[A-Za-z0-9_-]+$/.test(value);
+
+const toDate = (value: any): Date => {
+  if (!value) return new Date();
+  if (value instanceof Date) return value;
+  if (typeof value.toDate === 'function') return value.toDate();
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? new Date() : date;
+};
+
+const emptyUnreadSnapshot = (): UnreadMessagesSnapshot => ({ totalUnread: 0, chats: [] });
+
+const isQuotaExceeded = (error: any) => error?.code === 8 || /RESOURCE_EXHAUSTED|Quota exceeded/i.test(String(error?.message || error));
 
 export class ChatService {
   // Crear o obtener un chat existente entre turista y guía
@@ -27,6 +65,11 @@ export class ChatService {
       guideId,
       guideName,
       unreadCount: 0,
+      unreadByUser: {
+        [touristId]: 0,
+        [guideId]: 0,
+      },
+      unreadSummaryByUser: {},
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -38,17 +81,48 @@ export class ChatService {
   // Guardar mensaje en Firebase
   static async saveMessage(message: Omit<Message, 'id'>): Promise<Message> {
     const messagesRef = db.collection('messages');
+    const chatRef = db.collection('chats').doc(message.chatId);
+    const chatSnap = await chatRef.get();
+
+    if (!chatSnap.exists) {
+      throw new Error('Chat no encontrado');
+    }
+
+    const chatData = chatSnap.data() || {};
+    const participantIds = [chatData.touristId, chatData.guideId].filter(Boolean);
+
+    if (!participantIds.includes(message.senderId)) {
+      throw new Error('No autorizado para enviar mensajes en este chat');
+    }
+
+    const recipientId = message.senderId === chatData.touristId ? chatData.guideId : chatData.touristId;
+    const timestamp = new Date(message.timestamp);
+
     const messageDoc = await messagesRef.add({
       ...message,
-      timestamp: new Date(message.timestamp),
+      timestamp,
     });
 
-    // Actualizar último mensaje del chat
-    await db.collection('chats').doc(message.chatId).update({
+    const updatePayload: Record<string, any> = {
       lastMessage: message.content,
-      lastMessageTime: new Date(message.timestamp),
+      lastMessageTime: timestamp,
       updatedAt: new Date(),
-    });
+    };
+
+    if (recipientId && isSafeFirestoreFieldSegment(recipientId)) {
+      updatePayload[`unreadByUser.${recipientId}`] = admin.firestore.FieldValue.increment(1);
+      updatePayload[`unreadSummaryByUser.${recipientId}`] = {
+        lastMessage: message.content,
+        senderName: message.senderName,
+        timestamp,
+      };
+    } else {
+      updatePayload.unreadCount = admin.firestore.FieldValue.increment(1);
+    }
+
+    await chatRef.update(updatePayload);
+    invalidateUnreadCache(message.senderId);
+    invalidateUnreadCache(recipientId);
 
     return { id: messageDoc.id, ...message };
   }
@@ -151,24 +225,29 @@ export class ChatService {
 
   // Marcar mensajes como leídos
   static async markAsRead(chatId: string, userId: string): Promise<void> {
-    const messagesRef = db.collection('messages');
-    const snapshot = await messagesRef
-      .where('chatId', '==', chatId)
-      .where('senderId', '!=', userId)
-      .where('read', '==', false)
-      .get();
+    const chatRef = db.collection('chats').doc(chatId);
+    const chatSnap = await chatRef.get();
 
-    const batch = db.batch();
-    snapshot.docs.forEach(doc => {
-      batch.update(doc.ref, { read: true });
-    });
+    if (!chatSnap.exists) {
+      throw new Error('Chat no encontrado');
+    }
 
-    await batch.commit();
+    const chatData = chatSnap.data() || {};
+    if (chatData.touristId !== userId && chatData.guideId !== userId) {
+      throw new Error('No autorizado para marcar este chat como leído');
+    }
 
-    // Actualizar contador de no leídos
-    await db.collection('chats').doc(chatId).update({
+    const updatePayload: Record<string, any> = {
       unreadCount: 0,
-    });
+    };
+
+    if (isSafeFirestoreFieldSegment(userId)) {
+      updatePayload[`unreadByUser.${userId}`] = 0;
+      updatePayload[`unreadSummaryByUser.${userId}`] = admin.firestore.FieldValue.delete();
+    }
+
+    await chatRef.update(updatePayload);
+    invalidateUnreadCache(userId);
   }
 
   // Obtener información del chat
@@ -189,68 +268,58 @@ export class ChatService {
   }
 
   // Obtener mensajes no leídos de un usuario
-  static async getUnreadMessages(userId: string, userType: 'tourist' | 'guide'): Promise<{
-    totalUnread: number;
-    chats: Array<{
-      chatId: string;
-      count: number;
-      lastMessage: string;
-      senderName: string;
-      timestamp: Date;
-    }>;
-  }> {
+  static async getUnreadMessages(userId: string, userType: 'tourist' | 'guide'): Promise<UnreadMessagesSnapshot> {
     const chatsRef = db.collection('chats');
-    const messagesRef = db.collection('messages');
     const field = userType === 'tourist' ? 'touristId' : 'guideId';
+    const cacheKey = getUnreadCacheKey(userId, userType);
+    const cached = unreadCache.get(cacheKey);
+
+    if (cached && cached.expiresAt > Date.now()) {
+      return {
+        totalUnread: cached.data.totalUnread,
+        chats: [...cached.data.chats],
+      };
+    }
     
     try {
-      // Obtener todos los chats del usuario
       const chatsSnapshot = await chatsRef
         .where(field, '==', userId)
         .get();
 
       let totalUnread = 0;
-      const unreadChats = [];
+      const unreadChats: UnreadMessagesSnapshot['chats'] = [];
 
       for (const chatDoc of chatsSnapshot.docs) {
         const chatData = chatDoc.data();
-        
-        // Query simplificada: obtener todos los mensajes del chat y filtrar en memoria
-        const messagesSnapshot = await messagesRef
-          .where('chatId', '==', chatDoc.id)
-          .where('read', '==', false)
-          .get();
-
-        // Filtrar en memoria los mensajes que NO son del usuario actual
-        const unreadMessages = messagesSnapshot.docs.filter(doc => {
-          const data = doc.data();
-          return data.senderId !== userId;
-        });
-
-        const unreadCount = unreadMessages.length;
+        const unreadCount = Number(chatData.unreadByUser?.[userId] || 0);
         
         if (unreadCount > 0) {
           totalUnread += unreadCount;
-          
-          // Obtener el último mensaje no leído
-          const lastUnreadDoc = unreadMessages[unreadMessages.length - 1];
-          const lastUnreadData = lastUnreadDoc?.data();
+          const summary = chatData.unreadSummaryByUser?.[userId] || {};
+          const senderName = userType === 'tourist' ? chatData.guideName : chatData.touristName;
           
           unreadChats.push({
             chatId: chatDoc.id,
             count: unreadCount,
-            lastMessage: lastUnreadData?.content || '',
-            senderName: lastUnreadData?.senderName || '',
-            timestamp: lastUnreadData?.timestamp?.toDate ? lastUnreadData.timestamp.toDate() : new Date(),
+            lastMessage: summary.lastMessage || chatData.lastMessage || '',
+            senderName: summary.senderName || senderName || '',
+            timestamp: toDate(summary.timestamp || chatData.lastMessageTime || chatData.updatedAt),
           });
         }
       }
 
-      return {
+      const data = {
         totalUnread,
-        chats: unreadChats,
+        chats: unreadChats.sort((a, b) => b.timestamp.getTime() - a.timestamp.getTime()),
       };
+
+      unreadCache.set(cacheKey, { data, expiresAt: Date.now() + UNREAD_CACHE_TTL_MS });
+      return data;
     } catch (error) {
+      if (isQuotaExceeded(error)) {
+        return cached?.data || emptyUnreadSnapshot();
+      }
+
       console.error('Error al obtener mensajes no leídos:', error);
       throw error;
     }

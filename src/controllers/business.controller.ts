@@ -46,6 +46,57 @@ const parseSubcategories = (value: unknown): string[] => {
 
   return Array.from(new Set(normalized));
 };
+
+const FIRESTORE_QUERY_TIMEOUT_MS = 8000;
+const BUSINESS_REQUESTS_CACHE_TTL_MS = 15000;
+const BUSINESS_REQUESTS_ERROR_COOLDOWN_MS = 12000;
+
+type BusinessRequestsCacheEntry = {
+  expiresAt: number;
+  data: any[];
+  inFlight?: Promise<any[]>;
+};
+
+const businessRequestsCache = new Map<string, BusinessRequestsCacheEntry>();
+
+const withFirestoreTimeout = <T>(promise: Promise<T>, label: string): Promise<T> => {
+  let timeoutId: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timeoutId = setTimeout(
+      () => reject(new Error(`${label} timed out`)),
+      FIRESTORE_QUERY_TIMEOUT_MS,
+    );
+  });
+
+  return Promise.race([promise, timeout]).finally(() => {
+    if (timeoutId) clearTimeout(timeoutId);
+  });
+};
+
+const toIsoDateOrNull = (value: any): string | null => {
+  if (!value) return null;
+
+  try {
+    if (typeof value.toDate === "function") {
+      return value.toDate().toISOString();
+    }
+
+    if (typeof value === "string" || typeof value === "number") {
+      const date = new Date(value);
+      return Number.isNaN(date.getTime()) ? null : date.toISOString();
+    }
+
+    if (typeof value.seconds === "number") {
+      const milliseconds = value.seconds * 1000 + Math.floor((value.nanoseconds || 0) / 1000000);
+      const date = new Date(milliseconds);
+      return Number.isNaN(date.getTime()) ? null : date.toISOString();
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+};
 // Nuevo endpoint para registro de negocio con imágenes
 // Endpoint para validar unicidad de datos del negocio
 export const validateBusinessUniqueness = async (req: RequestWithUser, res: Response) => {
@@ -761,17 +812,17 @@ export const getMyBusiness = async (req: RequestWithUser, res: Response) => {
 
 // Repara docs huérfanos (ownerUid == null) asociándoles el UID del usuario autenticado
 const repairOrphanedDocs = async (docs: admin.firestore.QueryDocumentSnapshot[], ownerUid: string) => {
-  for (const doc of docs) {
+  await Promise.allSettled(docs.map(async (doc) => {
     const data = doc.data();
     if (!data.ownerUid && ownerUid) {
       try {
-        await doc.ref.update({ ownerUid });
+        await withFirestoreTimeout(doc.ref.update({ ownerUid }), `repair ownerUid for ${doc.ref.path}`);
         console.log(`[repairOrphanedDocs] ✅ Reparado doc ${doc.id} con ownerUid: ${ownerUid}`);
       } catch (e) {
         console.warn(`[repairOrphanedDocs] ⚠️ No se pudo reparar doc ${doc.id}:`, e);
       }
     }
-  }
+  }));
 };
 
 // Helper para mapear doc de cualquier colección
@@ -780,16 +831,12 @@ const mapSolicitudDoc = (
   estado: string
 ) => {
   const data = doc.data() || {};
-  const createdAt = data?.business?.createdAt
-    ? new Date((data.business.createdAt?.seconds || 0) * 1000).toISOString()
-    : data?.createdAt
-    ? new Date((data.createdAt?.seconds || 0) * 1000).toISOString()
-    : null;
+  const createdAt = toIsoDateOrNull(data?.business?.createdAt) || toIsoDateOrNull(data?.createdAt);
   return {
     id: doc.id,
     estado,
     email: data.email || data.ownerEmail || data.business?.email || null,
-    ownerUid: data.ownerUid || data.owner || null,
+    ownerUid: data.ownerUid || data.owner || data.business?.ownerUid || data.business?.owner || null,
     business: {
       ...data.business,
       createdAt,
@@ -808,6 +855,72 @@ const mapSolicitudDoc = (
   };
 };
 
+const getBusinessRequestsCacheKey = (userUid: string, userEmail?: string) =>
+  `${userUid.trim()}|${(userEmail || "").trim().toLowerCase()}`;
+
+const getDocsByField = async (
+  ref: admin.firestore.CollectionReference,
+  field: string,
+  value: string,
+) => {
+  if (!value) return [] as admin.firestore.QueryDocumentSnapshot[];
+  const snapshot = await withFirestoreTimeout(
+    ref.where(field, "==", value).get(),
+    `${ref.path}.${field}`,
+  );
+  return snapshot.docs;
+};
+
+const loadMyBusinessRequests = async (userUid: string, userEmail?: string) => {
+  const collectionsMap: { ref: admin.firestore.CollectionReference; estado: string }[] = [
+    { ref: db.collection("negocios").doc("Pendientes").collection("items"), estado: "pendiente" },
+    { ref: db.collection("negocios").doc("Activos").collection("items"), estado: "aprobado" },
+    { ref: db.collection("negocios").doc("Archivados").collection("items"), estado: "archivado" },
+    { ref: db.collection("negocios").doc("Rechazados").collection("items"), estado: "rechazado" },
+  ];
+
+  const queryFields = [
+    { field: "ownerUid", value: userUid, repairOwner: false },
+    { field: "owner", value: userUid, repairOwner: false },
+    { field: "business.owner", value: userUid, repairOwner: false },
+    ...(userEmail
+      ? [
+          { field: "ownerEmail", value: userEmail, repairOwner: true },
+          { field: "email", value: userEmail, repairOwner: true },
+          { field: "business.email", value: userEmail, repairOwner: true },
+        ]
+      : []),
+  ];
+
+  const results: any[] = [];
+  const seen = new Set<string>();
+
+  for (const { ref, estado } of collectionsMap) {
+    const queryResults = await Promise.all(
+      queryFields.map(async (query) => ({
+        ...query,
+        docs: await getDocsByField(ref, query.field, query.value),
+      })),
+    );
+
+    const orphans: admin.firestore.QueryDocumentSnapshot[] = [];
+    for (const queryResult of queryResults) {
+      for (const doc of queryResult.docs) {
+        const seenKey = `${estado}:${doc.id}`;
+        if (!seen.has(seenKey)) {
+          seen.add(seenKey);
+          if (queryResult.repairOwner) orphans.push(doc);
+          results.push(mapSolicitudDoc(doc, estado));
+        }
+      }
+    }
+
+    await repairOrphanedDocs(orphans, userUid);
+  }
+
+  return results;
+};
+
 export const getMyBusinessRequests = async (req: RequestWithUser, res: Response) => {
   try {
     const userUid = req.user?.uid;
@@ -819,72 +932,49 @@ export const getMyBusinessRequests = async (req: RequestWithUser, res: Response)
 
     console.log(`[getMyBusinessRequests] uid: ${userUid}, email: ${userEmail}`);
 
-    const collectionsMap: { ref: admin.firestore.CollectionReference; estado: string }[] = [
-      { ref: db.collection("negocios").doc("Pendientes").collection("items"), estado: "pendiente" },
-      { ref: db.collection("negocios").doc("Activos").collection("items"),    estado: "aprobado"  },
-      { ref: db.collection("negocios").doc("Archivados").collection("items"), estado: "archivado" },
-      { ref: db.collection("negocios").doc("Rechazados").collection("items"), estado: "rechazado" },
-    ];
+    const cacheKey = getBusinessRequestsCacheKey(userUid, userEmail);
+    const cached = businessRequestsCache.get(cacheKey);
+    const now = Date.now();
 
-    const results: any[] = [];
-    const seen = new Set<string>();
-
-    for (const { ref, estado } of collectionsMap) {
-      // 1. Buscar por ownerUid
-      const byUid = await ref.where("ownerUid", "==", userUid).get();
-      for (const doc of byUid.docs) {
-        if (!seen.has(doc.id)) {
-          seen.add(doc.id);
-          const mapped = mapSolicitudDoc(doc, estado);
-          results.push(mapped);
-        }
-      }
-
-      // 2. Buscar por owner (campo alternativo)
-      const byOwner = await ref.where("owner", "==", userUid).get();
-      for (const doc of byOwner.docs) {
-        if (!seen.has(doc.id)) {
-          seen.add(doc.id);
-          const mapped = mapSolicitudDoc(doc, estado);
-          results.push(mapped);
-        }
-      }
-
-      // 3. Buscar por ownerEmail
-      if (userEmail) {
-        const byEmail = await ref.where("ownerEmail", "==", userEmail).get();
-        const orphans: admin.firestore.QueryDocumentSnapshot[] = [];
-        for (const doc of byEmail.docs) {
-          if (!seen.has(doc.id)) {
-            seen.add(doc.id);
-            orphans.push(doc);
-            const mapped = mapSolicitudDoc(doc, estado);
-            results.push(mapped);
-          }
-        }
-        await repairOrphanedDocs(orphans, userUid);
-
-        // 4. Buscar por email plano
-        const byEmailPlain = await ref.where("email", "==", userEmail).get();
-        const orphans2: admin.firestore.QueryDocumentSnapshot[] = [];
-        for (const doc of byEmailPlain.docs) {
-          if (!seen.has(doc.id)) {
-            seen.add(doc.id);
-            orphans2.push(doc);
-            const mapped = mapSolicitudDoc(doc, estado);
-            results.push(mapped);
-          }
-        }
-        await repairOrphanedDocs(orphans2, userUid);
-      }
+    if (cached?.data && cached.expiresAt > now) {
+      return res.json({ success: true, solicitudes: [...cached.data] });
     }
+
+    const inFlight = cached?.inFlight || loadMyBusinessRequests(userUid, userEmail);
+
+    if (!cached?.inFlight) {
+      businessRequestsCache.set(cacheKey, {
+        data: cached?.data || [],
+        expiresAt: cached?.expiresAt || 0,
+        inFlight,
+      });
+    }
+
+    const results = await inFlight;
+    businessRequestsCache.set(cacheKey, {
+      data: results,
+      expiresAt: Date.now() + BUSINESS_REQUESTS_CACHE_TTL_MS,
+    });
 
     console.log(`[getMyBusinessRequests] ✅ ${results.length} solicitudes encontradas`);
     return res.json({ success: true, solicitudes: results });
 
   } catch (error: any) {
     console.error("Error getMyBusinessRequests:", error);
-    return res.status(500).json({ success: false });
+    const userUid = req.user?.uid || "";
+    const userEmail = req.user?.email;
+    const cacheKey = userUid ? getBusinessRequestsCacheKey(userUid, userEmail) : "";
+    const cached = cacheKey ? businessRequestsCache.get(cacheKey) : undefined;
+    const fallback = cached?.data || [];
+
+    if (cacheKey) {
+      businessRequestsCache.set(cacheKey, {
+        data: fallback,
+        expiresAt: Date.now() + BUSINESS_REQUESTS_ERROR_COOLDOWN_MS,
+      });
+    }
+
+    return res.status(200).json({ success: true, solicitudes: fallback, degraded: true });
   }
 };
 
