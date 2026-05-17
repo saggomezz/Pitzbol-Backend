@@ -107,45 +107,51 @@ export const login = async (req: Request, res: Response) => {
     console.log('👤 UID:', localId);
     
     let userData: any = null;
-    let userRole: string = "";
+    let userRole: string = "turista";
     let guideCollection: "lista" | "pendientes" | null = null;
 
     const categorias = ["turistas", "admins", "negocios"];
     const subCarpetasGuia = ["lista", "pendientes"];
 
-    for (const cat of categorias) {
-        const snap = await db.collection("usuarios").doc(cat).collection("lista").where("uid", "==", localId).limit(1).get();
-        
-        if (!snap.empty && snap.docs.length > 0) {
-            const doc = snap.docs[0];
-            if (doc && doc.exists) {
-                userData = doc.data();
-                // Respetar el rol guardado en el documento (ej: turista aprobado como guía)
-                const storedRole = userData?.role || userData?.["03_rol"];
-                if (storedRole === "guia" || storedRole === "admin" || storedRole === "negociante") {
-                    userRole = storedRole;
-                } else {
-                    userRole = cat === "turistas" ? "turista" : cat === "admins" ? "admin" : "negociante";
-                }
-                break; 
-            }
-        }
-    }
+    try {
+      for (const cat of categorias) {
+          const snap = await db.collection("usuarios").doc(cat).collection("lista").where("uid", "==", localId).limit(1).get();
 
-    if (!userData) {
-        for (const sub of subCarpetasGuia) {
-            const snap = await db.collection("usuarios").doc("guias").collection(sub).where("uid", "==", localId).limit(1).get();
-            
-            if (!snap.empty && snap.docs.length > 0) {
-                const doc = snap.docs[0];
-                if (doc && doc.exists) {
-                    userData = doc.data();
-                    userRole = sub === "lista" ? "guia" : "turista";
-                    guideCollection = sub as any;
-                    break;
-                }
-            }
-        }
+          if (!snap.empty && snap.docs.length > 0) {
+              const doc = snap.docs[0];
+              if (doc && doc.exists) {
+                  userData = doc.data();
+                  const storedRole = userData?.role || userData?.["03_rol"];
+                  if (storedRole === "guia" || storedRole === "admin" || storedRole === "negociante") {
+                      userRole = storedRole;
+                  } else {
+                      userRole = cat === "turistas" ? "turista" : cat === "admins" ? "admin" : "negociante";
+                  }
+                  break;
+              }
+          }
+      }
+
+      if (!userData) {
+          for (const sub of subCarpetasGuia) {
+              const snap = await db.collection("usuarios").doc("guias").collection(sub).where("uid", "==", localId).limit(1).get();
+
+              if (!snap.empty && snap.docs.length > 0) {
+                  const doc = snap.docs[0];
+                  if (doc && doc.exists) {
+                      userData = doc.data();
+                      userRole = sub === "lista" ? "guia" : "turista";
+                      guideCollection = sub as any;
+                      break;
+                  }
+              }
+          }
+      }
+    } catch (firestoreErr: any) {
+      // Firestore quota agotado — login con datos mínimos de Firebase Auth
+      console.warn("⚠️ Firestore quota exceeded en login, usando fallback:", firestoreErr?.details || firestoreErr?.message);
+      userData = { uid: localId, email };
+      userRole = "turista";
     }
 
     if (!userData) {
