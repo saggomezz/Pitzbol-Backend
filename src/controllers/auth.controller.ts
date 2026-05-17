@@ -262,11 +262,7 @@ export const recoverPassword = async (req: Request, res: Response) => {
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          requestType: "PASSWORD_RESET",
-          email,
-          continueUrl: "https://www.pitzbol.me/reset-password",
-        }),
+        body: JSON.stringify({ requestType: "PASSWORD_RESET", email }),
       }
     );
 
