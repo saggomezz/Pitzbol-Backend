@@ -563,3 +563,98 @@ export const solicitarGuia = async (req: any, res: Response) => {
     res.status(500).json({ msg: "Error interno del servidor" });
   }
 };
+// GET /api/auth/me - Obtener datos completos del usuario autenticado desde Firestore
+export const getMe = async (req: any, res: Response) => {
+  try {
+    const { uid, email, role: jwtRole } = req.user;
+
+    const categorias = ["turistas", "admins", "negocios"];
+    const subCarpetasGuia = ["lista", "pendientes"];
+
+    let userData: any = null;
+    let userRole: string = jwtRole || "turista";
+    let guideCollection: "lista" | "pendientes" | null = null;
+
+    try {
+      for (const cat of categorias) {
+        const snap = await db.collection("usuarios").doc(cat).collection("lista").where("uid", "==", uid).limit(1).get();
+        if (!snap.empty) {
+          userData = snap.docs[0].data();
+          const storedRole = userData?.role || userData?.["03_rol"];
+          if (storedRole === "guia" || storedRole === "admin" || storedRole === "negociante") {
+            userRole = storedRole;
+          } else {
+            userRole = cat === "turistas" ? "turista" : cat === "admins" ? "admin" : "negociante";
+          }
+          break;
+        }
+      }
+
+      if (!userData) {
+        for (const sub of subCarpetasGuia) {
+          const snap = await db.collection("usuarios").doc("guias").collection(sub).where("uid", "==", uid).limit(1).get();
+          if (!snap.empty) {
+            userData = snap.docs[0].data();
+            userRole = "guia";
+            guideCollection = sub as "lista" | "pendientes";
+            break;
+          }
+        }
+      }
+    } catch {
+      // Firestore quota — usar datos del JWT
+      return res.json({
+        success: true,
+        user: { uid, email, nombre: "", role: jwtRole || "turista" }
+      });
+    }
+
+    if (!userData) {
+      return res.status(404).json({ msg: "Perfil no encontrado" });
+    }
+
+    let nombre = userData?.nombre || userData?.["01_nombre"] || "";
+    if (!nombre) {
+      try {
+        const authUser = await auth.getUser(uid);
+        if (authUser.displayName) nombre = authUser.displayName.split(" ")[0];
+      } catch {}
+    }
+
+    const apellido = userData?.apellido || userData?.["02_apellido"] || "";
+    const telefono = userData?.telefono || userData?.["06_telefono"] || "";
+    const nacionalidad = userData?.nacionalidad || userData?.["05_nacionalidad"] || "";
+    const descripcion = userData?.descripcion || userData?.["15_descripcion"] || "";
+    const guideStatus = userData?.guide_status || userData?.solicitudStatus || userData?.["16_status"] || (guideCollection === "pendientes" ? "pendiente" : "ninguno");
+    const especialidades = userData?.["07_intereses"] || userData?.especialidades || userData?.["07_especialidades"] || [];
+
+    return res.json({
+      success: true,
+      user: {
+        uid,
+        email: userData?.["04_correo"] || userData?.email || email,
+        nombre,
+        apellido,
+        telefono,
+        nacionalidad,
+        descripcion,
+        fotoPerfil: userData?.fotoPerfil || userData?.["14_foto_perfil"]?.url || "",
+        role: userRole,
+        guide_status: guideStatus,
+        especialidades,
+        "07_intereses": userRole === "turista" ? especialidades : [],
+        "07_especialidades": userRole !== "turista" ? especialidades : [],
+        "01_nombre": userData?.["01_nombre"] || nombre,
+        "02_apellido": userData?.["02_apellido"] || apellido,
+        "06_telefono": userData?.["06_telefono"] || telefono,
+        "05_nacionalidad": userData?.["05_nacionalidad"] || nacionalidad,
+        "15_descripcion": userData?.["15_descripcion"] || descripcion,
+        "14_foto_perfil": userData?.["14_foto_perfil"] || null,
+        tarifa: userData?.tarifa_mxn || userData?.["17_tarifa_mxn"] || 0,
+      }
+    });
+  } catch (error) {
+    console.error("Error en getMe:", error);
+    return res.status(500).json({ msg: "Error interno" });
+  }
+};

@@ -6,6 +6,7 @@ import {
   updateProfile,
   solicitarGuia,
   refreshToken,
+  getMe,
 } from "../controllers/auth.controller";
 import { obtenerItinerariosPublico } from "../controllers/itinerarios.controller";
 import { authMiddleware } from "../middlewares/auth.middleware";
@@ -59,6 +60,9 @@ router.post(
     res.json({ msg: "Sesión cerrada correctamente" });
   }
 );
+
+// GET /api/auth/me - Datos completos del usuario autenticado desde Firestore
+router.get("/me", authMiddleware, getMe);
 
 // GET /api/auth/itinerarios?uid=...&role=... - Itinerarios del usuario (para página /itinerarios)
 router.get("/itinerarios", obtenerItinerariosPublico);
