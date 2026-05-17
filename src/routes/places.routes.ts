@@ -34,6 +34,15 @@ router.post('/routing', routingLimiter, placesController.getRouting);
 // POST /api/lugares/search-radius - Buscar lugares dentro de radio (con rate limit)
 router.post('/search-radius', geoSearchLimiter, placesController.searchRadius);
 
+// POST /api/lugares/upload-foto - Subir foto a Cloudinary (admin de lugares)
+router.post(
+  '/upload-foto',
+  authMiddleware,
+  requireEmailAdminLugares,
+  upload.single('foto'),
+  placesController.uploadLugarFoto
+);
+
 // GET /api/lugares - Obtener todos los lugares (público)
 router.get('/', placesController.getAllPlaces);
 

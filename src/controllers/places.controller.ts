@@ -731,6 +731,40 @@ export const getPlaceByName = async (req: Request, res: Response) => {
 };
 
 /**
+ * POST /api/lugares/upload-foto - Sube una foto de lugar a Cloudinary y devuelve la URL
+ */
+export const uploadLugarFoto = async (req: any, res: Response) => {
+  try {
+    const file = req.file;
+    if (!file) return res.status(400).json({ message: 'No se proporcionó ningún archivo' });
+
+    const url = await new Promise<string>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'pitzbol/lugares',
+          resource_type: 'auto',
+          format: 'webp',
+          transformation: [
+            { width: 1200, height: 900, crop: 'fill' },
+            { quality: 'auto:good' },
+          ],
+        },
+        (error, result) => {
+          if (error || !result?.secure_url) reject(error || new Error('Sin URL'));
+          else resolve(result.secure_url);
+        }
+      );
+      stream.end(file.buffer);
+    });
+
+    return res.json({ url });
+  } catch (error) {
+    console.error('Error subiendo foto de lugar a Cloudinary:', error);
+    return res.status(500).json({ message: 'Error al subir la imagen' });
+  }
+};
+
+/**
  * POST /api/lugares/:nombre/fotos - Agregar fotos a un lugar (URL o archivo)
  */
 export const addPlacePhotos = async (req: any, res: Response) => {
