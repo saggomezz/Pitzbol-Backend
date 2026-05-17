@@ -1,0 +1,736 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Pitzbol — Informe de Pruebas de Producción · 17 may 2026</title>
+<style>
+  :root {
+    --green:  #22c55e; --green-bg:  #f0fdf4; --green-border:  #bbf7d0;
+    --red:    #ef4444; --red-bg:    #fef2f2; --red-border:    #fecaca;
+    --yellow: #f59e0b; --yellow-bg: #fffbeb; --yellow-border: #fde68a;
+    --blue:   #3b82f6; --blue-bg:   #eff6ff; --blue-border:   #bfdbfe;
+    --gray:   #6b7280; --gray-bg:   #f9fafb; --gray-border:   #e5e7eb;
+    --purple: #8b5cf6;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'Segoe UI', system-ui, sans-serif; background: #f1f5f9; color: #1e293b; }
+
+  /* HEADER */
+  .header { background: linear-gradient(135deg, #0f172a 0%, #1e3a5f 100%); color: white; padding: 40px 48px 32px; }
+  .header-top { display: flex; justify-content: space-between; align-items: flex-start; flex-wrap: wrap; gap: 16px; }
+  .brand { display: flex; align-items: center; gap: 14px; }
+  .brand-icon { width: 48px; height: 48px; background: linear-gradient(135deg, #3b82f6, #8b5cf6); border-radius: 12px; display: flex; align-items: center; justify-content: center; font-size: 24px; }
+  .brand h1 { font-size: 1.6rem; font-weight: 700; letter-spacing: -0.5px; }
+  .brand p { font-size: 0.85rem; color: #94a3b8; margin-top: 2px; }
+  .run-badge { background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); border-radius: 10px; padding: 10px 16px; text-align: right; }
+  .run-badge .run-label { font-size: 0.75rem; color: #94a3b8; text-transform: uppercase; letter-spacing: 0.5px; }
+  .run-badge .run-val { font-size: 1.05rem; font-weight: 600; margin-top: 2px; }
+
+  .header-urls { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 20px; }
+  .url-chip { background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 20px; padding: 5px 14px; font-size: 0.8rem; color: #cbd5e1; }
+  .url-chip span { color: #60a5fa; font-weight: 600; }
+
+  /* MAIN */
+  .main { max-width: 1200px; margin: 0 auto; padding: 32px 24px; }
+
+  /* SUMMARY CARDS */
+  .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 16px; margin-bottom: 32px; }
+  .stat-card { background: white; border-radius: 14px; padding: 20px 18px; border: 1px solid #e2e8f0; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .stat-card .stat-label { font-size: 0.78rem; color: #64748b; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600; }
+  .stat-card .stat-value { font-size: 2.4rem; font-weight: 800; line-height: 1; margin-top: 8px; }
+  .stat-card .stat-sub { font-size: 0.78rem; color: #94a3b8; margin-top: 4px; }
+  .stat-card.passed .stat-value { color: var(--green); }
+  .stat-card.failed .stat-value { color: var(--red); }
+  .stat-card.warning .stat-value { color: var(--yellow); }
+  .stat-card.skipped .stat-value { color: var(--gray); }
+  .stat-card.rate .stat-value { color: #f59e0b; }
+  .stat-card.total .stat-value { color: #1e293b; }
+
+  /* PROGRESS BAR */
+  .progress-wrap { background: white; border-radius: 14px; padding: 24px; border: 1px solid #e2e8f0; margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .progress-wrap h3 { font-size: 0.9rem; color: #64748b; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px; }
+  .progress-bar { height: 28px; border-radius: 8px; overflow: hidden; display: flex; background: #f1f5f9; }
+  .pb-pass  { background: var(--green);  display: flex; align-items: center; justify-content: center; color: white; font-size: 0.75rem; font-weight: 700; transition: width .5s; }
+  .pb-fail  { background: var(--red);    display: flex; align-items: center; justify-content: center; color: white; font-size: 0.75rem; font-weight: 700; }
+  .pb-warn  { background: var(--yellow); display: flex; align-items: center; justify-content: center; color: white; font-size: 0.75rem; font-weight: 700; }
+  .pb-skip  { background: #cbd5e1;       display: flex; align-items: center; justify-content: center; color: white; font-size: 0.75rem; font-weight: 700; }
+  .pb-info  { background: var(--blue);   display: flex; align-items: center; justify-content: center; color: white; font-size: 0.75rem; font-weight: 700; }
+  .progress-legend { display: flex; flex-wrap: wrap; gap: 16px; margin-top: 12px; }
+  .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.82rem; color: #475569; }
+  .legend-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
+
+  /* COMPARISON */
+  .comparison { background: white; border-radius: 14px; padding: 24px; border: 1px solid #e2e8f0; margin-bottom: 32px; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .comparison h2 { font-size: 1.1rem; font-weight: 700; margin-bottom: 20px; color: #1e293b; }
+  .comp-table { width: 100%; border-collapse: collapse; font-size: 0.88rem; }
+  .comp-table th { text-align: left; padding: 10px 14px; background: #f8fafc; color: #64748b; font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.5px; border-bottom: 2px solid #e2e8f0; }
+  .comp-table td { padding: 12px 14px; border-bottom: 1px solid #f1f5f9; }
+  .comp-table tr:last-child td { border-bottom: none; }
+  .comp-table tr.current-run { background: #eff6ff; font-weight: 600; }
+  .rate-pill { display: inline-block; padding: 3px 10px; border-radius: 20px; font-size: 0.8rem; font-weight: 700; }
+  .rate-low  { background: var(--red-bg);    color: var(--red);    border: 1px solid var(--red-border); }
+  .rate-mid  { background: var(--yellow-bg); color: #b45309;       border: 1px solid var(--yellow-border); }
+  .rate-high { background: var(--green-bg);  color: #15803d;       border: 1px solid var(--green-border); }
+  .delta-up   { color: var(--green); font-weight: 700; }
+  .delta-down { color: var(--red);   font-weight: 700; }
+  .delta-eq   { color: var(--gray);  font-weight: 600; }
+
+  /* STATUS ALERT BOX */
+  .alert { border-radius: 12px; padding: 16px 20px; margin-bottom: 24px; display: flex; gap: 12px; align-items: flex-start; border: 1px solid; }
+  .alert-icon { font-size: 1.3rem; flex-shrink: 0; margin-top: 1px; }
+  .alert-content strong { display: block; font-size: 0.95rem; margin-bottom: 4px; }
+  .alert-content p { font-size: 0.85rem; line-height: 1.5; }
+  .alert-content ul { font-size: 0.85rem; line-height: 1.6; padding-left: 18px; margin-top: 4px; }
+  .alert.info    { background: var(--blue-bg);   border-color: var(--blue-border);   color: #1e40af; }
+  .alert.success { background: var(--green-bg);  border-color: var(--green-border);  color: #15803d; }
+  .alert.danger  { background: var(--red-bg);    border-color: var(--red-border);    color: #991b1b; }
+  .alert.warning { background: var(--yellow-bg); border-color: var(--yellow-border); color: #92400e; }
+
+  /* SECTIONS */
+  .section { background: white; border-radius: 14px; border: 1px solid #e2e8f0; margin-bottom: 20px; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+  .section-header { display: flex; justify-content: space-between; align-items: center; padding: 16px 20px; cursor: pointer; user-select: none; border-bottom: 1px solid #f1f5f9; }
+  .section-header:hover { background: #fafbfc; }
+  .section-title { display: flex; align-items: center; gap: 10px; }
+  .section-num { background: #f1f5f9; color: #475569; font-size: 0.75rem; font-weight: 700; padding: 3px 8px; border-radius: 6px; }
+  .section-name { font-size: 0.95rem; font-weight: 700; color: #1e293b; }
+  .section-stats { display: flex; gap: 8px; align-items: center; }
+  .s-badge { font-size: 0.75rem; font-weight: 700; padding: 3px 9px; border-radius: 20px; }
+  .s-pass { background: var(--green-bg); color: #15803d; border: 1px solid var(--green-border); }
+  .s-fail { background: var(--red-bg);   color: var(--red);    border: 1px solid var(--red-border); }
+  .s-skip { background: var(--gray-bg);  color: var(--gray);   border: 1px solid var(--gray-border); }
+  .s-warn { background: var(--yellow-bg); color: #b45309; border: 1px solid var(--yellow-border); }
+  .section-chevron { color: #94a3b8; font-size: 0.85rem; transition: transform 0.2s; }
+  .section-body { display: none; }
+  .section-body.open { display: block; }
+
+  /* TESTS TABLE */
+  .tests-table { width: 100%; border-collapse: collapse; font-size: 0.84rem; }
+  .tests-table tr:last-child td { border-bottom: none; }
+  .tests-table td { padding: 10px 16px; border-bottom: 1px solid #f8fafc; vertical-align: middle; }
+  .tests-table td:first-child { width: 38px; text-align: center; }
+  .test-id { font-family: 'Cascadia Code', 'Fira Code', monospace; font-size: 0.78rem; color: #64748b; font-weight: 600; white-space: nowrap; }
+  .test-name { color: #334155; font-weight: 500; }
+  .test-http { text-align: center; }
+  .http-pill { display: inline-block; padding: 2px 8px; border-radius: 6px; font-size: 0.78rem; font-weight: 700; font-family: monospace; }
+  .http-2xx { background: var(--green-bg); color: #15803d; }
+  .http-4xx { background: var(--blue-bg);  color: #1d4ed8; }
+  .http-5xx { background: var(--red-bg);   color: var(--red); }
+  .http-3xx { background: var(--yellow-bg); color: #b45309; }
+  .http-na  { background: var(--gray-bg);  color: var(--gray); }
+  .test-ms  { color: #94a3b8; font-size: 0.8rem; text-align: right; white-space: nowrap; }
+  .test-detail { color: #64748b; font-size: 0.82rem; max-width: 340px; }
+  .status-icon { font-size: 1rem; }
+
+  /* FOOTER */
+  .footer { text-align: center; padding: 32px 24px; color: #94a3b8; font-size: 0.8rem; }
+  .footer strong { color: #64748b; }
+
+  @media (max-width: 640px) {
+    .header { padding: 24px 20px; }
+    .main { padding: 20px 14px; }
+    .tests-table td:nth-child(4), .tests-table th:nth-child(4) { display: none; }
+    .test-detail { display: none; }
+  }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-top">
+    <div class="brand">
+      <div class="brand-icon">⚽</div>
+      <div>
+        <h1>Pitzbol PWA</h1>
+        <p>Informe de Pruebas Funcionales — Producción</p>
+      </div>
+    </div>
+    <div class="run-badge">
+      <div class="run-label">Ejecución</div>
+      <div class="run-val">Run #3 · 17 may 2026, 06:46 UTC</div>
+    </div>
+  </div>
+  <div class="header-urls">
+    <div class="url-chip">Frontend: <span>https://www.pitzbol.me</span></div>
+    <div class="url-chip">Backend: <span>https://api.pitzbol.me</span></div>
+    <div class="url-chip">Motor IA: <span>https://ia.pitzbol.me</span></div>
+    <div class="url-chip">Duración: <span>27.1 s</span></div>
+  </div>
+</div>
+
+<div class="main">
+
+  <!-- ALERT: ESTADO ACTUAL -->
+  <div class="alert success">
+    <div class="alert-icon">✅</div>
+    <div class="alert-content">
+      <strong>Frontend completamente operativo</strong>
+      <p>Todas las páginas de <code>www.pitzbol.me</code> devuelven HTTP 200. Los headers de seguridad (HSTS, CSP, X-Frame-Options) están activos. Solución: SSL Full en Cloudflare + Page Rule <code>www.pitzbol.me/*</code>.</p>
+    </div>
+  </div>
+  <div class="alert danger">
+    <div class="alert-icon">🔴</div>
+    <div class="alert-content">
+      <strong>API pendiente: HTTP 525 en todos los endpoints</strong>
+      <ul>
+        <li><strong>Causa:</strong> Cloudflare SSL "Full" intenta conectar a <code>api.pitzbol.me</code> en puerto 443, donde OpenVPN intercepta la conexión.</li>
+        <li><strong>Fix requerido:</strong> Cloudflare → Rules → Origin Rules → redirigir <code>api.pitzbol.me</code> e <code>ia.pitzbol.me</code> al puerto <strong>8443</strong> (nginx + Let's Encrypt).</li>
+        <li>Restaurar symlink nginx: <code>sudo ln -sf /etc/nginx/sites-available/pitzbol-api /etc/nginx/sites-enabled/pitzbol-api &amp;&amp; sudo nginx -t &amp;&amp; sudo systemctl reload nginx</code></li>
+      </ul>
+    </div>
+  </div>
+  <div class="alert warning">
+    <div class="alert-icon">⚠️</div>
+    <div class="alert-content">
+      <strong>Service Worker /sw.js devuelve 404</strong>
+      <p>next-pwa no está generando el worker en producción. Verificar que el despliegue en Vercel incluye el build de producción con <code>withPWA</code> habilitado.</p>
+    </div>
+  </div>
+
+  <!-- SUMMARY CARDS -->
+  <div class="summary-grid">
+    <div class="stat-card total">
+      <div class="stat-label">Total tests</div>
+      <div class="stat-value">110</div>
+      <div class="stat-sub">excl. INFO</div>
+    </div>
+    <div class="stat-card passed">
+      <div class="stat-label">✅ Pasaron</div>
+      <div class="stat-value">53</div>
+      <div class="stat-sub">48.2% del total</div>
+    </div>
+    <div class="stat-card failed">
+      <div class="stat-label">❌ Fallaron</div>
+      <div class="stat-value">41</div>
+      <div class="stat-sub">525 en API</div>
+    </div>
+    <div class="stat-card warning">
+      <div class="stat-label">⚠️ Warnings</div>
+      <div class="stat-value">4</div>
+      <div class="stat-sub">CORS, sw.js, etc.</div>
+    </div>
+    <div class="stat-card skipped">
+      <div class="stat-label">⏭️ Saltados</div>
+      <div class="stat-value">10</div>
+      <div class="stat-sub">requieren UID API</div>
+    </div>
+    <div class="stat-card rate">
+      <div class="stat-label">Tasa de éxito</div>
+      <div class="stat-value">53%</div>
+      <div class="stat-sub">excl. SKIPPED</div>
+    </div>
+  </div>
+
+  <!-- PROGRESS BAR -->
+  <div class="progress-wrap">
+    <h3>Distribución de resultados</h3>
+    <div class="progress-bar">
+      <div class="pb-pass" style="width:48.2%">53</div>
+      <div class="pb-fail" style="width:37.3%">41</div>
+      <div class="pb-warn" style="width:3.6%">4</div>
+      <div class="pb-skip" style="width:9.1%">10</div>
+      <div class="pb-info" style="width:1.8%">2</div>
+    </div>
+    <div class="progress-legend">
+      <div class="legend-item"><div class="legend-dot" style="background:var(--green)"></div> Pasaron (53)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div> Fallaron (41)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--yellow)"></div> Warnings (4)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:#cbd5e1"></div> Saltados (10)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:var(--blue)"></div> Info (2)</div>
+    </div>
+  </div>
+
+  <!-- HISTORICAL COMPARISON -->
+  <div class="comparison">
+    <h2>📊 Comparativa histórica de ejecuciones</h2>
+    <table class="comp-table">
+      <thead>
+        <tr>
+          <th>Run</th>
+          <th>Fecha</th>
+          <th>Pasaron</th>
+          <th>Fallaron</th>
+          <th>Tasa</th>
+          <th>Estado principal</th>
+          <th>Δ vs anterior</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Run #1</strong></td>
+          <td>16 may 2026</td>
+          <td>53 / 110</td>
+          <td>40</td>
+          <td><span class="rate-pill rate-low">53%</span></td>
+          <td>API: HTTP 525 · Frontend: HTTP 308 · OpenVPN en 443</td>
+          <td class="delta-eq">— base</td>
+        </tr>
+        <tr>
+          <td><strong>Run #2</strong></td>
+          <td>16 may 2026</td>
+          <td>60 / 111</td>
+          <td>40</td>
+          <td><span class="rate-pill rate-mid">55%</span></td>
+          <td>API: OK ✅ (CF Flexible/port 80) · Frontend: HTTP 308 aún</td>
+          <td class="delta-up">+2% ↑</td>
+        </tr>
+        <tr class="current-run">
+          <td><strong>Run #3</strong> ← actual</td>
+          <td>17 may 2026</td>
+          <td>53 / 110</td>
+          <td>41</td>
+          <td><span class="rate-pill rate-mid">53%</span></td>
+          <td>Frontend: HTTP 200 ✅ · API: HTTP 525 (CF Full/port 443)</td>
+          <td class="delta-down">−2% ↓</td>
+        </tr>
+        <tr>
+          <td><strong>Run #4</strong> 🎯</td>
+          <td>pendiente</td>
+          <td>~95 / 100</td>
+          <td>&lt;5</td>
+          <td><span class="rate-pill rate-high">~90%+</span></td>
+          <td>CF Full + Origin Rule :8443 → API y Frontend OK</td>
+          <td class="delta-up">estimado</td>
+        </tr>
+      </tbody>
+    </table>
+    <div style="margin-top:14px; padding:12px 16px; background:#f8fafc; border-radius:8px; font-size:0.84rem; color:#475569; border:1px solid #e2e8f0;">
+      <strong>Nota de arquitectura:</strong> Puerto 443 del VPS está ocupado permanentemente por OpenVPN (PID 861). 
+      La solución definitiva es: <strong>Cloudflare Full SSL</strong> + <strong>Origin Rule</strong> redirigiendo 
+      <code>api.pitzbol.me</code> → puerto <code>8443</code> donde nginx sirve con certificados Let's Encrypt válidos.
+    </div>
+  </div>
+
+  <!-- SECTIONS -->
+  <h2 style="font-size:1.1rem; font-weight:700; margin-bottom:16px; color:#1e293b;">Resultados por sección</h2>
+
+  <!-- S1: Autenticación -->
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title">
+        <span class="section-num">S1</span>
+        <span class="section-name">Autenticación</span>
+      </div>
+      <div class="section-stats">
+        <span class="s-badge s-pass">✅ 4</span>
+        <span class="s-badge s-fail">❌ 6</span>
+        <span class="section-chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body open">
+      <table class="tests-table">
+        <tr><td>✅</td><td class="test-id">AUT-001</td><td class="test-name">Página /login carga sin autenticación</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">596ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">AUT-009</td><td class="test-name">Página /forgot-password carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">511ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">AUT-010</td><td class="test-name">Página /reset-password carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">597ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">AUT-011b</td><td class="test-name">Página / principal carga sin auth</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">310ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">AUT-001b</td><td class="test-name">Registro sin datos → 400</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">214ms</td><td class="test-detail">Esperado 400, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">AUT-002</td><td class="test-name">Registro email inválido → 400</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">513ms</td><td class="test-detail">Esperado 400, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">AUT-006</td><td class="test-name">Login credenciales incorrectas → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">173ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">AUT-009b</td><td class="test-name">Recuperar contraseña email inexistente → 200</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">242ms</td><td class="test-detail">Esperado 200, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">AUT-011</td><td class="test-name">Actualizar perfil sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">180ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">AUT-007</td><td class="test-name">Logout sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">163ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- S2: Descubrimiento de Guías -->
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title">
+        <span class="section-num">S2</span>
+        <span class="section-name">Descubrimiento de Guías</span>
+      </div>
+      <div class="section-stats">
+        <span class="s-badge s-pass">✅ 1</span>
+        <span class="s-badge s-fail">❌ 1</span>
+        <span class="s-badge s-skip">⏭️ 4</span>
+        <span class="section-chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <table class="tests-table">
+        <tr><td>✅</td><td class="test-id">GUI-001</td><td class="test-name">Página /explora carga sin autenticación</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">374ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">GUI-002</td><td class="test-name">GET /api/guides/verified → listado guías activos</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">186ms</td><td class="test-detail">Esperado 200, recibido 525</td></tr>
+        <tr style="background:#f9fafb"><td>⏭️</td><td class="test-id">GUI-005</td><td class="test-name">GET /api/guides/profile/:uid → perfil público</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Sin UID de guía (GUI-002 falló)</td></tr>
+        <tr style="background:#f9fafb"><td>⏭️</td><td class="test-id">GUI-005b</td><td class="test-name">Página /perfil/[uid] carga</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Sin UID de guía</td></tr>
+        <tr style="background:#f9fafb"><td>⏭️</td><td class="test-id">PER-006</td><td class="test-name">GET /api/ratings/guide/:uid</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Sin UID de guía</td></tr>
+        <tr style="background:#f9fafb"><td>⏭️</td><td class="test-id">PER-007</td><td class="test-name">GET /api/ratings/guide/:uid/stats</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Sin UID de guía</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- S3: Perfil de Guía -->
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title">
+        <span class="section-num">S3</span>
+        <span class="section-name">Perfil de Guía</span>
+      </div>
+      <div class="section-stats">
+        <span class="s-badge s-pass">✅ 1</span>
+        <span class="s-badge s-fail">❌ 1</span>
+        <span class="s-badge s-skip">⏭️ 3</span>
+        <span class="section-chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <table class="tests-table">
+        <tr><td>✅</td><td class="test-id">PER-011</td><td class="test-name">Página /perfil (protegida) acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">429ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">PER-010</td><td class="test-name">POST /api/bookings/create sin auth → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">218ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#f9fafb"><td>⏭️</td><td class="test-id">PER-004</td><td class="test-name">GET /api/availability/:guideId</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Sin UID de guía</td></tr>
+        <tr style="background:#f9fafb"><td>⏭️</td><td class="test-id">PER-009</td><td class="test-name">GET /api/tours/guia/:uid</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Sin UID de guía</td></tr>
+        <tr style="background:#f9fafb"><td>⏭️</td><td class="test-id">PER-001b</td><td class="test-name">Página /guia/empresa/[uid] carga</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Sin UID de guía</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- S4: Booking -->
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title">
+        <span class="section-num">S4</span>
+        <span class="section-name">Booking / Reservas</span>
+      </div>
+      <div class="section-stats">
+        <span class="s-badge s-pass">✅ 2</span>
+        <span class="s-badge s-fail">❌ 4</span>
+        <span class="s-badge s-skip">⏭️ 1</span>
+        <span class="section-chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <table class="tests-table">
+        <tr><td>✅</td><td class="test-id">BOO-011</td><td class="test-name">Página /tours/confirmacion/[bookingId] carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">1333ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">BOO-013</td><td class="test-name">Página /tours/pago/[bookingId] carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">1430ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">BOO-001</td><td class="test-name">GET /api/bookings/tourist/:id sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">211ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">BOO-010</td><td class="test-name">POST /api/bookings/create sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">151ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">BOO-011b</td><td class="test-name">GET /api/ratings/can-rate/:id sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">329ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">BOO-013b</td><td class="test-name">POST /api/payments/create-payment-intent sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">165ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#f9fafb"><td>⏭️</td><td class="test-id">BOO-001b</td><td class="test-name">Página /tours/reservar/[uid] carga</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Sin UID de guía</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- S5: Lugares -->
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title">
+        <span class="section-num">S5</span>
+        <span class="section-name">Exploración de Lugares</span>
+      </div>
+      <div class="section-stats">
+        <span class="s-badge s-pass">✅ 6</span>
+        <span class="s-badge s-fail">❌ 2</span>
+        <span class="s-badge s-skip">⏭️ 2</span>
+        <span class="section-chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <table class="tests-table">
+        <tr><td>✅</td><td class="test-id">LUG-006a</td><td class="test-name">Página /cultura carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">288ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">LUG-006b</td><td class="test-name">Página /gastronomia carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">251ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">LUG-006c</td><td class="test-name">Página /arte carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">259ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">LUG-006d</td><td class="test-name">Página /futbol carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">247ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">LUG-007</td><td class="test-name">Página /mapa carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">396ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">IA-002</td><td class="test-name">GET /api/places (pitzbol-web IA)</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">2559ms</td><td class="test-detail">Catálogo IA disponible</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">LUG-001</td><td class="test-name">GET /api/lugares → catálogo</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">181ms</td><td class="test-detail">Esperado 200, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">LUG-008</td><td class="test-name">GET /api/lugares/:nombre</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">164ms</td><td class="test-detail">Esperado 200, recibido 525</td></tr>
+        <tr style="background:#f9fafb"><td>⏭️</td><td class="test-id">LUG-008b</td><td class="test-name">Página /informacion/[nombre]</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Sin nombre de lugar (LUG-001 falló)</td></tr>
+        <tr style="background:#f9fafb"><td>⏭️</td><td class="test-id">LUG-012</td><td class="test-name">GET /api/place-ratings/:nombre/stats</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Sin nombre de lugar</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- S6: Tours -->
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title">
+        <span class="section-num">S6</span>
+        <span class="section-name">Tours / Itinerarios</span>
+      </div>
+      <div class="section-stats">
+        <span class="s-badge s-pass">✅ 6</span>
+        <span class="s-badge s-fail">❌ 3</span>
+        <span class="section-chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <table class="tests-table">
+        <tr><td>✅</td><td class="test-id">TOU-001b</td><td class="test-name">Página /tours carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">285ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">TOU-002b</td><td class="test-name">Página /tours/paquetes carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">366ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">TOU-009</td><td class="test-name">Página /itinerario carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">291ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">TOU-009b</td><td class="test-name">Página /itinerario/manual carga</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">277ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">IA-001</td><td class="test-name">pitzbol-web raíz accesible</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">481ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">IA-003</td><td class="test-name">POST /api/itinerary — sin intereses → 400</td><td class="test-http"><span class="http-pill http-4xx">400</span></td><td class="test-ms">344ms</td><td class="test-detail">HTTP 400</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">TOU-001</td><td class="test-name">GET /api/tours → listado</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">159ms</td><td class="test-detail">Esperado 200, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">TOU-002</td><td class="test-name">GET /api/paquetes → paquetes</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">158ms</td><td class="test-detail">Esperado 200, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">TOU-004</td><td class="test-name">GET /api/tours/:id (demo)</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">166ms</td><td class="test-detail">Esperado 200, recibido 525</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- S7: Motor IA -->
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title">
+        <span class="section-num">S7</span>
+        <span class="section-name">Motor IA Híbrido</span>
+      </div>
+      <div class="section-stats">
+        <span class="s-badge s-pass">✅ 2</span>
+        <span class="s-badge s-fail">❌ 2</span>
+        <span class="section-chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <table class="tests-table">
+        <tr><td>✅</td><td class="test-id">IA-003</td><td class="test-name">POST /api/itinerary — sin intereses → 400</td><td class="test-http"><span class="http-pill http-4xx">400</span></td><td class="test-ms">344ms</td><td class="test-detail">HTTP 400 (IA accesible)</td></tr>
+        <tr><td>ℹ️</td><td class="test-id">IA-017b</td><td class="test-name">Coherencia geográfica KNN</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Requiere inspección manual</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">IA-008a</td><td class="test-name">GET /api/ai → info motor IA</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">148ms</td><td class="test-detail">Esperado 200, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">IA-008b</td><td class="test-name">POST /api/itinerary — genera itinerario</td><td class="test-http"><span class="http-pill http-4xx">400</span></td><td class="test-ms">521ms</td><td class="test-detail">Esperado 200, recibido 400 (body mismatch)</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- S8: Panel de Usuario -->
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title">
+        <span class="section-num">S8</span>
+        <span class="section-name">Panel de Usuario</span>
+      </div>
+      <div class="section-stats">
+        <span class="s-badge s-pass">✅ 3</span>
+        <span class="s-badge s-fail">❌ 6</span>
+        <span class="section-chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <table class="tests-table">
+        <tr><td>✅</td><td class="test-id">USU-001b</td><td class="test-name">Página /perfil acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">140ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">USU-001c</td><td class="test-name">Página /favoritos acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">263ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">USU-001d</td><td class="test-name">Página /mensajes acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">261ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">USU-001</td><td class="test-name">GET /api/favorites sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">179ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">USU-003</td><td class="test-name">GET /api/bookings/tourist sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">153ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">USU-009</td><td class="test-name">GET /api/perfil/foto-perfil sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">215ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">USU-009b</td><td class="test-name">GET /api/perfil/wallet sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">148ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">USU-013</td><td class="test-name">GET /api/itinerarios/itinerarios sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">153ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">USU-013b</td><td class="test-name">GET /api/itinerarios/notas sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">160ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- S9: Panel de Guía -->
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title">
+        <span class="section-num">S9</span>
+        <span class="section-name">Panel de Guía</span>
+      </div>
+      <div class="section-stats">
+        <span class="s-badge s-pass">✅ 2</span>
+        <span class="s-badge s-fail">❌ 5</span>
+        <span class="section-chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <table class="tests-table">
+        <tr><td>✅</td><td class="test-id">GUI-P01b</td><td class="test-name">Página /guide/estatus acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">399ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">GUI-P01c</td><td class="test-name">Página /guide/solicitudes acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">357ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">GUI-P01</td><td class="test-name">GET /api/guides/my-request sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">175ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">GUI-P09</td><td class="test-name">POST /api/availability/set sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">167ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">GUI-P03</td><td class="test-name">GET /api/bookings/guide sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">153ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">GUI-P12</td><td class="test-name">POST /api/tours sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">152ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">GUI-P11</td><td class="test-name">POST /api/guides/add-tour sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">153ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- S10: Panel Admin -->
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title">
+        <span class="section-num">S10</span>
+        <span class="section-name">Panel Admin</span>
+      </div>
+      <div class="section-stats">
+        <span class="s-badge s-pass">✅ 4</span>
+        <span class="s-badge s-fail">❌ 6</span>
+        <span class="section-chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <table class="tests-table">
+        <tr><td>✅</td><td class="test-id">ADM-001c</td><td class="test-name">Página /admin acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">244ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">ADM-005b</td><td class="test-name">Página /admin/guias acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">240ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">ADM-008b</td><td class="test-name">Página /admin/negocios acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">307ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">ADM-012</td><td class="test-name">Página /admin/lugares acceso controlado</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">275ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">ADM-001</td><td class="test-name">GET /api/admin/negocios sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">183ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">ADM-008</td><td class="test-name">GET /api/admin/negocios/pendientes sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">227ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">ADM-005</td><td class="test-name">GET /api/admin/guias/pendientes sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">152ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">ADM-006</td><td class="test-name">GET /api/admin/guias/aprobados sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">158ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">ADM-001b</td><td class="test-name">GET /api/admin/solicitudes-pendientes sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">174ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">ADM-011</td><td class="test-name">GET /api/admin/usuarios-gestionables sin token → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">150ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- S11: Responsividad y UX -->
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title">
+        <span class="section-num">S11</span>
+        <span class="section-name">Responsividad y UX</span>
+      </div>
+      <div class="section-stats">
+        <span class="s-badge s-pass">✅ 5</span>
+        <span class="s-badge s-fail">❌ 1</span>
+        <span class="section-chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <table class="tests-table">
+        <tr><td>✅</td><td class="test-id">RES-012</td><td class="test-name">PWA Manifest disponible</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">192ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">RES-001</td><td class="test-name">Favicon disponible</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">355ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">RES-003a</td><td class="test-name">Mobile UA — Página principal</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">134ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">RES-003b</td><td class="test-name">Mobile UA — /explora</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">145ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr><td>✅</td><td class="test-id">RES-003c</td><td class="test-name">Mobile UA — /tours</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">140ms</td><td class="test-detail">HTTP 200</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">PER-008</td><td class="test-name">Service Worker /sw.js disponible</td><td class="test-http"><span class="http-pill http-4xx">404</span></td><td class="test-ms">268ms</td><td class="test-detail">HTTP 404 — necesita deploy Vercel</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- S12: Seguridad -->
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title">
+        <span class="section-num">S12</span>
+        <span class="section-name">Seguridad</span>
+      </div>
+      <div class="section-stats">
+        <span class="s-badge s-pass">✅ 7</span>
+        <span class="s-badge s-warn">⚠️ 1</span>
+        <span class="section-chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <table class="tests-table">
+        <tr><td>✅</td><td class="test-id">SEC-001a</td><td class="test-name">SSL/HTTPS válido — www.pitzbol.me</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Certificado válido, expira Jul 15 2026</td></tr>
+        <tr><td>✅</td><td class="test-id">SEC-001b</td><td class="test-name">SSL/HTTPS válido — api.pitzbol.me</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Certificado válido, expira Jul 15 2026</td></tr>
+        <tr><td>✅</td><td class="test-id">SEC-001c</td><td class="test-name">HSTS header presente</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">max-age=63072000; includeSubDomains; preload</td></tr>
+        <tr><td>✅</td><td class="test-id">SEC-001d</td><td class="test-name">X-Frame-Options header</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Presente: DENY</td></tr>
+        <tr><td>✅</td><td class="test-id">SEC-001e</td><td class="test-name">X-Content-Type-Options header</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Presente: nosniff</td></tr>
+        <tr><td>✅</td><td class="test-id">SEC-001f</td><td class="test-name">Content-Security-Policy header</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Presente: default-src 'self'; script-src…</td></tr>
+        <tr><td>✅</td><td class="test-id">SEC-001g</td><td class="test-name">Permissions-Policy header</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">camera=(self), microphone=(), geolocation=(self)</td></tr>
+        <tr style="background:#fffbeb"><td>⚠️</td><td class="test-id">SEC-005</td><td class="test-name">CORS — API acepta origen pitzbol.me</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">144ms</td><td class="test-detail">No se encontró Access-Control-Allow-Origin (API caída)</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- S13: Rendimiento -->
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title">
+        <span class="section-num">S13</span>
+        <span class="section-name">Rendimiento</span>
+      </div>
+      <div class="section-stats">
+        <span class="s-badge s-pass">✅ 10</span>
+        <span class="section-chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <table class="tests-table">
+        <tr><td>✅</td><td class="test-id">PER-001</td><td class="test-name">Página principal carga &lt;3s</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">173ms</td><td class="test-detail">173ms &lt; 3000ms ✓</td></tr>
+        <tr><td>✅</td><td class="test-id">PER-002</td><td class="test-name">Página /explora carga &lt;3s</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">153ms</td><td class="test-detail">153ms &lt; 3000ms ✓</td></tr>
+        <tr><td>✅</td><td class="test-id">PER-003</td><td class="test-name">Página /tours carga &lt;3s</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">219ms</td><td class="test-detail">219ms &lt; 3000ms ✓</td></tr>
+        <tr><td>✅</td><td class="test-id">PER-004</td><td class="test-name">Página /mapa carga &lt;5s</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">155ms</td><td class="test-detail">155ms &lt; 5000ms ✓</td></tr>
+        <tr><td>✅</td><td class="test-id">PER-005a</td><td class="test-name">Backend health &lt;2s</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">155ms</td><td class="test-detail">Responde rápido (aunque 525)</td></tr>
+        <tr><td>✅</td><td class="test-id">PER-005b</td><td class="test-name">GET /api/guides/verified &lt;4s</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">210ms</td><td class="test-detail">Responde rápido (aunque 525)</td></tr>
+        <tr><td>✅</td><td class="test-id">PER-005c</td><td class="test-name">GET /api/lugares &lt;3s</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">158ms</td><td class="test-detail">Responde rápido (aunque 525)</td></tr>
+        <tr><td>✅</td><td class="test-id">PER-005d</td><td class="test-name">GET /api/tours &lt;3s</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">171ms</td><td class="test-detail">Responde rápido (aunque 525)</td></tr>
+        <tr><td>✅</td><td class="test-id">PER-005e</td><td class="test-name">GET /api/paquetes &lt;3s</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">237ms</td><td class="test-detail">Responde rápido (aunque 525)</td></tr>
+        <tr><td>✅</td><td class="test-id">PER-005f</td><td class="test-name">Tiempo promedio de respuesta API</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">186ms</td><td class="test-detail">Promedio: 186ms ✓</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- S14: Errores y Edge -->
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title">
+        <span class="section-num">S14</span>
+        <span class="section-name">Errores y Casos Edge</span>
+      </div>
+      <div class="section-stats">
+        <span class="s-badge s-pass">✅ 1</span>
+        <span class="s-badge s-fail">❌ 1</span>
+        <span class="s-badge s-warn">⚠️ 1</span>
+        <span class="section-chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <table class="tests-table">
+        <tr><td>✅</td><td class="test-id">ERR-003b</td><td class="test-name">Página 404 frontend devuelve respuesta</td><td class="test-http"><span class="http-pill http-4xx">404</span></td><td class="test-ms">139ms</td><td class="test-detail">HTTP 404 correcto</td></tr>
+        <tr><td>ℹ️</td><td class="test-id">AUT-013</td><td class="test-name">Rate limiting en /api/auth/login</td><td class="test-http"><span class="http-pill http-na">—</span></td><td class="test-ms">0ms</td><td class="test-detail">Configurado: loginLimiter 20/15min (código fuente)</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">ERR-003</td><td class="test-name">Ruta inexistente → 404 con JSON</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">169ms</td><td class="test-detail">HTTP 525 (API caída)</td></tr>
+        <tr style="background:#fffbeb"><td>⚠️</td><td class="test-id">ERR-001</td><td class="test-name">Body JSON malformado → 400</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">159ms</td><td class="test-detail">HTTP 525 (API caída)</td></tr>
+      </table>
+    </div>
+  </div>
+
+  <!-- S15: Integraciones -->
+  <div class="section">
+    <div class="section-header" onclick="toggleSection(this)">
+      <div class="section-title">
+        <span class="section-num">S15</span>
+        <span class="section-name">Integraciones</span>
+      </div>
+      <div class="section-stats">
+        <span class="s-badge s-pass">✅ 1</span>
+        <span class="s-badge s-fail">❌ 3</span>
+        <span class="s-badge s-warn">⚠️ 2</span>
+        <span class="section-chevron">▼</span>
+      </div>
+    </div>
+    <div class="section-body">
+      <table class="tests-table">
+        <tr><td>✅</td><td class="test-id">INT-006</td><td class="test-name">Mapa Leaflet — página /mapa carga correctamente</td><td class="test-http"><span class="http-pill http-2xx">200</span></td><td class="test-ms">143ms</td><td class="test-detail">HTML retornado, Leaflet inicializa en browser</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">INT-001</td><td class="test-name">Firebase Auth — endpoint login accesible</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">150ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">INT-002</td><td class="test-name">Firestore lee datos — GET /api/guides retorna datos</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">156ms</td><td class="test-detail">Esperado 200, recibido 525</td></tr>
+        <tr style="background:#fef2f2"><td>❌</td><td class="test-id">INT-007</td><td class="test-name">GET /api/support/contact-forms (protegido) → 401</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">236ms</td><td class="test-detail">Esperado 401, recibido 525</td></tr>
+        <tr style="background:#fffbeb"><td>⚠️</td><td class="test-id">INT-003</td><td class="test-name">Firestore accesible — POST /api/business/validate-uniqueness</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">157ms</td><td class="test-detail">HTTP 525 (API caída)</td></tr>
+        <tr style="background:#fffbeb"><td>⚠️</td><td class="test-id">INT-004</td><td class="test-name">Stripe — endpoint payment-intent protegido y accesible</td><td class="test-http"><span class="http-pill http-5xx">525</span></td><td class="test-ms">158ms</td><td class="test-detail">HTTP 525 (API caída)</td></tr>
+      </table>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<div class="footer">
+  Generado: <strong>17 de mayo de 2026 — 06:46 UTC</strong> &nbsp;·&nbsp;
+  Duración: <strong>27.1 s</strong> &nbsp;·&nbsp;
+  Suite: <strong>pitzbol_prod_tests.py</strong> &nbsp;·&nbsp;
+  Run #3 de producción
+</div>
+
+<script>
+function toggleSection(header) {
+  const body = header.nextElementSibling;
+  const chevron = header.querySelector('.section-chevron');
+  if (body.classList.contains('open')) {
+    body.classList.remove('open');
+    chevron.textContent = '▶';
+  } else {
+    body.classList.add('open');
+    chevron.textContent = '▼';
+  }
+}
+// Collapse all initially except S1
+document.querySelectorAll('.section-body').forEach((b, i) => {
+  if (i !== 0) { b.classList.remove('open'); b.previousElementSibling.querySelector('.section-chevron').textContent = '▶'; }
+});
+</script>
+</body>
+</html>
