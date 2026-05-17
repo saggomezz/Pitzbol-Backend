@@ -17,12 +17,16 @@ import {
   GeoPoint
 } from '../utils/geoValidation';
 
-// Cache en memoria para lista de lugares — TTL 1 hora
+// Cache en memoria para lista de lugares — TTL 5 minutos
+const LUGARES_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
+const CACHE_CONTROL_HEADER = 'public, max-age=300, stale-while-revalidate=60';
+
 let lugaresCache: { data: any[] | null; expiresAt: number } = { data: null, expiresAt: 0 };
-const LUGARES_CACHE_TTL = 60 * 60 * 1000; // 1 hora
+let lugaresCacheConNegocios: { data: any[] | null; expiresAt: number } = { data: null, expiresAt: 0 };
 
 function invalidateLugaresCache() {
   lugaresCache = { data: null, expiresAt: 0 };
+  lugaresCacheConNegocios = { data: null, expiresAt: 0 };
 }
 
 // Configurar Cloudinary con validación
@@ -166,6 +170,11 @@ function mapApprovedBusinessToPlace(doc: FirebaseFirestore.QueryDocumentSnapshot
     photos.unshift(logo);
   }
 
+  // categorias[] incluye la categoría principal + subcategorías para que getMergedPlaces()
+  // lo trate como autoritativo y el negocio aparezca en todos los filtros correctos
+  const categoriasArray = [categoria, ...subcategories]
+    .filter((c, i, a) => c && a.indexOf(c) === i);
+
   return {
     id: `negocio_${doc.id}`,
     negocioId: doc.id,
@@ -173,6 +182,7 @@ function mapApprovedBusinessToPlace(doc: FirebaseFirestore.QueryDocumentSnapshot
     status: 'aprobado',
     nombre,
     categoria,
+    categorias: categoriasArray,
     descripcion,
     ubicacion,
     latitud,
@@ -230,9 +240,14 @@ export const getAllPlaces = async (req: Request, res: Response) => {
   try {
     const includeBusinesses = shouldIncludeApprovedBusinesses(req.query.includeApprovedBusinesses);
 
-    // Servir desde cache si está vigente (solo para la vista sin negocios)
+    // Servir desde caché si está vigente
     if (!includeBusinesses && lugaresCache.data && lugaresCache.expiresAt > Date.now()) {
+      res.set('Cache-Control', CACHE_CONTROL_HEADER);
       return res.status(200).json({ lugares: lugaresCache.data });
+    }
+    if (includeBusinesses && lugaresCacheConNegocios.data && lugaresCacheConNegocios.expiresAt > Date.now()) {
+      res.set('Cache-Control', CACHE_CONTROL_HEADER);
+      return res.status(200).json({ lugares: lugaresCacheConNegocios.data });
     }
 
     const snapshot = await db.collection('lugares').get();
@@ -244,6 +259,7 @@ export const getAllPlaces = async (req: Request, res: Response) => {
 
     if (!includeBusinesses) {
       lugaresCache = { data: lugares, expiresAt: Date.now() + LUGARES_CACHE_TTL };
+      res.set('Cache-Control', CACHE_CONTROL_HEADER);
       return res.status(200).json({ lugares });
     }
 
@@ -287,7 +303,10 @@ export const getAllPlaces = async (req: Request, res: Response) => {
       }
     }
 
-    return res.status(200).json({ lugares: Array.from(mergedByName.values()) });
+    const mergedList = Array.from(mergedByName.values());
+    lugaresCacheConNegocios = { data: mergedList, expiresAt: Date.now() + LUGARES_CACHE_TTL };
+    res.set('Cache-Control', CACHE_CONTROL_HEADER);
+    return res.status(200).json({ lugares: mergedList });
   } catch (error: any) {
     console.error('Error obteniendo lugares:', error);
     return res.status(500).json({ message: 'Error interno' });
@@ -745,6 +764,40 @@ export const getPlaceByName = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error obteniendo lugar:', error);
     return res.status(500).json({ message: 'Error interno' });
+  }
+};
+
+/**
+ * POST /api/lugares/upload-foto - Sube una foto de lugar a Cloudinary y devuelve la URL
+ */
+export const uploadLugarFoto = async (req: any, res: Response) => {
+  try {
+    const file = req.file;
+    if (!file) return res.status(400).json({ message: 'No se proporcionó ningún archivo' });
+
+    const url = await new Promise<string>((resolve, reject) => {
+      const stream = cloudinary.uploader.upload_stream(
+        {
+          folder: 'pitzbol/lugares',
+          resource_type: 'auto',
+          format: 'webp',
+          transformation: [
+            { width: 1200, height: 900, crop: 'fill' },
+            { quality: 'auto:good' },
+          ],
+        },
+        (error, result) => {
+          if (error || !result?.secure_url) reject(error || new Error('Sin URL'));
+          else resolve(result.secure_url);
+        }
+      );
+      stream.end(file.buffer);
+    });
+
+    return res.json({ url });
+  } catch (error) {
+    console.error('Error subiendo foto de lugar a Cloudinary:', error);
+    return res.status(500).json({ message: 'Error al subir la imagen' });
   }
 };
 

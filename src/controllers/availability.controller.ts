@@ -5,12 +5,28 @@ import { AvailabilityService } from '../services/availability.service';
 export const setGuideAvailability = async (req: Request, res: Response) => {
   try {
     const { guideId, fecha, horasDisponibles, maxReservasPorHora } = req.body;
+    const authUid = (req as any).user?.uid as string | undefined;
+    const targetGuideId = authUid ?? guideId;
 
     // Validaciones
-    if (!guideId || !fecha || !horasDisponibles || !Array.isArray(horasDisponibles)) {
+    if (!targetGuideId || !fecha || !horasDisponibles || !Array.isArray(horasDisponibles)) {
       return res.status(400).json({
         success: false,
         message: 'Faltan datos requeridos o formato inválido',
+      });
+    }
+
+    if (!authUid) {
+      return res.status(403).json({
+        success: false,
+        message: 'Solo el guía autenticado puede establecer su disponibilidad',
+      });
+    }
+
+    if (guideId && guideId !== authUid) {
+      return res.status(403).json({
+        success: false,
+        message: 'No puedes establecer disponibilidad para otro guía',
       });
     }
 
@@ -34,7 +50,7 @@ export const setGuideAvailability = async (req: Request, res: Response) => {
     }
 
     const availability = await AvailabilityService.setGuideAvailability({
-      guideId,
+      guideId: targetGuideId,
       fecha,
       horasDisponibles,
       maxReservasPorHora,
@@ -124,11 +140,35 @@ export const getGuideAvailabilities = async (req: Request, res: Response) => {
 export const deleteAvailability = async (req: Request, res: Response) => {
   try {
     const { availabilityId } = req.params;
+    const authUid = (req as any).user?.uid as string | undefined;
 
     if (!availabilityId || Array.isArray(availabilityId)) {
       return res.status(400).json({
         success: false,
         message: 'availabilityId es requerido',
+      });
+    }
+
+    if (!authUid) {
+      return res.status(403).json({
+        success: false,
+        message: 'Solo el guía autenticado puede eliminar disponibilidad',
+      });
+    }
+
+    const availability = await AvailabilityService.getAvailabilityById(availabilityId);
+
+    if (!availability) {
+      return res.status(404).json({
+        success: false,
+        message: 'Disponibilidad no encontrada',
+      });
+    }
+
+    if (availability.guideId !== authUid) {
+      return res.status(403).json({
+        success: false,
+        message: 'No puedes eliminar disponibilidad de otro guía',
       });
     }
 

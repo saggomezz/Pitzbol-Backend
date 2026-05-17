@@ -3,7 +3,6 @@ import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { auth, db } from "../config/firebase";
 import { sendNotificationToAdmins, sendNotificationToUser } from "../services/notification.service";
-import nodemailer from 'nodemailer';
 import { FieldValue } from "@google-cloud/firestore";
 
 const FIREBASE_WEB_API_KEY = process.env.FIREBASE_WEB_API_KEY;
@@ -14,20 +13,6 @@ if (!FIREBASE_WEB_API_KEY || !JWT_SECRET) {
 }
 
 // Nota: Gmail se configurará cuando se use, no en el inicio
-let transporter: nodemailer.Transporter | null = null;
-
-const getTransporter = () => {
-  if (!transporter && process.env.GMAIL_USER && process.env.GMAIL_PASS) {
-    transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_PASS,
-      },
-    });
-  }
-  return transporter;
-};
 
 //REGISTRO DE USUARIO
 export const register = async (req: Request, res: Response) => {
@@ -122,45 +107,69 @@ export const login = async (req: Request, res: Response) => {
     console.log('👤 UID:', localId);
     
     let userData: any = null;
-    let userRole: string = "";
+    let userRole: string = "turista";
     let guideCollection: "lista" | "pendientes" | null = null;
 
     const categorias = ["turistas", "admins", "negocios"];
     const subCarpetasGuia = ["lista", "pendientes"];
 
-    for (const cat of categorias) {
-        const snap = await db.collection("usuarios").doc(cat).collection("lista").where("uid", "==", localId).limit(1).get();
-        
-        if (!snap.empty && snap.docs.length > 0) {
-            const doc = snap.docs[0];
-            if (doc && doc.exists) {
-                userData = doc.data();
-                // Respetar el rol guardado en el documento (ej: turista aprobado como guía)
-                const storedRole = userData?.role || userData?.["03_rol"];
-                if (storedRole === "guia" || storedRole === "admin" || storedRole === "negociante") {
-                    userRole = storedRole;
-                } else {
-                    userRole = cat === "turistas" ? "turista" : cat === "admins" ? "admin" : "negociante";
-                }
-                break; 
-            }
-        }
-    }
+    try {
+      for (const cat of categorias) {
+          const snap = await db.collection("usuarios").doc(cat).collection("lista").where("uid", "==", localId).limit(1).get();
 
-    if (!userData) {
-        for (const sub of subCarpetasGuia) {
-            const snap = await db.collection("usuarios").doc("guias").collection(sub).where("uid", "==", localId).limit(1).get();
-            
-            if (!snap.empty && snap.docs.length > 0) {
-                const doc = snap.docs[0];
-                if (doc && doc.exists) {
-                    userData = doc.data();
-                    userRole = sub === "lista" ? "guia" : "turista";
-                    guideCollection = sub as any;
-                    break;
-                }
-            }
-        }
+          if (!snap.empty && snap.docs.length > 0) {
+              const doc = snap.docs[0];
+              if (doc && doc.exists) {
+                  userData = doc.data();
+                  const storedRole = userData?.role || userData?.["03_rol"];
+                  if (storedRole === "guia" || storedRole === "admin" || storedRole === "negociante") {
+                      userRole = storedRole;
+                  } else {
+                      userRole = cat === "turistas" ? "turista" : cat === "admins" ? "admin" : "negociante";
+                  }
+                  break;
+              }
+          }
+      }
+
+      if (!userData) {
+          for (const sub of subCarpetasGuia) {
+              const snap = await db.collection("usuarios").doc("guias").collection(sub).where("uid", "==", localId).limit(1).get();
+
+              if (!snap.empty && snap.docs.length > 0) {
+                  const doc = snap.docs[0];
+                  if (doc && doc.exists) {
+                      userData = doc.data();
+                      userRole = sub === "lista" ? "guia" : "turista";
+                      guideCollection = sub as any;
+                      break;
+                  }
+              }
+          }
+      }
+    } catch (firestoreErr: any) {
+      // Firestore quota agotado — usar Firebase Auth Admin para obtener datos del usuario
+      console.warn("⚠️ Firestore quota exceeded en login, usando Firebase Auth fallback:", firestoreErr?.details || firestoreErr?.message);
+      try {
+        const authUser = await auth.getUser(localId);
+        const displayName = authUser.displayName || "";
+        const [nombre, ...apellidoParts] = displayName.split(" ");
+        const customRole = (authUser.customClaims as any)?.role || "turista";
+        userData = {
+          uid: localId,
+          email,
+          nombre: nombre || "",
+          "01_nombre": nombre || "",
+          "02_apellido": apellidoParts.join(" ") || "",
+          apellido: apellidoParts.join(" ") || "",
+          role: customRole,
+          fotoPerfil: authUser.photoURL || "",
+        };
+        userRole = customRole;
+      } catch {
+        userData = { uid: localId, email, nombre: "", role: "turista" };
+        userRole = "turista";
+      }
     }
 
     if (!userData) {
@@ -256,7 +265,7 @@ export const login = async (req: Request, res: Response) => {
 // Recuperar contraseña
 export const recoverPassword = async (req: Request, res: Response) => {
   console.log("🚀 Petición de recuperación recibida para:", req.body.email);
-  
+
   try {
     const { email } = req.body;
 
@@ -264,74 +273,36 @@ export const recoverPassword = async (req: Request, res: Response) => {
       return res.status(400).json({ msg: "El correo es obligatorio" });
     }
 
-    const categorias = ["turistas", "admins", "negocios"];
-    let usuarioEncontrado = false;
+    // Usamos la REST API de Firebase Auth — no toca Firestore, no consume cuota de reads.
+    // Google gestiona el envío del correo de reset directamente.
+    const apiKey = process.env.FIREBASE_WEB_API_KEY;
+    if (!apiKey) {
+      console.error("FIREBASE_WEB_API_KEY no configurada");
+      return res.status(500).json({ msg: "Error al procesar la solicitud" });
+    }
 
-    for (const cat of categorias) {
-      const snap = await db.collection("usuarios")
-        .doc(cat)
-        .collection("lista")
-        .where("email", "==", email)
-        .limit(1)
-        .get();
-      
-      if (!snap.empty) {
-        usuarioEncontrado = true;
-        break;
+    const firebaseRes = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestType: "PASSWORD_RESET", email }),
       }
-    }
+    );
 
-    if (!usuarioEncontrado) {
-      const guiaSnapshot = await db.collection("usuarios")
-        .doc("guias")
-        .collection("lista")
-        .where("04_correo", "==", email)
-        .limit(1)
-        .get();
-      
-      if (!guiaSnapshot.empty) {
-        usuarioEncontrado = true;
+    if (!firebaseRes.ok) {
+      const err = await firebaseRes.json().catch(() => ({}));
+      const code = (err as any)?.error?.message || "";
+      if (code === "EMAIL_NOT_FOUND" || code === "INVALID_EMAIL") {
+        // No revelar si el email existe o no
+        return res.json({ msg: "Si el correo existe, recibirás un enlace de recuperación." });
       }
-    }
-    
-    if (!usuarioEncontrado) {
-      return res.json({ msg: "Si el correo existe, recibirás un enlace de recuperación." });
+      console.error("Error Firebase REST:", code);
+      return res.status(500).json({ msg: "Error al procesar la solicitud" });
     }
 
-    const resetLink = await auth.generatePasswordResetLink(email, {
-      url: process.env.FRONTEND_URL || "http://localhost:3000/reset-password",
-    });
-
-    const mailOptions = {
-      from: '"PITZBOL" <pitzbol2026@gmail.com>',
-      to: email,
-      subject: 'Restablecer tu contraseña - Pitzbol',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 30px; border-radius: 20px;">
-          <h2 style="color: #1A4D2E; text-align: center;">Recupera tu acceso</h2>
-          <p>Hola,</p>
-          <p>Has solicitado restablecer tu contraseña para tu cuenta en <b>Pitzbol</b>. Haz clic en el botón de abajo para continuar:</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetLink}" style="background-color: #0D601E; color: white; padding: 15px 25px; text-decoration: none; border-radius: 50px; font-weight: bold; display: inline-block;">RESTABLECER CONTRASEÑA</a>
-          </div>
-          <p style="font-size: 12px; color: #769C7B;">Este enlace expirará pronto. Si no solicitaste este cambio, puedes ignorar este mensaje de forma segura.</p>
-          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-          <p style="font-size: 10px; color: #aaa; text-align: center;">© 2026 Pitzbol - Tu aventura comienza aquí</p>
-        </div>
-      `,
-    };
-
-    const mailTransporter = getTransporter();
-    if (!mailTransporter) {
-      throw new Error("Servicio de correo no configurado");
-    }
-    
-    await mailTransporter.sendMail(mailOptions);
-    console.log(`Correo enviado con éxito a: ${email}`);
-
-    return res.json({
-      msg: "Si el correo existe, recibirás un enlace de recuperación",
-    });
+    console.log(`✅ Correo de recuperación enviado por Firebase a: ${email}`);
+    return res.json({ msg: "Si el correo existe, recibirás un enlace de recuperación." });
 
   } catch (error: any) {
     console.error("Error en recoverPassword:", error);

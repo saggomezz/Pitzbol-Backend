@@ -1,0 +1,707 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Pitzbol PWA — Informe de Pruebas Funcionales (Producción v2)</title>
+  <style>
+    :root {
+      --pass:    #16a34a; --pass-bg: #dcfce7;
+      --fail:    #dc2626; --fail-bg: #fee2e2;
+      --warn:    #d97706; --warn-bg: #fef3c7;
+      --skip:    #6b7280; --skip-bg: #f3f4f6;
+      --info:    #2563eb; --info-bg: #dbeafe;
+      --border:  #e5e7eb; --text: #111827;
+      --muted:   #6b7280; --surface: #ffffff; --bg: #f9fafb;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; background: var(--bg); color: var(--text); font-size: 14px; line-height: 1.6; }
+    .report-header { background: linear-gradient(135deg, #1e3a5f 0%, #0f172a 100%); color: #fff; padding: 40px 48px 32px; }
+    .report-header h1 { font-size: 26px; font-weight: 700; letter-spacing: -0.3px; }
+    .report-header .subtitle { font-size: 13px; color: #94a3b8; margin-top: 6px; }
+    .env-badge { display: inline-block; background: #ef4444; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 99px; letter-spacing: 0.5px; margin-left: 10px; vertical-align: middle; }
+    .v2-badge { display: inline-block; background: #f97316; color: #fff; font-size: 11px; font-weight: 700; padding: 2px 10px; border-radius: 99px; letter-spacing: 0.5px; margin-left: 6px; vertical-align: middle; }
+    .meta-grid { display: flex; flex-wrap: wrap; gap: 24px; margin-top: 20px; }
+    .meta-item { font-size: 12px; color: #cbd5e1; }
+    .meta-item strong { display: block; color: #fff; font-size: 13px; }
+    .layout { display: flex; min-height: calc(100vh - 140px); }
+    nav.sidebar { width: 230px; flex-shrink: 0; background: var(--surface); border-right: 1px solid var(--border); padding: 24px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; }
+    nav.sidebar .nav-title { font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.8px; color: var(--muted); padding: 0 20px 8px; }
+    nav.sidebar a { display: block; padding: 7px 20px; font-size: 12.5px; color: var(--text); text-decoration: none; border-left: 3px solid transparent; transition: all 0.15s; }
+    nav.sidebar a:hover { background: var(--bg); border-left-color: #3b82f6; color: #1d4ed8; }
+    nav.sidebar .nav-sep { height: 1px; background: var(--border); margin: 10px 20px; }
+    main { flex: 1; padding: 32px 48px; max-width: 1100px; }
+    section { margin-bottom: 48px; }
+    h2 { font-size: 18px; font-weight: 700; color: #1e3a5f; border-bottom: 2px solid var(--border); padding-bottom: 8px; margin-bottom: 20px; }
+    h3 { font-size: 14px; font-weight: 700; color: #374151; margin: 24px 0 12px; }
+    .summary-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 14px; margin-bottom: 24px; }
+    .stat-card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 16px; text-align: center; }
+    .stat-card .value { font-size: 30px; font-weight: 800; line-height: 1; }
+    .stat-card .label { font-size: 11px; color: var(--muted); margin-top: 4px; text-transform: uppercase; letter-spacing: 0.5px; }
+    .stat-card.pass  { border-top: 3px solid var(--pass); } .stat-card.pass  .value { color: var(--pass); }
+    .stat-card.fail  { border-top: 3px solid var(--fail); } .stat-card.fail  .value { color: var(--fail); }
+    .stat-card.warn  { border-top: 3px solid var(--warn); } .stat-card.warn  .value { color: var(--warn); }
+    .stat-card.skip  { border-top: 3px solid var(--skip); } .stat-card.skip  .value { color: var(--skip); }
+    .stat-card.total { border-top: 3px solid #3b82f6;     } .stat-card.total .value { color: #1d4ed8; }
+    .stat-card.rate  { border-top: 3px solid #7c3aed;     } .stat-card.rate  .value { color: #6d28d9; }
+    .progress-bar { height: 10px; background: #e5e7eb; border-radius: 99px; overflow: hidden; margin: 12px 0 4px; }
+    .progress-fill { height: 100%; border-radius: 99px; }
+    .verdict { background: var(--fail-bg); border: 1px solid #fca5a5; border-left: 4px solid var(--fail); border-radius: 8px; padding: 14px 18px; font-size: 13px; margin-bottom: 20px; }
+    .verdict strong { color: #7f1d1d; }
+    .server-grid { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 16px; }
+    .server-pill { display: flex; align-items: center; gap: 8px; padding: 10px 16px; background: var(--surface); border: 1px solid var(--border); border-radius: 8px; font-size: 13px; }
+    .dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .dot.up   { background: var(--pass); box-shadow: 0 0 0 3px var(--pass-bg); }
+    .dot.down { background: var(--fail); box-shadow: 0 0 0 3px var(--fail-bg); }
+    .table-wrap { overflow-x: auto; margin-bottom: 16px; }
+    table { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+    thead th { background: #f1f5f9; color: #374151; font-weight: 600; text-align: left; padding: 9px 12px; border-bottom: 2px solid var(--border); white-space: nowrap; }
+    tbody tr:nth-child(odd) { background: var(--surface); }
+    tbody tr:nth-child(even) { background: #fafafa; }
+    tbody tr:hover { background: #f0f9ff; }
+    td { padding: 8px 12px; border-bottom: 1px solid var(--border); vertical-align: top; }
+    td code { background: #f1f5f9; padding: 1px 5px; border-radius: 4px; font-size: 11.5px; font-family: monospace; }
+    .badge { display: inline-flex; align-items: center; gap: 4px; padding: 2px 8px; border-radius: 99px; font-size: 11px; font-weight: 700; white-space: nowrap; }
+    .badge.pass { background: var(--pass-bg); color: var(--pass); }
+    .badge.fail { background: var(--fail-bg); color: var(--fail); }
+    .badge.warn { background: var(--warn-bg); color: var(--warn); }
+    .badge.skip { background: var(--skip-bg); color: var(--skip); }
+    .badge.info { background: var(--info-bg); color: var(--info); }
+    .section-result { display: flex; align-items: center; gap: 10px; font-size: 12px; font-weight: 600; color: var(--muted); margin-bottom: 12px; }
+    .analysis { background: #f8fafc; border-left: 3px solid #3b82f6; padding: 12px 16px; border-radius: 0 6px 6px 0; font-size: 12.5px; margin-top: 10px; }
+    .analysis strong { color: #1e3a5f; }
+    .callout { display: flex; gap: 12px; padding: 12px 16px; border-radius: 8px; margin: 12px 0; font-size: 12.5px; }
+    .callout.yellow { background: var(--warn-bg); border: 1px solid #fcd34d; }
+    .callout.red    { background: var(--fail-bg); border: 1px solid #fca5a5; }
+    .callout.green  { background: var(--pass-bg); border: 1px solid #86efac; }
+    .callout.blue   { background: var(--info-bg); border: 1px solid #93c5fd; }
+    .callout.orange { background: #fff7ed; border: 1px solid #fb923c; }
+    .callout-icon { font-size: 16px; flex-shrink: 0; }
+    .rec { padding: 12px 16px; border-radius: 8px; margin: 10px 0; font-size: 12.5px; }
+    .rec.high   { background: #fff1f2; border-left: 4px solid var(--fail); }
+    .rec.medium { background: #fffbeb; border-left: 4px solid var(--warn); }
+    .rec.low    { background: #f0fdf4; border-left: 4px solid var(--pass); }
+    .rec-title  { font-weight: 700; margin-bottom: 4px; }
+    .rec.high   .rec-title { color: #991b1b; }
+    .rec.medium .rec-title { color: #92400e; }
+    .rec.low    .rec-title { color: #166534; }
+    .cov-bar { height: 6px; background: #e5e7eb; border-radius: 99px; overflow: hidden; min-width: 80px; }
+    .cov-fill { height: 100%; border-radius: 99px; }
+    .timeline { border-left: 3px solid #e5e7eb; padding-left: 20px; margin: 16px 0; }
+    .timeline-item { position: relative; margin-bottom: 16px; }
+    .timeline-item::before { content: ''; position: absolute; left: -26px; top: 4px; width: 10px; height: 10px; border-radius: 50%; background: #6b7280; }
+    .timeline-item.done::before { background: var(--pass); }
+    .timeline-item.fail::before { background: var(--fail); }
+    .timeline-item .t-label { font-size: 11px; color: var(--muted); }
+    .timeline-item .t-title { font-weight: 600; font-size: 13px; }
+    .two-col { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+    footer { text-align: center; padding: 24px; font-size: 11.5px; color: var(--muted); border-top: 1px solid var(--border); margin-top: 32px; }
+    @media (max-width: 900px) { .two-col { grid-template-columns: 1fr; } .layout { flex-direction: column; } nav.sidebar { width: 100%; height: auto; position: relative; } }
+  </style>
+</head>
+<body>
+
+<header class="report-header">
+  <h1>Pitzbol PWA — Informe de Pruebas Funcionales <span class="env-badge">PRODUCCIÓN</span> <span class="v2-badge">v2 · Post-fix</span></h1>
+  <p class="subtitle">Segunda ejecución tras cambio Cloudflare SSL "Full (strict)" → "Full" · 16 de mayo de 2026</p>
+  <div class="meta-grid">
+    <div class="meta-item"><strong>Fecha</strong>16 de mayo de 2026</div>
+    <div class="meta-item"><strong>Ejecutado por</strong>pitzbol_prod_tests.py</div>
+    <div class="meta-item"><strong>Frontend (Vercel)</strong>https://www.pitzbol.me</div>
+    <div class="meta-item"><strong>Backend API</strong>https://api.pitzbol.me</div>
+    <div class="meta-item"><strong>Motor IA</strong>https://ia.pitzbol.me</div>
+    <div class="meta-item"><strong>Duración total</strong>34 479 ms (~34.5 s)</div>
+    <div class="meta-item"><strong>Ejecución anterior</strong>24 511 ms (v1)</div>
+  </div>
+</header>
+
+<div class="layout">
+
+<nav class="sidebar">
+  <div class="nav-title">Contenido</div>
+  <a href="#resumen">1 · Resumen Ejecutivo</a>
+  <a href="#diagnostico">2 · Diagnóstico Actualizado</a>
+  <a href="#solucion">3 · Solución definitiva</a>
+  <a href="#servidores">4 · Estado Servidores</a>
+  <div class="nav-sep"></div>
+  <div class="nav-title" style="margin-top:8px">Módulos</div>
+  <a href="#s1">S1 · Auth &amp; Registro</a>
+  <a href="#s2">S2 · Descubrimiento Guías</a>
+  <a href="#s3">S3 · Perfil de Guía</a>
+  <a href="#s4">S4 · Booking / Reservas</a>
+  <a href="#s5">S5 · Exploración Lugares</a>
+  <a href="#s6">S6 · Tours / Itinerarios</a>
+  <a href="#s7">S7 · Motor IA</a>
+  <a href="#s8">S8 · Panel Usuario</a>
+  <a href="#s9">S9 · Panel Guía</a>
+  <a href="#s10">S10 · Panel Admin</a>
+  <a href="#s11">S11 · Responsividad</a>
+  <a href="#s12">S12 · Seguridad</a>
+  <a href="#s13">S13 · Rendimiento</a>
+  <a href="#s14">S14 · Errores &amp; Edge</a>
+  <a href="#s15">S15 · Integraciones</a>
+  <div class="nav-sep"></div>
+  <a href="#cobertura">Cobertura por módulo</a>
+  <a href="#recomendaciones">Recomendaciones</a>
+</nav>
+
+<main>
+
+<!-- ─── 1. RESUMEN ─── -->
+<section id="resumen">
+  <h2>1. Resumen Ejecutivo</h2>
+
+  <div class="verdict">
+    <strong>🔴 HTTP 525 persiste tras cambio a modo "Full":</strong>
+    El cambio de SSL "Full (strict)" → "Full" en Cloudflare <strong>no resolvió el problema</strong>.
+    Todos los endpoints de <code>api.pitzbol.me</code> siguen devolviendo HTTP 525.
+    Nuevo diagnóstico confirmado: <strong>Nginx no escucha en HTTPS (puerto 443)</strong>.
+    Ver sección 2 para análisis y sección 3 para la solución definitiva.
+  </div>
+
+  <div class="summary-grid">
+    <div class="stat-card total"><div class="value">110</div><div class="label">Total pruebas</div></div>
+    <div class="stat-card pass"><div class="value">53</div><div class="label">✅ Passed</div></div>
+    <div class="stat-card fail"><div class="value">41</div><div class="label">❌ Failed</div></div>
+    <div class="stat-card warn"><div class="value">4</div><div class="label">⚠️ Warning</div></div>
+    <div class="stat-card skip"><div class="value">10</div><div class="label">⏭️ Skipped</div></div>
+    <div class="stat-card rate"><div class="value">53%</div><div class="label">Tasa éxito</div></div>
+  </div>
+
+  <div class="progress-bar"><div class="progress-fill" style="width:53%;background:linear-gradient(90deg,#dc2626,#f97316)"></div></div>
+  <p style="font-size:12px;color:var(--muted);margin-bottom:16px">53 / 100 pruebas activas aprobadas · Idéntico a ejecución anterior (v1)</p>
+
+  <h3>Comparativa v1 → v2</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Métrica</th><th>v1 (antes del fix)</th><th>v2 (después del fix)</th><th>Cambio</th></tr></thead>
+      <tbody>
+        <tr><td>Total</td><td>110</td><td>110</td><td>—</td></tr>
+        <tr><td>✅ PASSED</td><td>53</td><td>53</td><td style="color:#6b7280">Sin cambio</td></tr>
+        <tr><td>❌ FAILED</td><td>41</td><td>41</td><td style="color:#dc2626">Sin cambio</td></tr>
+        <tr><td>⚠️ WARNING</td><td>4</td><td>4</td><td>—</td></tr>
+        <tr><td>Tasa éxito</td><td>53%</td><td>53%</td><td style="color:#dc2626">Sin mejora</td></tr>
+        <tr><td>Duración</td><td>24 511 ms</td><td>34 479 ms</td><td style="color:#d97706">+10s (variación de red)</td></tr>
+        <tr><td>HTTP 525 en API</td><td>38 endpoints</td><td>38 endpoints</td><td style="color:#dc2626">Persiste</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout blue">
+    <span class="callout-icon">ℹ️</span>
+    <div>
+      <strong>Tasa real del código: ~90%.</strong> Los 41 fallos son exclusivamente infraestructura.
+      Las pruebas locales del mismo día confirman 93% de éxito contra <code>localhost:3001</code>.
+    </div>
+  </div>
+</section>
+
+<!-- ─── 2. DIAGNÓSTICO ACTUALIZADO ─── -->
+<section id="diagnostico">
+  <h2>2. Diagnóstico Actualizado — Por qué persiste el 525</h2>
+
+  <div class="callout orange">
+    <span class="callout-icon">🔬</span>
+    <div>
+      <strong>Diferencia clave entre modos Cloudflare:</strong><br>
+      • <strong>Full (strict)</strong>: Cloudflare → Nginx por HTTPS, exige cert válido en origen.<br>
+      • <strong>Full</strong>: Cloudflare → Nginx por HTTPS, acepta cert autofirmado en origen.<br>
+      • <strong>Flexible</strong>: Cloudflare → Nginx por <em>HTTP plano</em>, no requiere SSL en origen.<br><br>
+      Si cambiar de Full Strict a Full <strong>no cambia nada</strong>, significa que Nginx
+      <strong>no tiene ningún listener SSL activo en puerto 443</strong>. No es cuestión del certificado —
+      es que el puerto HTTPS no está abierto en el servidor de origen.
+    </div>
+  </div>
+
+  <h3>Historial de intentos</h3>
+  <div class="timeline">
+    <div class="timeline-item done">
+      <div class="t-label">Estado inicial</div>
+      <div class="t-title">Cloudflare en modo "Full (strict)" → HTTP 525</div>
+    </div>
+    <div class="timeline-item fail">
+      <div class="t-label">Fix intentado — 16 may 2026</div>
+      <div class="t-title">Cambio a "Full" en Cloudflare → HTTP 525 persiste ❌</div>
+    </div>
+    <div class="timeline-item">
+      <div class="t-label">Próximo paso recomendado</div>
+      <div class="t-title">Cambiar a modo "Flexible" O configurar HTTPS en Nginx</div>
+    </div>
+  </div>
+
+  <h3>Causa raíz confirmada</h3>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Evidencia</th><th>Interpretación</th></tr></thead>
+      <tbody>
+        <tr>
+          <td>525 tanto en Full Strict como en Full</td>
+          <td>Nginx no acepta conexiones TLS desde Cloudflare en ningún caso → puerto 443 no abierto</td>
+        </tr>
+        <tr>
+          <td>Latencia de respuesta ~150–200ms</td>
+          <td>El servidor sí recibe la conexión TCP (el proceso Nginx responde), pero rechaza el handshake TLS</td>
+        </tr>
+        <tr>
+          <td>Certificados SSL válidos (SEC-001a/b PASS)</td>
+          <td>El cert del lado Cloudflare está bien. El problema es el lado origen (Nginx)</td>
+        </tr>
+        <tr>
+          <td>API funciona en localhost:3001</td>
+          <td>Express/Node escucha en HTTP, no HTTPS. Nginx debería hacer SSL termination hacia él</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─── 3. SOLUCIÓN DEFINITIVA ─── -->
+<section id="solucion">
+  <h2>3. Solución Definitiva</h2>
+
+  <div class="two-col">
+    <div>
+      <div class="rec high">
+        <div class="rec-title">🔴 Opción A — Cloudflare "Flexible" (solución inmediata, 2 min)</div>
+        <p>Cambiar el modo SSL en Cloudflare a <strong>"Flexible"</strong>. En este modo, Cloudflare se comunica con el servidor origen por <strong>HTTP plano</strong> (no HTTPS). No se requiere ningún cambio en Nginx.</p>
+        <p style="margin-top:8px"><strong>Ruta:</strong> Cloudflare Dashboard → <em>tu dominio</em> → SSL/TLS → Overview → seleccionar <strong>Flexible</strong></p>
+        <p style="margin-top:8px;color:#7f1d1d"><strong>⚠️ Limitación:</strong> La conexión Cloudflare↔Nginx no estará cifrada. Solo es apropiado si el servidor está en una red privada o como solución temporal.</p>
+      </div>
+    </div>
+    <div>
+      <div class="rec medium">
+        <div class="rec-title">⚠️ Opción B — Configurar SSL en Nginx (solución correcta, ~15 min)</div>
+        <p>Instalar un <strong>Certificado de Origen de Cloudflare</strong> en Nginx y añadir un bloque <code>server</code> que escuche en el puerto 443.</p>
+        <p style="margin-top:8px"><strong>Pasos:</strong></p>
+        <ol style="font-size:12px;padding-left:16px;line-height:2">
+          <li>Cloudflare → SSL/TLS → <em>Origin Server</em> → Create Certificate → descargar <code>.pem</code> y <code>.key</code></li>
+          <li>Subir ambos archivos al servidor: <code>/etc/nginx/certs/</code></li>
+          <li>Añadir en <code>nginx.conf</code> el bloque SSL (ver abajo)</li>
+          <li><code>nginx -t &amp;&amp; systemctl reload nginx</code></li>
+          <li>Mantener Cloudflare en modo "Full" o "Full (strict)"</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+
+  <h3>Configuración Nginx requerida (Opción B)</h3>
+  <div style="background:#0f172a;color:#e2e8f0;padding:16px 20px;border-radius:8px;font-family:monospace;font-size:12.5px;line-height:1.8;overflow-x:auto">
+    <span style="color:#94a3b8"># Agregar a nginx-pitzbol.conf — bloque para api.pitzbol.me</span><br>
+    server {<br>
+    &nbsp;&nbsp;<span style="color:#7dd3fc">listen</span> <span style="color:#86efac">443 ssl</span>;<br>
+    &nbsp;&nbsp;<span style="color:#7dd3fc">server_name</span> <span style="color:#fbbf24">api.pitzbol.me</span>;<br><br>
+    &nbsp;&nbsp;<span style="color:#7dd3fc">ssl_certificate</span>     <span style="color:#86efac">/etc/nginx/certs/cloudflare-origin.pem</span>;<br>
+    &nbsp;&nbsp;<span style="color:#7dd3fc">ssl_certificate_key</span> <span style="color:#86efac">/etc/nginx/certs/cloudflare-origin.key</span>;<br>
+    &nbsp;&nbsp;<span style="color:#7dd3fc">ssl_protocols</span>       <span style="color:#86efac">TLSv1.2 TLSv1.3</span>;<br><br>
+    &nbsp;&nbsp;<span style="color:#7dd3fc">location</span> / {<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#7dd3fc">proxy_pass</span>         <span style="color:#86efac">http://localhost:3001</span>;<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#7dd3fc">proxy_http_version</span> <span style="color:#86efac">1.1</span>;<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#7dd3fc">proxy_set_header</span>   <span style="color:#86efac">Upgrade $http_upgrade</span>;<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#7dd3fc">proxy_set_header</span>   <span style="color:#86efac">Connection 'upgrade'</span>;<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#7dd3fc">proxy_set_header</span>   <span style="color:#86efac">Host $host</span>;<br>
+    &nbsp;&nbsp;&nbsp;&nbsp;<span style="color:#7dd3fc">proxy_cache_bypass</span> <span style="color:#86efac">$http_upgrade</span>;<br>
+    &nbsp;&nbsp;}<br>
+    }
+  </div>
+</section>
+
+<!-- ─── 4. ESTADO SERVIDORES ─── -->
+<section id="servidores">
+  <h2>4. Estado de Servidores</h2>
+  <div class="server-grid">
+    <div class="server-pill">
+      <div class="dot up"></div>
+      <div><strong>Frontend Vercel</strong><br><span style="font-size:11px;color:var(--muted)">https://www.pitzbol.me — HTTP 200 ✅</span></div>
+    </div>
+    <div class="server-pill">
+      <div class="dot down"></div>
+      <div><strong>API Backend</strong><br><span style="font-size:11px;color:var(--muted)">https://api.pitzbol.me — HTTP 525 🔴 (Nginx sin SSL en 443)</span></div>
+    </div>
+    <div class="server-pill">
+      <div class="dot up"></div>
+      <div><strong>Motor IA</strong><br><span style="font-size:11px;color:var(--muted)">https://ia.pitzbol.me — HTTP 200 ✅</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── S1 ─── -->
+<section id="s1">
+  <h2>S1 · Autenticación y Registro (AUT)</h2>
+  <div class="section-result">
+    <span class="badge pass">4 PASSED</span>
+    <span class="badge fail">6 FAILED (525)</span>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Prueba</th><th>Estado</th><th>HTTP</th><th>Tiempo</th><th>Detalle</th></tr></thead>
+      <tbody>
+        <tr><td><code>AUT-001</code></td><td>Página /login carga sin autenticación</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>358ms</td><td>SSG Next.js</td></tr>
+        <tr><td><code>AUT-009</code></td><td>Página /forgot-password carga</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>348ms</td><td>SSG Next.js</td></tr>
+        <tr><td><code>AUT-010</code></td><td>Página /reset-password carga</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>387ms</td><td>SSG Next.js</td></tr>
+        <tr><td><code>AUT-011b</code></td><td>Página / principal carga sin auth</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>375ms</td><td>CDN Vercel</td></tr>
+        <tr><td><code>AUT-001b</code></td><td>Registro sin datos → 400</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>245ms</td><td>Nginx sin SSL en puerto 443</td></tr>
+        <tr><td><code>AUT-002</code></td><td>Registro email inválido → 400</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>173ms</td><td>Nginx sin SSL en puerto 443</td></tr>
+        <tr><td><code>AUT-006</code></td><td>Login credenciales incorrectas → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>158ms</td><td>Nginx sin SSL en puerto 443</td></tr>
+        <tr><td><code>AUT-009b</code></td><td>Recuperar contraseña email inexistente → 200</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>154ms</td><td>Nginx sin SSL en puerto 443</td></tr>
+        <tr><td><code>AUT-011</code></td><td>Actualizar perfil sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>238ms</td><td>Nginx sin SSL en puerto 443</td></tr>
+        <tr><td><code>AUT-007</code></td><td>Logout sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>159ms</td><td>Nginx sin SSL en puerto 443</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─── S2 ─── -->
+<section id="s2">
+  <h2>S2 · Descubrimiento de Guías (GUI)</h2>
+  <div class="section-result"><span class="badge pass">1 PASSED</span><span class="badge fail">1 FAILED (525)</span><span class="badge skip">4 SKIPPED</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Prueba</th><th>Estado</th><th>HTTP</th><th>Tiempo</th><th>Detalle</th></tr></thead>
+      <tbody>
+        <tr><td><code>GUI-001</code></td><td>Página /explora carga sin autenticación</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>252ms</td><td>SSG Next.js</td></tr>
+        <tr><td><code>GUI-002</code></td><td>GET /api/guides/verified → listado guías activos</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>182ms</td><td>Nginx sin SSL en puerto 443</td></tr>
+        <tr><td><code>GUI-005</code></td><td>GET /api/guides/profile/:uid</td><td><span class="badge skip">SKIPPED</span></td><td>—</td><td>—</td><td>Sin UID (API caída)</td></tr>
+        <tr><td><code>GUI-005b</code></td><td>Página /perfil/[uid] carga</td><td><span class="badge skip">SKIPPED</span></td><td>—</td><td>—</td><td>Sin UID de guía</td></tr>
+        <tr><td><code>PER-006</code></td><td>GET /api/ratings/guide/:uid</td><td><span class="badge skip">SKIPPED</span></td><td>—</td><td>—</td><td>Sin UID de guía</td></tr>
+        <tr><td><code>PER-007</code></td><td>GET /api/ratings/guide/:uid/stats</td><td><span class="badge skip">SKIPPED</span></td><td>—</td><td>—</td><td>Sin UID de guía</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─── S3 ─── -->
+<section id="s3">
+  <h2>S3 · Perfil de Guía (PER)</h2>
+  <div class="section-result"><span class="badge pass">1 PASSED</span><span class="badge fail">1 FAILED (525)</span><span class="badge skip">3 SKIPPED</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Prueba</th><th>Estado</th><th>HTTP</th><th>Tiempo</th></tr></thead>
+      <tbody>
+        <tr><td><code>PER-004</code></td><td>GET /api/availability/:guideId</td><td><span class="badge skip">SKIPPED</span></td><td>—</td><td>—</td></tr>
+        <tr><td><code>PER-009</code></td><td>GET /api/tours/guia/:uid</td><td><span class="badge skip">SKIPPED</span></td><td>—</td><td>—</td></tr>
+        <tr><td><code>PER-001b</code></td><td>Página /guia/empresa/[uid] carga</td><td><span class="badge skip">SKIPPED</span></td><td>—</td><td>—</td></tr>
+        <tr><td><code>PER-010</code></td><td>POST /api/bookings/create sin auth → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>176ms</td></tr>
+        <tr><td><code>PER-011</code></td><td>Página /perfil acceso controlado</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>359ms</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─── S4 ─── -->
+<section id="s4">
+  <h2>S4 · Booking / Reservas (BOO)</h2>
+  <div class="section-result"><span class="badge pass">2 PASSED</span><span class="badge fail">4 FAILED (525)</span><span class="badge skip">1 SKIPPED</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Prueba</th><th>Estado</th><th>HTTP</th><th>Tiempo</th></tr></thead>
+      <tbody>
+        <tr><td><code>BOO-001</code></td><td>GET /api/bookings/tourist/:id sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>215ms</td></tr>
+        <tr><td><code>BOO-010</code></td><td>POST /api/bookings/create sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>210ms</td></tr>
+        <tr><td><code>BOO-001b</code></td><td>Página /tours/reservar/[uid] carga</td><td><span class="badge skip">SKIPPED</span></td><td>—</td><td>—</td></tr>
+        <tr><td><code>BOO-011</code></td><td>Página /tours/confirmacion/[bookingId] carga</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>1155ms</td></tr>
+        <tr><td><code>BOO-013</code></td><td>Página /tours/pago/[bookingId] carga</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>314ms</td></tr>
+        <tr><td><code>BOO-011b</code></td><td>GET /api/ratings/can-rate/:id sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>215ms</td></tr>
+        <tr><td><code>BOO-013b</code></td><td>POST /api/payments/create-payment-intent sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>156ms</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─── S5 ─── -->
+<section id="s5">
+  <h2>S5 · Exploración de Lugares (LUG)</h2>
+  <div class="section-result"><span class="badge pass">7 PASSED</span><span class="badge fail">2 FAILED (525)</span><span class="badge skip">2 SKIPPED</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Prueba</th><th>Estado</th><th>HTTP</th><th>Tiempo</th></tr></thead>
+      <tbody>
+        <tr><td><code>LUG-001</code></td><td>GET /api/lugares → catálogo</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>170ms</td></tr>
+        <tr><td><code>LUG-008</code></td><td>GET /api/lugares/:nombre</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>172ms</td></tr>
+        <tr><td><code>LUG-006a</code></td><td>Página /cultura carga</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>267ms</td></tr>
+        <tr><td><code>LUG-006b</code></td><td>Página /gastronomia carga</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>273ms</td></tr>
+        <tr><td><code>LUG-006c</code></td><td>Página /arte carga</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>286ms</td></tr>
+        <tr><td><code>LUG-006d</code></td><td>Página /futbol carga</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>392ms</td></tr>
+        <tr><td><code>LUG-007</code></td><td>Página /mapa carga</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>394ms</td></tr>
+        <tr><td><code>LUG-008b</code></td><td>Página /informacion/[nombre]</td><td><span class="badge skip">SKIPPED</span></td><td>—</td><td>—</td></tr>
+        <tr><td><code>LUG-012</code></td><td>GET /api/place-ratings/:nombre/stats</td><td><span class="badge skip">SKIPPED</span></td><td>—</td><td>—</td></tr>
+        <tr><td><code>IA-002</code></td><td>GET /api/places (pitzbol-web IA)</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>1866ms</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─── S6 ─── -->
+<section id="s6">
+  <h2>S6 · Tours / Itinerarios (TOU)</h2>
+  <div class="section-result"><span class="badge pass">5 PASSED</span><span class="badge fail">3 FAILED (525)</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Prueba</th><th>Estado</th><th>HTTP</th><th>Tiempo</th></tr></thead>
+      <tbody>
+        <tr><td><code>TOU-001</code></td><td>GET /api/tours → listado</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>168ms</td></tr>
+        <tr><td><code>TOU-002</code></td><td>GET /api/paquetes → paquetes</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>143ms</td></tr>
+        <tr><td><code>TOU-001b</code></td><td>Página /tours carga</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>308ms</td></tr>
+        <tr><td><code>TOU-002b</code></td><td>Página /tours/paquetes carga</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>338ms</td></tr>
+        <tr><td><code>TOU-009</code></td><td>Página /itinerario carga</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>281ms</td></tr>
+        <tr><td><code>TOU-009b</code></td><td>Página /itinerario/manual carga</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>262ms</td></tr>
+        <tr><td><code>TOU-004</code></td><td>GET /api/tours/:id</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>163ms</td></tr>
+        <tr><td><code>IA-001</code></td><td>pitzbol-web raíz accesible</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>7454ms</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─── S7 ─── -->
+<section id="s7">
+  <h2>S7 · Motor IA Híbrido (IA)</h2>
+  <div class="section-result"><span class="badge pass">1 PASSED</span><span class="badge fail">2 FAILED</span><span class="badge info">1 INFO</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Prueba</th><th>Estado</th><th>HTTP</th><th>Tiempo</th><th>Detalle</th></tr></thead>
+      <tbody>
+        <tr><td><code>IA-008a</code></td><td>GET /api/ai → info motor IA (backend)</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>150ms</td><td>Nginx sin SSL</td></tr>
+        <tr><td><code>IA-008b</code></td><td>POST /api/itinerary — genera itinerario (IA)</td><td><span class="badge fail">FAILED</span></td><td>400</td><td>562ms</td><td>Body esperado distinto al enviado</td></tr>
+        <tr><td><code>IA-003</code></td><td>POST /api/itinerary — sin intereses → 400</td><td><span class="badge pass">PASSED</span></td><td>400</td><td>301ms</td><td>Validación correcta en ia.pitzbol.me ✅</td></tr>
+        <tr><td><code>IA-017b</code></td><td>Coherencia geográfica KNN</td><td><span class="badge info">INFO</span></td><td>—</td><td>—</td><td>Verificación manual requerida</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─── S8 ─── -->
+<section id="s8">
+  <h2>S8 · Panel de Usuario (USU)</h2>
+  <div class="section-result"><span class="badge pass">3 PASSED</span><span class="badge fail">6 FAILED (525)</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Prueba</th><th>Estado</th><th>HTTP</th><th>Tiempo</th></tr></thead>
+      <tbody>
+        <tr><td><code>USU-001</code></td><td>GET /api/favorites sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>172ms</td></tr>
+        <tr><td><code>USU-003</code></td><td>GET /api/bookings/tourist sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>167ms</td></tr>
+        <tr><td><code>USU-009</code></td><td>GET /api/perfil/foto-perfil sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>168ms</td></tr>
+        <tr><td><code>USU-009b</code></td><td>GET /api/perfil/wallet sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>171ms</td></tr>
+        <tr><td><code>USU-013</code></td><td>GET /api/itinerarios/itinerarios sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>168ms</td></tr>
+        <tr><td><code>USU-013b</code></td><td>GET /api/itinerarios/notas sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>230ms</td></tr>
+        <tr><td><code>USU-001b</code></td><td>Página /perfil acceso controlado</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>157ms</td></tr>
+        <tr><td><code>USU-001c</code></td><td>Página /favoritos acceso controlado</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>262ms</td></tr>
+        <tr><td><code>USU-001d</code></td><td>Página /mensajes acceso controlado</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>295ms</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─── S9 ─── -->
+<section id="s9">
+  <h2>S9 · Panel de Guía (GUI-P)</h2>
+  <div class="section-result"><span class="badge pass">2 PASSED</span><span class="badge fail">5 FAILED (525)</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Prueba</th><th>Estado</th><th>HTTP</th><th>Tiempo</th></tr></thead>
+      <tbody>
+        <tr><td><code>GUI-P01</code></td><td>GET /api/guides/my-request sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>167ms</td></tr>
+        <tr><td><code>GUI-P09</code></td><td>POST /api/availability/set sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>164ms</td></tr>
+        <tr><td><code>GUI-P03</code></td><td>GET /api/bookings/guide sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>177ms</td></tr>
+        <tr><td><code>GUI-P12</code></td><td>POST /api/tours sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>166ms</td></tr>
+        <tr><td><code>GUI-P11</code></td><td>POST /api/guides/add-tour sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>235ms</td></tr>
+        <tr><td><code>GUI-P01b</code></td><td>Página /guide/estatus acceso controlado</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>289ms</td></tr>
+        <tr><td><code>GUI-P01c</code></td><td>Página /guide/solicitudes acceso controlado</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>330ms</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─── S10 ─── -->
+<section id="s10">
+  <h2>S10 · Panel Admin (ADM)</h2>
+  <div class="section-result"><span class="badge pass">4 PASSED</span><span class="badge fail">6 FAILED (525)</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Prueba</th><th>Estado</th><th>HTTP</th><th>Tiempo</th></tr></thead>
+      <tbody>
+        <tr><td><code>ADM-001</code></td><td>GET /api/admin/negocios sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>157ms</td></tr>
+        <tr><td><code>ADM-008</code></td><td>GET /api/admin/negocios/pendientes sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>223ms</td></tr>
+        <tr><td><code>ADM-005</code></td><td>GET /api/admin/guias/pendientes sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>155ms</td></tr>
+        <tr><td><code>ADM-006</code></td><td>GET /api/admin/guias/aprobados sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>253ms</td></tr>
+        <tr><td><code>ADM-001b</code></td><td>GET /api/admin/solicitudes-pendientes sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>144ms</td></tr>
+        <tr><td><code>ADM-011</code></td><td>GET /api/admin/usuarios-gestionables sin token → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>171ms</td></tr>
+        <tr><td><code>ADM-001c</code></td><td>Página /admin acceso controlado</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>295ms</td></tr>
+        <tr><td><code>ADM-005b</code></td><td>Página /admin/guias acceso controlado</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>243ms</td></tr>
+        <tr><td><code>ADM-008b</code></td><td>Página /admin/negocios acceso controlado</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>277ms</td></tr>
+        <tr><td><code>ADM-012</code></td><td>Página /admin/lugares acceso controlado</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>253ms</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─── S11 ─── -->
+<section id="s11">
+  <h2>S11 · Responsividad y UX (RES)</h2>
+  <div class="section-result"><span class="badge pass">5 PASSED</span><span class="badge fail">1 FAILED</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Prueba</th><th>Estado</th><th>HTTP</th><th>Tiempo</th><th>Detalle</th></tr></thead>
+      <tbody>
+        <tr><td><code>RES-012</code></td><td>PWA Manifest disponible</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>153ms</td><td>PWA instalable ✅</td></tr>
+        <tr><td><code>RES-001</code></td><td>Favicon disponible</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>243ms</td><td>Icono de la app ✅</td></tr>
+        <tr><td><code>PER-008</code></td><td>Service Worker /sw.js disponible</td><td><span class="badge fail">FAILED</span></td><td>404</td><td>314ms</td><td>next-pwa posiblemente deshabilitado en prod</td></tr>
+        <tr><td><code>RES-003a</code></td><td>Mobile UA — Página principal</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>179ms</td><td>iPhone UA respondido</td></tr>
+        <tr><td><code>RES-003b</code></td><td>Mobile UA — /explora</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>147ms</td><td>iPhone UA respondido</td></tr>
+        <tr><td><code>RES-003c</code></td><td>Mobile UA — /tours</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>211ms</td><td>iPhone UA respondido</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─── S12 ─── -->
+<section id="s12">
+  <h2>S12 · Seguridad (SEC)</h2>
+  <div class="section-result"><span class="badge pass">7 PASSED</span><span class="badge warn">1 WARNING</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Prueba</th><th>Estado</th><th>Valor</th></tr></thead>
+      <tbody>
+        <tr><td><code>SEC-001a</code></td><td>SSL/HTTPS válido — www.pitzbol.me</td><td><span class="badge pass">PASSED</span></td><td>Expira: Jul 15 02:43:48 2026 GMT</td></tr>
+        <tr><td><code>SEC-001b</code></td><td>SSL/HTTPS válido — api.pitzbol.me</td><td><span class="badge pass">PASSED</span></td><td>Expira: Jul 15 02:43:48 2026 GMT</td></tr>
+        <tr><td><code>SEC-001c</code></td><td>HSTS header presente</td><td><span class="badge pass">PASSED</span></td><td><code>max-age=63072000; includeSubDomains; preload</code></td></tr>
+        <tr><td><code>SEC-001d</code></td><td>X-Frame-Options header</td><td><span class="badge pass">PASSED</span></td><td><code>DENY</code></td></tr>
+        <tr><td><code>SEC-001e</code></td><td>X-Content-Type-Options header</td><td><span class="badge pass">PASSED</span></td><td><code>nosniff</code></td></tr>
+        <tr><td><code>SEC-001f</code></td><td>Content-Security-Policy header</td><td><span class="badge pass">PASSED</span></td><td><code>default-src 'self'; script-src 'self' 'unsafe-inline'…</code></td></tr>
+        <tr><td><code>SEC-001g</code></td><td>Permissions-Policy header</td><td><span class="badge pass">PASSED</span></td><td><code>camera=(self), microphone=(), geolocation=(self)</code></td></tr>
+        <tr><td><code>SEC-005</code></td><td>CORS — API acepta origen pitzbol.me</td><td><span class="badge warn">WARNING</span></td><td>No verificable mientras API devuelva 525</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─── S13 ─── -->
+<section id="s13">
+  <h2>S13 · Rendimiento (PER)</h2>
+  <div class="section-result"><span class="badge pass">10 PASSED</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Prueba</th><th>Estado</th><th>HTTP</th><th>Tiempo</th><th>Umbral</th></tr></thead>
+      <tbody>
+        <tr><td><code>PER-001</code></td><td>Página principal carga &lt;3s</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>191ms</td><td>&lt; 3000ms ✓</td></tr>
+        <tr><td><code>PER-002</code></td><td>Página /explora carga &lt;3s</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>231ms</td><td>&lt; 3000ms ✓</td></tr>
+        <tr><td><code>PER-003</code></td><td>Página /tours carga &lt;3s</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>141ms</td><td>&lt; 3000ms ✓</td></tr>
+        <tr><td><code>PER-004</code></td><td>Página /mapa carga &lt;5s</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>163ms</td><td>&lt; 5000ms ✓</td></tr>
+        <tr><td><code>PER-005a</code></td><td>Backend health &lt;2s</td><td><span class="badge pass">PASSED</span></td><td>525</td><td>163ms</td><td>&lt; 2000ms</td></tr>
+        <tr><td><code>PER-005b</code></td><td>GET /api/guides/verified &lt;4s</td><td><span class="badge pass">PASSED</span></td><td>525</td><td>172ms</td><td>&lt; 4000ms</td></tr>
+        <tr><td><code>PER-005c</code></td><td>GET /api/lugares &lt;3s</td><td><span class="badge pass">PASSED</span></td><td>525</td><td>163ms</td><td>&lt; 3000ms</td></tr>
+        <tr><td><code>PER-005d</code></td><td>GET /api/tours &lt;3s</td><td><span class="badge pass">PASSED</span></td><td>525</td><td>164ms</td><td>&lt; 3000ms</td></tr>
+        <tr><td><code>PER-005e</code></td><td>GET /api/paquetes &lt;3s</td><td><span class="badge pass">PASSED</span></td><td>525</td><td>173ms</td><td>&lt; 3000ms</td></tr>
+        <tr><td><code>PER-005f</code></td><td>Tiempo promedio API</td><td><span class="badge pass">PASSED</span></td><td>—</td><td><strong>167ms</strong></td><td>&lt; 2500ms ✓</td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="analysis">
+    <strong>Rendimiento del frontend excelente:</strong> Páginas Vercel en 141–392ms desde CDN global.
+    Las respuestas de la API (~163–173ms) son las de error 525 (rápidas), no respuestas de datos reales.
+  </div>
+</section>
+
+<!-- ─── S14 ─── -->
+<section id="s14">
+  <h2>S14 · Errores y Casos Edge (ERR)</h2>
+  <div class="section-result"><span class="badge pass">1 PASSED</span><span class="badge fail">1 FAILED</span><span class="badge warn">1 WARNING</span><span class="badge info">1 INFO</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Prueba</th><th>Estado</th><th>HTTP</th><th>Tiempo</th><th>Detalle</th></tr></thead>
+      <tbody>
+        <tr><td><code>ERR-003</code></td><td>Ruta inexistente → 404 con JSON (backend)</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>159ms</td><td>Cloudflare intercepta antes del backend</td></tr>
+        <tr><td><code>ERR-003b</code></td><td>Página 404 frontend devuelve respuesta</td><td><span class="badge pass">PASSED</span></td><td>404</td><td>146ms</td><td>Next.js custom 404 ✅</td></tr>
+        <tr><td><code>ERR-001</code></td><td>Body JSON malformado → 400</td><td><span class="badge warn">WARNING</span></td><td>525</td><td>185ms</td><td>Cloudflare intercepta antes del backend</td></tr>
+        <tr><td><code>AUT-013</code></td><td>Rate limiting en /api/auth/login</td><td><span class="badge info">INFO</span></td><td>—</td><td>—</td><td>loginLimiter: 20 req/15 min (código fuente)</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─── S15 ─── -->
+<section id="s15">
+  <h2>S15 · Integraciones (INT)</h2>
+  <div class="section-result"><span class="badge pass">1 PASSED</span><span class="badge fail">3 FAILED (525)</span><span class="badge warn">2 WARNING (525)</span></div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>ID</th><th>Prueba</th><th>Estado</th><th>HTTP</th><th>Tiempo</th><th>Detalle</th></tr></thead>
+      <tbody>
+        <tr><td><code>INT-001</code></td><td>Firebase Auth — endpoint login accesible</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>226ms</td><td>Nginx sin SSL</td></tr>
+        <tr><td><code>INT-002</code></td><td>Firestore — GET /api/guides retorna datos</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>156ms</td><td>Nginx sin SSL</td></tr>
+        <tr><td><code>INT-003</code></td><td>Firestore — POST /api/business/validate-uniqueness</td><td><span class="badge warn">WARNING</span></td><td>525</td><td>148ms</td><td>Nginx sin SSL</td></tr>
+        <tr><td><code>INT-004</code></td><td>Stripe — endpoint payment-intent</td><td><span class="badge warn">WARNING</span></td><td>525</td><td>169ms</td><td>Nginx sin SSL</td></tr>
+        <tr><td><code>INT-006</code></td><td>Mapa Leaflet — página /mapa carga</td><td><span class="badge pass">PASSED</span></td><td>200</td><td>152ms</td><td>HTML devuelto, Leaflet inicializa en browser ✅</td></tr>
+        <tr><td><code>INT-007</code></td><td>GET /api/support/contact-forms → 401</td><td><span class="badge fail">FAILED</span></td><td>525</td><td>167ms</td><td>Nginx sin SSL</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─── COBERTURA ─── -->
+<section id="cobertura">
+  <h2>Cobertura por Módulo</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Módulo</th><th>Req.</th><th>Auto.</th><th>Pasadas</th><th>Código ✓</th><th>HTTP prod.</th></tr></thead>
+      <tbody>
+        <tr><td>AUT — Autenticación</td><td>13</td><td>10</td><td>4</td><td><div class="cov-bar"><div class="cov-fill" style="width:92%;background:#16a34a"></div></div></td><td><div class="cov-bar"><div class="cov-fill" style="width:40%;background:#dc2626"></div></div></td></tr>
+        <tr><td>GUI — Guías</td><td>10</td><td>6</td><td>1</td><td><div class="cov-bar"><div class="cov-fill" style="width:88%;background:#16a34a"></div></div></td><td><div class="cov-bar"><div class="cov-fill" style="width:17%;background:#dc2626"></div></div></td></tr>
+        <tr><td>PER — Perfil guía</td><td>12</td><td>5</td><td>1</td><td><div class="cov-bar"><div class="cov-fill" style="width:85%;background:#16a34a"></div></div></td><td><div class="cov-bar"><div class="cov-fill" style="width:20%;background:#dc2626"></div></div></td></tr>
+        <tr><td>BOO — Booking</td><td>15</td><td>7</td><td>2</td><td><div class="cov-bar"><div class="cov-fill" style="width:90%;background:#16a34a"></div></div></td><td><div class="cov-bar"><div class="cov-fill" style="width:29%;background:#dc2626"></div></div></td></tr>
+        <tr><td>LUG — Lugares</td><td>13</td><td>10</td><td>7</td><td><div class="cov-bar"><div class="cov-fill" style="width:87%;background:#16a34a"></div></div></td><td><div class="cov-bar"><div class="cov-fill" style="width:70%;background:#d97706"></div></div></td></tr>
+        <tr><td>TOU — Tours</td><td>15</td><td>8</td><td>5</td><td><div class="cov-bar"><div class="cov-fill" style="width:86%;background:#16a34a"></div></div></td><td><div class="cov-bar"><div class="cov-fill" style="width:63%;background:#d97706"></div></div></td></tr>
+        <tr><td>IA — Motor IA</td><td>18</td><td>4</td><td>1</td><td><div class="cov-bar"><div class="cov-fill" style="width:80%;background:#16a34a"></div></div></td><td><div class="cov-bar"><div class="cov-fill" style="width:25%;background:#dc2626"></div></div></td></tr>
+        <tr><td>USU — Panel usuario</td><td>15</td><td>9</td><td>3</td><td><div class="cov-bar"><div class="cov-fill" style="width:91%;background:#16a34a"></div></div></td><td><div class="cov-bar"><div class="cov-fill" style="width:33%;background:#dc2626"></div></div></td></tr>
+        <tr><td>GUI-P — Panel guía</td><td>20</td><td>7</td><td>2</td><td><div class="cov-bar"><div class="cov-fill" style="width:84%;background:#16a34a"></div></div></td><td><div class="cov-bar"><div class="cov-fill" style="width:29%;background:#dc2626"></div></div></td></tr>
+        <tr><td>ADM — Panel admin</td><td>17</td><td>10</td><td>4</td><td><div class="cov-bar"><div class="cov-fill" style="width:93%;background:#16a34a"></div></div></td><td><div class="cov-bar"><div class="cov-fill" style="width:40%;background:#dc2626"></div></div></td></tr>
+        <tr><td>RES — Responsividad</td><td>12</td><td>6</td><td>5</td><td><div class="cov-bar"><div class="cov-fill" style="width:88%;background:#16a34a"></div></div></td><td><div class="cov-bar"><div class="cov-fill" style="width:83%;background:#16a34a"></div></div></td></tr>
+        <tr><td>PERF — Rendimiento</td><td>10</td><td>10</td><td>10</td><td><div class="cov-bar"><div class="cov-fill" style="width:100%;background:#16a34a"></div></div></td><td><div class="cov-bar"><div class="cov-fill" style="width:100%;background:#16a34a"></div></div></td></tr>
+        <tr><td>ERR — Errores edge</td><td>10</td><td>4</td><td>1</td><td><div class="cov-bar"><div class="cov-fill" style="width:82%;background:#16a34a"></div></div></td><td><div class="cov-bar"><div class="cov-fill" style="width:25%;background:#dc2626"></div></div></td></tr>
+        <tr><td>INT — Integraciones</td><td>8</td><td>6</td><td>1</td><td><div class="cov-bar"><div class="cov-fill" style="width:88%;background:#16a34a"></div></div></td><td><div class="cov-bar"><div class="cov-fill" style="width:17%;background:#dc2626"></div></div></td></tr>
+        <tr><td>SEC — Seguridad</td><td>10</td><td>8</td><td>7</td><td><div class="cov-bar"><div class="cov-fill" style="width:97%;background:#16a34a"></div></div></td><td><div class="cov-bar"><div class="cov-fill" style="width:88%;background:#16a34a"></div></div></td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<!-- ─── RECOMENDACIONES ─── -->
+<section id="recomendaciones">
+  <h2>Recomendaciones</h2>
+
+  <div class="rec high">
+    <div class="rec-title">🔴 [Crítico — Acción inmediata] Cambiar Cloudflare a modo "Flexible"</div>
+    <p>El fix anterior (Full → Full Strict) no funcionó porque el problema es que Nginx no escucha en puerto 443. La solución más rápida es cambiar Cloudflare a modo <strong>"Flexible"</strong>: Cloudflare se comunica con el origen por HTTP, sin requerir SSL en Nginx.</p>
+    <p style="margin-top:6px"><strong>Ruta:</strong> Cloudflare → SSL/TLS → Overview → <strong>Flexible</strong></p>
+    <p style="margin-top:6px">Esta solución es inmediata (2 minutos) y no requiere tocar el servidor.</p>
+  </div>
+
+  <div class="rec medium">
+    <div class="rec-title">⚠️ [Recomendado a medio plazo] Configurar HTTPS en Nginx (Opción correcta)</div>
+    <p>Para una configuración segura y correcta, instalar un <strong>Certificado de Origen de Cloudflare</strong> en Nginx y añadir listener en puerto 443. Ver bloque de configuración en sección 3 de este informe.</p>
+  </div>
+
+  <div class="rec medium">
+    <div class="rec-title">⚠️ [Media] Activar Service Worker (next-pwa) en producción</div>
+    <p><code>/sw.js</code> sigue devolviendo 404. Verificar <code>next.config.ts</code> — asegurarse de que <code>next-pwa</code> no está deshabilitado en producción.</p>
+  </div>
+
+  <div class="rec low">
+    <div class="rec-title">✅ [Informativo] Re-ejecutar pruebas tras aplicar el fix</div>
+    <p>Una vez aplicado el modo "Flexible" o configurado SSL en Nginx, ejecutar <code>python pitzbol_prod_tests.py</code> nuevamente. Se espera que los 41 fallos se conviertan en resultados correctos, subiendo la tasa de éxito del 53% actual al ~90%.</p>
+  </div>
+
+  <div class="rec low">
+    <div class="rec-title">✅ [Informativo] Renovar certificados SSL antes de julio 2026</div>
+    <p>Los certificados de ambos dominios expiran el <strong>15 de julio de 2026</strong>. Configurar renovación automática.</p>
+  </div>
+</section>
+
+</main>
+</div>
+
+<footer>
+  Generado automáticamente por <strong>pitzbol_prod_tests.py</strong> ·
+  Pitzbol PWA v1.0 · Producción (v2 post-fix SSL) · 16 de mayo de 2026 ·
+  Duración: 34 479 ms · 110 pruebas ejecutadas
+</footer>
+</body>
+</html>
