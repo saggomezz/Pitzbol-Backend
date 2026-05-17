@@ -66,7 +66,7 @@ const OSRM_BASE = 'https://router.project-osrm.org/route/v1';
 function toOSRMProfile(mode: TransportMode): string {
   if (mode === 'walking') return 'walking';
   if (mode === 'cycling') return 'cycling';
-  return 'driving'; // driving, transit-like, rideshare-like
+  return 'driving';
 }
 
 /** Convertir un objeto ruta de OSRM a RouteOption */

@@ -77,7 +77,7 @@ export const validateTransportMode = (req: Request, res: Response, next: NextFun
   if (!isValidTransportMode(mode)) {
     return res.status(400).json({
       success: false,
-      msg: `mode debe ser uno de: driving, walking, cycling, transit-like, rideshare-like`
+      msg: `mode debe ser uno de: driving, motorcycle, walking, cycling`
     });
   }
 

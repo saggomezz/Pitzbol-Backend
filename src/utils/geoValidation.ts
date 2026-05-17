@@ -50,7 +50,7 @@ export function isValidHour(hour: number): boolean {
 /**
  * Validar modo de transporte conocido
  */
-export const VALID_TRANSPORT_MODES = ['driving', 'walking', 'cycling', 'transit-like', 'rideshare-like'] as const;
+export const VALID_TRANSPORT_MODES = ['driving', 'motorcycle', 'walking', 'cycling'] as const;
 export type TransportMode = typeof VALID_TRANSPORT_MODES[number];
 
 export function isValidTransportMode(mode: unknown): mode is TransportMode {
@@ -155,6 +155,13 @@ export function getTrafficFactor(hour: number): number {
   return 1.0;
 }
 
+export function getTrafficFactorForMode(mode: TransportMode, hour: number): number {
+  if (!isValidHour(hour)) return 1.0;
+  if (mode === 'driving') return getTrafficFactor(hour);
+  if (mode === 'motorcycle') return 1 + (getTrafficFactor(hour) - 1) * 0.45;
+  return 1.0;
+}
+
 /**
  * Calcular ETA en minutos ajustada por tráfico
  * @param distanceKm distancia en km
@@ -171,21 +178,13 @@ export function calculateETA(
   // Velocidades base por modo (km/h) sin tráfico
   const baseSpeeds: Record<TransportMode, number> = {
     driving: 30, // GDL urbano promedio
+    motorcycle: 34,
     walking: 5,
     cycling: 15,
-    'transit-like': 20, // Aproximado transporte público
-    'rideshare-like': 25, // Uber/DiDi aproximado
   };
 
   const baseSpeed = baseSpeeds[mode];
-  const baseDurationHours = distanceKm / baseSpeed;
-
-  // Aplicar factor de tráfico (solo para driving y rideshare)
-  let finalSpeed = baseSpeed;
-  if ((mode === 'driving' || mode === 'rideshare-like') && isValidHour(hour)) {
-    const factor = getTrafficFactor(hour);
-    finalSpeed = baseSpeed / factor;
-  }
+  const finalSpeed = baseSpeed / getTrafficFactorForMode(mode, hour);
 
   const finalDurationHours = distanceKm / finalSpeed;
   return Math.ceil(finalDurationHours * 60); // Convertir a minutos, redondear arriba
