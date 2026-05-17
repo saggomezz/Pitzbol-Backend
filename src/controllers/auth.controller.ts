@@ -3,7 +3,6 @@ import { Request, Response } from "express";
 import jwt from "jsonwebtoken";
 import { auth, db } from "../config/firebase";
 import { sendNotificationToAdmins, sendNotificationToUser } from "../services/notification.service";
-import nodemailer from 'nodemailer';
 import { FieldValue } from "@google-cloud/firestore";
 
 const FIREBASE_WEB_API_KEY = process.env.FIREBASE_WEB_API_KEY;
@@ -14,20 +13,6 @@ if (!FIREBASE_WEB_API_KEY || !JWT_SECRET) {
 }
 
 // Nota: Gmail se configurará cuando se use, no en el inicio
-let transporter: nodemailer.Transporter | null = null;
-
-const getTransporter = () => {
-  if (!transporter && process.env.GMAIL_USER && process.env.GMAIL_PASS) {
-    transporter = nodemailer.createTransport({
-      service: 'gmail',
-      auth: {
-        user: process.env.GMAIL_USER,
-        pass: process.env.GMAIL_PASS,
-      },
-    });
-  }
-  return transporter;
-};
 
 //REGISTRO DE USUARIO
 export const register = async (req: Request, res: Response) => {
@@ -264,49 +249,36 @@ export const recoverPassword = async (req: Request, res: Response) => {
       return res.status(400).json({ msg: "El correo es obligatorio" });
     }
 
-    // Usamos Firebase Auth directamente — sin query a Firestore para evitar consumo de cuota.
-    // generatePasswordResetLink lanza error si el email no existe en Firebase Auth.
-    let resetLink: string;
-    try {
-      resetLink = await auth.generatePasswordResetLink(email, {
-        url: process.env.FRONTEND_URL || "https://www.pitzbol.me/reset-password",
-      });
-    } catch {
-      // Email no registrado — respondemos igual para no revelar si existe
-      console.log(`Correo no encontrado en Firebase Auth: ${email}`);
-      return res.json({ msg: "Si el correo existe, recibirás un enlace de recuperación." });
+    // Usamos la REST API de Firebase Auth — no toca Firestore, no consume cuota de reads.
+    // Google gestiona el envío del correo de reset directamente.
+    const apiKey = process.env.FIREBASE_WEB_API_KEY;
+    if (!apiKey) {
+      console.error("FIREBASE_WEB_API_KEY no configurada");
+      return res.status(500).json({ msg: "Error al procesar la solicitud" });
     }
 
-    const mailOptions = {
-      from: '"PITZBOL" <pitzbol2026@gmail.com>',
-      to: email,
-      subject: 'Restablecer tu contraseña - Pitzbol',
-      html: `
-        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: auto; border: 1px solid #eee; padding: 30px; border-radius: 20px;">
-          <h2 style="color: #1A4D2E; text-align: center;">Recupera tu acceso</h2>
-          <p>Hola,</p>
-          <p>Has solicitado restablecer tu contraseña para tu cuenta en <b>Pitzbol</b>. Haz clic en el botón de abajo para continuar:</p>
-          <div style="text-align: center; margin: 30px 0;">
-            <a href="${resetLink}" style="background-color: #0D601E; color: white; padding: 15px 25px; text-decoration: none; border-radius: 50px; font-weight: bold; display: inline-block;">RESTABLECER CONTRASEÑA</a>
-          </div>
-          <p style="font-size: 12px; color: #769C7B;">Este enlace expirará pronto. Si no solicitaste este cambio, puedes ignorar este mensaje de forma segura.</p>
-          <hr style="border: none; border-top: 1px solid #eee; margin: 20px 0;">
-          <p style="font-size: 10px; color: #aaa; text-align: center;">© 2026 Pitzbol - Tu aventura comienza aquí</p>
-        </div>
-      `,
-    };
+    const firebaseRes = await fetch(
+      `https://identitytoolkit.googleapis.com/v1/accounts:sendOobCode?key=${apiKey}`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ requestType: "PASSWORD_RESET", email }),
+      }
+    );
 
-    const mailTransporter = getTransporter();
-    if (!mailTransporter) {
-      throw new Error("Servicio de correo no configurado");
+    if (!firebaseRes.ok) {
+      const err = await firebaseRes.json().catch(() => ({}));
+      const code = (err as any)?.error?.message || "";
+      if (code === "EMAIL_NOT_FOUND" || code === "INVALID_EMAIL") {
+        // No revelar si el email existe o no
+        return res.json({ msg: "Si el correo existe, recibirás un enlace de recuperación." });
+      }
+      console.error("Error Firebase REST:", code);
+      return res.status(500).json({ msg: "Error al procesar la solicitud" });
     }
-    
-    await mailTransporter.sendMail(mailOptions);
-    console.log(`Correo enviado con éxito a: ${email}`);
 
-    return res.json({
-      msg: "Si el correo existe, recibirás un enlace de recuperación",
-    });
+    console.log(`✅ Correo de recuperación enviado por Firebase a: ${email}`);
+    return res.json({ msg: "Si el correo existe, recibirás un enlace de recuperación." });
 
   } catch (error: any) {
     console.error("Error en recoverPassword:", error);
