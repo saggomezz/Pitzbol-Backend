@@ -147,12 +147,22 @@ export class PaymentService {
         throw new Error('No tienes permiso para pagar esta reserva');
       }
 
-      // Obtener el customer de Stripe del usuario
-      const walletDoc = await db.collection('wallets').doc(userId).get();
+      // Obtener el customer de Stripe del usuario (y validar que sigue existiendo)
+      const walletRef = db.collection('wallets').doc(userId);
+      const walletDoc = await walletRef.get();
       let stripeCustomerId: string | undefined;
 
       if (walletDoc.exists && walletDoc.data()?.stripeCustomerId) {
-        stripeCustomerId = walletDoc.data()?.stripeCustomerId;
+        const candidateId: string = walletDoc.data()!.stripeCustomerId;
+        try {
+          await stripe.customers.retrieve(candidateId);
+          stripeCustomerId = candidateId;
+        } catch {
+          // Customer ya no existe en Stripe — limpiar Firestore y crear uno nuevo
+          const newCustomer = await stripe.customers.create({ metadata: { uid: userId } });
+          stripeCustomerId = newCustomer.id;
+          await walletRef.update({ stripeCustomerId });
+        }
       }
 
       // Crear el Payment Intent
@@ -201,7 +211,12 @@ export class PaymentService {
         clientSecret: paymentIntent.client_secret || '',
         amount,
       };
-    } catch (error) {
+    } catch (error: any) {
+      if (typeof error?.message === 'string' && error.message.includes('No such PaymentMethod')) {
+        const customError: any = new Error('La tarjeta guardada ya no es válida en Stripe. Por favor elimínala y agrégala de nuevo.');
+        customError.code = 'INVALID_PAYMENT_METHOD';
+        throw customError;
+      }
       console.error('Error al crear Payment Intent:', error);
       throw error;
     }
@@ -250,7 +265,12 @@ export class PaymentService {
         paymentIntentId: paymentIntent.id,
         status: paymentIntent.status,
       };
-    } catch (error) {
+    } catch (error: any) {
+      if (typeof error?.message === 'string' && error.message.includes('No such PaymentMethod')) {
+        const customError: any = new Error('La tarjeta guardada ya no es válida en Stripe. Por favor elimínala y agrégala de nuevo.');
+        customError.code = 'INVALID_PAYMENT_METHOD';
+        throw customError;
+      }
       console.error('Error al confirmar pago:', error);
       throw error;
     }
@@ -319,6 +339,32 @@ export class PaymentService {
       console.error('Error al obtener estado del pago:', error);
       throw error;
     }
+  }
+
+  // Reembolsar y cancelar una reserva pagada (iniciado por el guía)
+  static async refundForBooking(bookingId: string): Promise<void> {
+    const paymentQuery = await db.collection('payments')
+      .where('bookingId', '==', bookingId)
+      .limit(1)
+      .get();
+
+    if (paymentQuery.empty) {
+      // No payment found — just cancel the booking without refund
+      await BookingService.cancelBooking(bookingId);
+      return;
+    }
+
+    const paymentDoc = paymentQuery.docs[0]!;
+    const paymentData = paymentDoc.data() as PaymentRecord;
+
+    // Issue Stripe refund
+    await stripe.refunds.create({ payment_intent: paymentData.paymentIntentId });
+
+    // Update payment doc
+    await paymentDoc.ref.update({ status: 'refunded', updatedAt: new Date() });
+
+    // Cancel the booking (updates status + availability)
+    await BookingService.cancelBooking(bookingId);
   }
 
   // Cancelar pago

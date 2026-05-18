@@ -43,9 +43,11 @@ export const createPaymentIntent = async (req: Request, res: Response) => {
     });
   } catch (error: any) {
     console.error('Error al crear Payment Intent:', error);
-    res.status(500).json({
+    const status = error?.code === 'INVALID_PAYMENT_METHOD' ? 422 : 500;
+    res.status(status).json({
       success: false,
       message: error.message || 'Error al crear Payment Intent',
+      ...(error?.code ? { code: error.code } : {}),
     });
   }
 };
@@ -89,9 +91,11 @@ export const confirmPaymentWithSavedCard = async (req: Request, res: Response) =
     });
   } catch (error: any) {
     console.error('Error al confirmar pago:', error);
-    res.status(500).json({
+    const status = error?.code === 'INVALID_PAYMENT_METHOD' ? 422 : 500;
+    res.status(status).json({
       success: false,
       message: error.message || 'Error al confirmar pago',
+      ...(error?.code ? { code: error.code } : {}),
     });
   }
 };

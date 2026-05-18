@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { BookingService } from '../services/booking.service';
+import { PaymentService } from '../services/payment.service';
 
 // Crear una reserva
 export const createBooking = async (req: Request, res: Response) => {
@@ -197,6 +198,49 @@ export const updateBookingStatus = async (req: Request, res: Response) => {
       success: false,
       message: 'Error al actualizar estado' ,
     });
+  }
+};
+
+// Cancelar tour con reembolso (iniciado por el guía)
+export const cancelTourByGuide = async (req: Request, res: Response) => {
+  try {
+    const { bookingId } = req.params;
+    const guideUid = (req as any).user?.uid;
+
+    if (!bookingId || Array.isArray(bookingId)) {
+      return res.status(400).json({ success: false, message: 'bookingId es requerido' });
+    }
+
+    const booking = await BookingService.getBookingById(bookingId);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Reserva no encontrada' });
+    }
+    if (booking.guideId !== guideUid) {
+      return res.status(403).json({ success: false, message: 'No tienes permiso para cancelar esta reserva' });
+    }
+    if (booking.status === 'cancelado') {
+      return res.status(400).json({ success: false, message: 'La reserva ya está cancelada' });
+    }
+    if (booking.status === 'completado') {
+      return res.status(400).json({ success: false, message: 'No se puede cancelar un tour ya completado' });
+    }
+
+    // If paid, issue Stripe refund before cancelling
+    if (booking.status === 'pagado') {
+      await PaymentService.refundForBooking(bookingId);
+    } else {
+      await BookingService.cancelBooking(bookingId);
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: booking.status === 'pagado'
+        ? 'Tour cancelado y reembolso emitido al turista'
+        : 'Reserva cancelada exitosamente',
+    });
+  } catch (error: any) {
+    console.error('Error al cancelar tour por guía:', error);
+    return res.status(500).json({ success: false, message: 'Error al cancelar el tour' });
   }
 };
 

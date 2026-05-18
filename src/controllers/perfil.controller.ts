@@ -377,6 +377,7 @@ export const actualizarPerfil = async (req: Request, res: Response) => {
     if (especialidades !== undefined) {
       camposAActualizar.especialidades = especialidades;
       camposAActualizar["07_especialidades"] = especialidades;
+      camposAActualizar["07_intereses"] = especialidades;
     }
 
     if (nombre !== undefined) {

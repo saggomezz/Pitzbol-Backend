@@ -8,7 +8,11 @@ import {
   cancelBooking,
   completeTour,
   confirmBooking,
+<<<<<<< Updated upstream
   getGuiaExperiencias,
+=======
+  cancelTourByGuide,
+>>>>>>> Stashed changes
 } from '../controllers/booking.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
@@ -34,6 +38,9 @@ router.put('/:bookingId/status', authMiddleware, updateBookingStatus);
 
 // Completar tour (finalizar)
 router.put('/:bookingId/complete', authMiddleware, completeTour);
+
+// Cancelar tour con reembolso (inciado por el guía)
+router.put('/:bookingId/cancel-by-guide', authMiddleware, cancelTourByGuide);
 
 // Cancelar reserva
 router.delete('/:bookingId', authMiddleware, cancelBooking);

@@ -172,29 +172,35 @@ export class ChatService {
       const chats = await Promise.all(snapshot.docs.map(async doc => {
         const data = doc.data();
         
-        // Obtener nombre actualizado del guía
+        // Obtener nombre y foto actualizados del guía
         let guideName = data.guideName;
+        let guidePhoto: string | undefined;
         try {
-          const guideDoc = await db.collection('usuarios').doc('guias').collection('lista').doc(data.guideId).get();
-          if (guideDoc.exists) {
-            const guideData = guideDoc.data();
+          const guideSnap = await db.collection('usuarios').doc('guias').collection('lista')
+            .where('uid', '==', data.guideId).limit(1).get();
+          if (!guideSnap.empty) {
+            const guideData = guideSnap.docs[0]?.data();
             const nombre = guideData?.['01_nombre'] || guideData?.nombre || '';
             const apellido = guideData?.['02_apellido'] || guideData?.apellido || '';
             guideName = `${nombre} ${apellido}`.trim() || guideName;
+            guidePhoto = guideData?.['14_foto_perfil']?.url || guideData?.fotoPerfil || undefined;
           }
         } catch (err) {
           console.error('Error al obtener nombre del guía:', err);
         }
 
-        // Obtener nombre actualizado del turista
+        // Obtener nombre y foto actualizados del turista
         let touristName = data.touristName;
+        let touristPhoto: string | undefined;
         try {
-          const touristDoc = await db.collection('usuarios').doc('turistas').collection('lista').doc(data.touristId).get();
-          if (touristDoc.exists) {
-            const touristData = touristDoc.data();
+          const touristSnap = await db.collection('usuarios').doc('turistas').collection('lista')
+            .where('uid', '==', data.touristId).limit(1).get();
+          if (!touristSnap.empty) {
+            const touristData = touristSnap.docs[0]?.data();
             const nombre = touristData?.['01_nombre'] || touristData?.nombre || '';
             const apellido = touristData?.['02_apellido'] || touristData?.apellido || '';
             touristName = `${nombre} ${apellido}`.trim() || touristName;
+            touristPhoto = touristData?.['14_foto_perfil']?.url || touristData?.fotoPerfil || undefined;
           }
         } catch (err) {
           console.error('Error al obtener nombre del turista:', err);
@@ -204,7 +210,9 @@ export class ChatService {
           id: doc.id,
           ...data,
           guideName,
+          guidePhoto,
           touristName,
+          touristPhoto,
           createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
           updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
           lastMessageTime: data.lastMessageTime?.toDate ? data.lastMessageTime.toDate() : data.lastMessageTime,

@@ -13,8 +13,10 @@ export interface Chat {
   id: string;
   touristId: string;
   touristName: string;
+  touristPhoto?: string;
   guideId: string;
   guideName: string;
+  guidePhoto?: string;
   lastMessage?: string;
   lastMessageTime?: Date;
   unreadCount: number;
