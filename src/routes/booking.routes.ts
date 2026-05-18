@@ -8,6 +8,7 @@ import {
   cancelBooking,
   completeTour,
   confirmBooking,
+  getGuiaExperiencias,
 } from '../controllers/booking.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 
@@ -36,5 +37,8 @@ router.put('/:bookingId/complete', authMiddleware, completeTour);
 
 // Cancelar reserva
 router.delete('/:bookingId', authMiddleware, cancelBooking);
+
+// Historial de experiencias completadas del guía (auto-finaliza tours cuya fecha ya pasó)
+router.get('/guia/:guideId/experiencias', authMiddleware, getGuiaExperiencias);
 
 export default router;

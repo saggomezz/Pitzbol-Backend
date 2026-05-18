@@ -363,3 +363,53 @@ export const confirmBooking = async (req: Request, res: Response) => {
     });
   }
 };
+
+// GET /api/bookings/guia/:guideId/experiencias
+// Retorna bookings completados del guía. Auto-marca como completado los que ya pasaron su fecha/hora.
+export const getGuiaExperiencias = async (req: Request, res: Response) => {
+  try {
+    const guideId = req.params.guideId;
+    const authUid = (req as any).user?.uid;
+    if (!authUid || authUid !== guideId) {
+      return res.status(403).json({ success: false, message: 'No autorizado' });
+    }
+
+    const { db } = await import('../config/firebase');
+    const now = new Date();
+    const hoy = now.toISOString().split('T')[0];
+    const horaActual = now.toTimeString().slice(0, 5);
+
+    // Obtener todos los bookings del guía que están confirmados o completados
+    const snap = await db.collection('bookings')
+      .where('guideId', '==', guideId)
+      .where('status', 'in', ['confirmado', 'completado'])
+      .get();
+
+    const experiencias: any[] = [];
+
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      const fecha: string = data.fecha || '';
+      const hora: string = data.horaInicio || '00:00';
+
+      // Auto-completar si la fecha+hora ya pasó
+      if (data.status === 'confirmado') {
+        const tourPaso = fecha < hoy || (fecha === hoy && hora <= horaActual);
+        if (tourPaso) {
+          await doc.ref.update({ status: 'completado' });
+          data.status = 'completado';
+        }
+      }
+
+      if (data.status === 'completado') {
+        experiencias.push({ id: doc.id, ...data });
+      }
+    }
+
+    experiencias.sort((a, b) => (b.fecha > a.fecha ? 1 : -1));
+    return res.json({ success: true, experiencias });
+  } catch (error: any) {
+    console.error('Error getGuiaExperiencias:', error);
+    return res.status(500).json({ success: false, experiencias: [] });
+  }
+};
