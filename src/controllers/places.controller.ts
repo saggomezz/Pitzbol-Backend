@@ -19,7 +19,7 @@ import {
 
 // Cache en memoria para lista de lugares — TTL 5 minutos
 const LUGARES_CACHE_TTL = 5 * 60 * 1000; // 5 minutos
-const CACHE_CONTROL_HEADER = 'public, max-age=300, stale-while-revalidate=60';
+const CACHE_CONTROL_HEADER = 'no-cache, no-store, must-revalidate';
 
 let lugaresCache: { data: any[] | null; expiresAt: number } = { data: null, expiresAt: 0 };
 let lugaresCacheConNegocios: { data: any[] | null; expiresAt: number } = { data: null, expiresAt: 0 };
