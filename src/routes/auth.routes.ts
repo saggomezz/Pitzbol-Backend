@@ -7,6 +7,8 @@ import {
   solicitarGuia,
   refreshToken,
   getMe,
+  sendVerificationCode,
+  verifyEmailCode,
 } from "../controllers/auth.controller";
 import { obtenerItinerariosPublico } from "../controllers/itinerarios.controller";
 import { authMiddleware } from "../middlewares/auth.middleware";
@@ -63,6 +65,12 @@ router.post(
 
 // GET /api/auth/me - Datos completos del usuario autenticado desde Firestore
 router.get("/me", authMiddleware, getMe);
+
+// POST /api/auth/send-code - Enviar código de verificación al email
+router.post("/send-code", sendVerificationCode);
+
+// POST /api/auth/verify-code - Verificar el código ingresado
+router.post("/verify-code", verifyEmailCode);
 
 // GET /api/auth/itinerarios?uid=...&role=... - Itinerarios del usuario (para página /itinerarios)
 router.get("/itinerarios", obtenerItinerariosPublico);

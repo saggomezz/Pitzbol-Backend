@@ -4,6 +4,7 @@ import jwt from "jsonwebtoken";
 import { auth, db } from "../config/firebase";
 import { sendNotificationToAdmins, sendNotificationToUser } from "../services/notification.service";
 import { FieldValue } from "@google-cloud/firestore";
+import { sendVerificationCodeEmail } from "../services/email.service";
 
 const FIREBASE_WEB_API_KEY = process.env.FIREBASE_WEB_API_KEY;
 const JWT_SECRET = process.env.JWT_SECRET;
@@ -656,5 +657,75 @@ export const getMe = async (req: any, res: Response) => {
   } catch (error) {
     console.error("Error en getMe:", error);
     return res.status(500).json({ msg: "Error interno" });
+  }
+};
+
+// POST /api/auth/send-code — enviar código de verificación al email
+export const sendVerificationCode = async (req: Request, res: Response) => {
+  try {
+    const { email, nombre } = req.body;
+    if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      return res.status(400).json({ msg: 'Email inválido' });
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000)); // 6 dígitos
+    const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutos
+
+    // Guardar en Firestore (sobreescribe si ya existe para ese email)
+    await db.collection('email_verification_codes').doc(email.toLowerCase()).set({
+      code,
+      expiresAt,
+      attempts: 0,
+      createdAt: new Date().toISOString(),
+    });
+
+    // Enviar email
+    await sendVerificationCodeEmail(email, code, nombre || '');
+
+    return res.json({ success: true, msg: 'Código enviado' });
+  } catch (error: any) {
+    console.error('Error enviando código de verificación:', error);
+    return res.status(500).json({ msg: 'No se pudo enviar el código. Intenta de nuevo.' });
+  }
+};
+
+// POST /api/auth/verify-code — verificar el código ingresado
+export const verifyEmailCode = async (req: Request, res: Response) => {
+  try {
+    const { email, code } = req.body;
+    if (!email || !code) {
+      return res.status(400).json({ success: false, msg: 'Email y código requeridos' });
+    }
+
+    const docRef = db.collection('email_verification_codes').doc(email.toLowerCase());
+    const doc = await docRef.get();
+
+    if (!doc.exists) {
+      return res.status(400).json({ success: false, msg: 'No hay código activo para este email' });
+    }
+
+    const data = doc.data()!;
+
+    if (Date.now() > data.expiresAt) {
+      await docRef.delete();
+      return res.status(400).json({ success: false, expired: true, msg: 'El código expiró. Se enviará uno nuevo.' });
+    }
+
+    if (data.code !== String(code)) {
+      const newAttempts = (data.attempts || 0) + 1;
+      await docRef.update({ attempts: newAttempts });
+      return res.status(400).json({
+        success: false,
+        attempts: newAttempts,
+        msg: 'Código incorrecto',
+      });
+    }
+
+    // Código correcto — eliminar para no reutilizar
+    await docRef.delete();
+    return res.json({ success: true, msg: 'Código verificado correctamente' });
+  } catch (error: any) {
+    console.error('Error verificando código:', error);
+    return res.status(500).json({ success: false, msg: 'Error al verificar el código' });
   }
 };

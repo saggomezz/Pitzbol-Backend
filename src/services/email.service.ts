@@ -299,3 +299,27 @@ export async function sendProfileApprovalEmail(details: ProfileApprovalEmail) {
 
   await dispatchEmail({ to, subject: 'Tu perfil en Pitzbol fue aprobado', html, text });
 }
+
+export async function sendVerificationCodeEmail(to: string, code: string, nombre: string) {
+  const html = `
+    <div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;background:#f9f9f9;border-radius:16px;overflow:hidden;">
+      <div style="background:#1A4D2E;padding:28px 32px;text-align:center;">
+        <h1 style="color:white;margin:0;font-size:26px;font-weight:900;letter-spacing:1px;">PITZBOL</h1>
+        <p style="color:rgba(255,255,255,0.8);margin:6px 0 0;font-size:13px;">Tu guía para el Mundial 2026 en Guadalajara</p>
+      </div>
+      <div style="padding:32px;background:white;">
+        <p style="color:#1A4D2E;font-size:16px;margin:0 0 8px;">Hola${nombre ? ' ' + nombre : ''},</p>
+        <p style="color:#555;font-size:14px;margin:0 0 24px;">Tu código de verificación para crear tu cuenta en Pitzbol es:</p>
+        <div style="background:#F0F7F0;border:2px dashed #1A4D2E;border-radius:12px;padding:20px;text-align:center;margin:0 0 24px;">
+          <span style="font-size:40px;font-weight:900;letter-spacing:12px;color:#0D601E;font-family:monospace;">${code}</span>
+        </div>
+        <p style="color:#999;font-size:12px;margin:0;">Este código expira en <strong>5 minutos</strong>. Si no solicitaste crear una cuenta, ignora este mensaje.</p>
+      </div>
+      <div style="background:#f0f0f0;padding:16px;text-align:center;">
+        <p style="color:#aaa;font-size:11px;margin:0;">© 2026 Pitzbol · Guadalajara, México</p>
+      </div>
+    </div>
+  `;
+  const text = `Tu código de verificación de Pitzbol es: ${code}. Expira en 5 minutos.`;
+  await dispatchEmail({ to, subject: 'Tu código de verificación — Pitzbol', html, text });
+}
