@@ -1015,14 +1015,25 @@ export const setPlaceFotos = async (req: Request, res: Response) => {
     const { fotos } = req.body;
     if (!Array.isArray(fotos)) return res.status(400).json({ message: 'fotos debe ser un array' });
 
-    const fotosValidas = fotos.filter((u: any) => typeof u === 'string' && u.startsWith('http')).slice(0, 3);
-    const placeId = normalizePlaceName(nombre);
+    const fotosValidas = fotos.filter((u: any) => typeof u === 'string' && u.startsWith('http'));
 
-    await db.collection('lugares').doc(placeId).set({
-      nombre,
-      fotos: fotosValidas,
-      ultimaActualizacion: new Date().toISOString()
-    }, { merge: true });
+    // Buscar el documento por el campo nombre para no depender del ID normalizado
+    const snap = await db.collection('lugares').where('nombre', '==', nombre).limit(1).get();
+
+    if (!snap.empty) {
+      await snap.docs[0].ref.update({
+        fotos: fotosValidas,
+        ultimaActualizacion: new Date().toISOString(),
+      });
+    } else {
+      // Fallback: crear/actualizar por ID normalizado
+      const placeId = normalizePlaceName(nombre);
+      await db.collection('lugares').doc(placeId).set({
+        nombre,
+        fotos: fotosValidas,
+        ultimaActualizacion: new Date().toISOString(),
+      }, { merge: true });
+    }
 
     invalidateLugaresCache();
     return res.status(200).json({ message: 'Fotos actualizadas', fotos: fotosValidas });
