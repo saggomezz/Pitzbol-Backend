@@ -668,6 +668,16 @@ export const sendVerificationCode = async (req: Request, res: Response) => {
       return res.status(400).json({ msg: 'Email inválido' });
     }
 
+    // Verificar si el email ya está registrado en Firebase Auth
+    try {
+      await auth.getUserByEmail(email);
+      // Si llega aquí, el usuario ya existe
+      return res.status(400).json({ msg: 'El correo ya está registrado en Pitzbol' });
+    } catch (authErr: any) {
+      // auth/user-not-found = email disponible, continuar
+      if (authErr?.code !== 'auth/user-not-found') throw authErr;
+    }
+
     const code = String(Math.floor(100000 + Math.random() * 900000)); // 6 dígitos
     const expiresAt = Date.now() + 5 * 60 * 1000; // 5 minutos
 
