@@ -119,7 +119,7 @@ async function buildPaymentReceiptPdf(details: PaymentReceiptEmail): Promise<Buf
 
     doc.roundedRect(50, doc.y, 495, 110, 16).fillAndStroke('#F4FAF5', '#D5E6D8');
     doc.fillColor('#1A4D2E').fontSize(12).text(`Recibo: ${details.bookingId}`, 70, doc.y - 96);
-    doc.fontSize(11).fillColor('#48634E').text(`Transacción: ${details.paymentIntentId}`, 70, doc.y + 6);
+    doc.fontSize(11).fillColor('#48634E').text(`Tarjeta: ${details.cardBrand}`, 70, doc.y + 6);
     doc.text(`Emitido: ${formatDateTime(details.issuedAt)}`, 70, doc.y + 6);
     doc.text(`Cliente: ${details.touristName}`, 70, doc.y + 6);
     doc.text(`Guía: ${details.guideName}`, 70, doc.y + 6);
@@ -134,8 +134,11 @@ async function buildPaymentReceiptPdf(details: PaymentReceiptEmail): Promise<Buf
     ];
 
     rows.forEach(([label, value]) => {
-      doc.fillColor('#748678').fontSize(10).text(label, 60, doc.y, { continued: true, width: 180 });
-      doc.fillColor('#1A1A1A').fontSize(12).text(value, 220, doc.y - 1);
+      const rowY = doc.y;
+      doc.fillColor('#748678').fontSize(10).text(label, 60, rowY, { width: 155 });
+      const afterLabel = doc.y;
+      doc.fillColor('#1A1A1A').fontSize(12).text(value, 235, rowY, { width: 295 });
+      if (afterLabel > doc.y) doc.y = afterLabel;
       doc.moveDown(0.8);
       doc.strokeColor('#E1ECE3').moveTo(60, doc.y).lineTo(535, doc.y).stroke();
       doc.moveDown(0.8);
@@ -213,7 +216,7 @@ export interface PaymentReceiptEmail {
   touristName: string;
   guideName: string;
   bookingId: string;
-  paymentIntentId: string;
+  cardBrand: string;
   fecha: string;
   horaInicio: string;
   duracion: string;
@@ -229,7 +232,7 @@ export async function sendPaymentReceiptEmail(details: PaymentReceiptEmail) {
   const safeTouristName = escapeHtml(details.touristName);
   const safeGuideName = escapeHtml(details.guideName);
   const safeBookingId = escapeHtml(details.bookingId);
-  const safePaymentIntentId = escapeHtml(details.paymentIntentId);
+  const safeCardBrand = escapeHtml(details.cardBrand);
 
   const pdfBuffer = await buildPaymentReceiptPdf(details);
 
@@ -240,7 +243,7 @@ export async function sendPaymentReceiptEmail(details: PaymentReceiptEmail) {
       <p>Adjuntamos tu recibo en PDF correspondiente al pago de tu reserva con <strong>${safeGuideName}</strong>.</p>
       <div style="background: #F4FAF5; border: 1px solid #D5E6D8; border-radius: 14px; padding: 18px; margin: 24px 0;">
         <p style="margin: 0 0 8px;"><strong>Reserva:</strong> ${safeBookingId}</p>
-        <p style="margin: 0 0 8px;"><strong>Transacción:</strong> ${safePaymentIntentId}</p>
+        <p style="margin: 0 0 8px;"><strong>Tarjeta:</strong> ${safeCardBrand}</p>
         <p style="margin: 0 0 8px;"><strong>Fecha del tour:</strong> ${prettyDate}</p>
         <p style="margin: 0 0 8px;"><strong>Hora:</strong> ${escapeHtml(details.horaInicio)}</p>
         <p style="margin: 0 0 8px;"><strong>Duración:</strong> ${escapeHtml(details.duracion)}</p>

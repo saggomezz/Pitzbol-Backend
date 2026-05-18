@@ -8,11 +8,8 @@ import {
   cancelBooking,
   completeTour,
   confirmBooking,
-<<<<<<< Updated upstream
   getGuiaExperiencias,
-=======
   cancelTourByGuide,
->>>>>>> Stashed changes
 } from '../controllers/booking.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
 

@@ -82,12 +82,26 @@ export class PaymentService {
         throw new Error('No se encontró correo del turista para enviar el recibo');
       }
 
+      let cardBrand = 'Tarjeta';
+      const pmId = paymentData.paymentMethodId;
+      if (pmId) {
+        try {
+          const pm = await stripe.paymentMethods.retrieve(pmId);
+          if (pm.card?.brand) {
+            const raw = pm.card.brand;
+            cardBrand = raw.charAt(0).toUpperCase() + raw.slice(1);
+          }
+        } catch {
+          // fallback to generic label
+        }
+      }
+
       await sendPaymentReceiptEmail({
         to: touristContact.email,
         touristName: booking.touristName || touristContact.name || 'Turista',
         guideName: booking.guideName || 'Guía',
         bookingId: booking.id,
-        paymentIntentId,
+        cardBrand,
         fecha: booking.fecha,
         horaInicio: booking.horaInicio,
         duracion: booking.duracion,
