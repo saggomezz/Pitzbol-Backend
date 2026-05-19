@@ -25,9 +25,11 @@ export const createBooking = async (req: Request, res: Response) => {
       return res.status(403).json({ success: false, message: 'No puedes crear reservas para otro usuario' });
     }
 
-    // Validate date is not in the past
+    // Validate date is not in the past (compare against start of today to allow same-day bookings)
     const bookingDate = new Date(bookingData.fecha);
-    if (isNaN(bookingDate.getTime()) || bookingDate < new Date()) {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    if (isNaN(bookingDate.getTime()) || bookingDate < today) {
       return res.status(400).json({ success: false, message: 'La fecha debe ser futura y válida' });
     }
 
