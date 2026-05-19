@@ -91,13 +91,37 @@ export class RatingService {
       .limit(limit)
       .get();
 
-    return snapshot.docs
+    const ratings = snapshot.docs
       .map(doc => ({ id: doc.id, ...doc.data() }) as Rating)
       .sort((a: any, b: any) => {
         const ta = a.createdAt?.toMillis?.() ?? new Date(a.createdAt).getTime();
         const tb = b.createdAt?.toMillis?.() ?? new Date(b.createdAt).getTime();
         return tb - ta;
       });
+
+    // Enriquecer con la foto de perfil del turista
+    const uniqueTouristIds = [...new Set(ratings.map(r => r.touristId).filter(Boolean))];
+    const touristPhotos: Record<string, string> = {};
+    await Promise.all(
+      uniqueTouristIds.map(async (touristId) => {
+        try {
+          const touristSnap = await db.collection('usuarios').doc('turistas').collection('lista')
+            .where('uid', '==', touristId).limit(1).get();
+          if (!touristSnap.empty) {
+            const data = touristSnap.docs[0]?.data();
+            const photo = data?.['14_foto_perfil']?.url || data?.fotoPerfil || undefined;
+            if (photo) touristPhotos[touristId] = photo;
+          }
+        } catch {
+          // ignorar errores individuales
+        }
+      })
+    );
+
+    return ratings.map(r => ({
+      ...r,
+      touristFotoPerfil: touristPhotos[r.touristId] || undefined,
+    }));
   }
 
   // Obtener estadísticas de calificación de un guía
