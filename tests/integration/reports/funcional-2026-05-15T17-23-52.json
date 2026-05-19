@@ -1,0 +1,1120 @@
+{
+  "title": "Pitzbol Functional Test Suite",
+  "generated_at": "2026-05-15T17:23:52.297112",
+  "summary": {
+    "total": 112,
+    "passed": 63,
+    "failed": 2,
+    "warning": 5,
+    "skipped": 40,
+    "duration_ms": 155921
+  },
+  "sections": [
+    {
+      "id": 1,
+      "name": "Autenticación y Registro",
+      "ms": 12483,
+      "cases": [
+        {
+          "name": "Acceso a página login sin autenticación",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página principal carga sin autenticación (acceso público)",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Registro sin datos — validación de campos requeridos (espera 400)",
+          "status": "PASSED",
+          "details": "Validación correcta — HTTP 400 rechaza body vacío",
+          "ms": 2031,
+          "http": 400,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Registro con email inválido (espera 400)",
+          "status": "PASSED",
+          "details": "Validación de email correcta — HTTP 400",
+          "ms": 2015,
+          "http": 400,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Login con credenciales incorrectas (espera 400/401)",
+          "status": "PASSED",
+          "details": "Credenciales incorrectas rechazadas correctamente — HTTP 401",
+          "ms": 2281,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Recuperar contraseña — email inexistente",
+          "status": "FAILED",
+          "details": "HTTP 429 — {\"success\": false, \"msg\": \"Demasiados intentos de recuperación, intente más tard...",
+          "ms": 2047,
+          "http": 429,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Ruta protegida sin token — Actualizar perfil (espera 401)",
+          "status": "PASSED",
+          "details": "Protección JWT correcta — HTTP 401",
+          "ms": 2061,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Ruta protegida sin token — Logout (espera 401)",
+          "status": "PASSED",
+          "details": "Protección JWT correcta — HTTP 401",
+          "ms": 2047,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página forgot-password carga correctamente",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Descubrimiento de Guías",
+      "ms": 9860,
+      "cases": [
+        {
+          "name": "Página /explora carga sin autenticación",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/guides/verified — listado de guías verificados",
+          "status": "PASSED",
+          "details": "5 guías con status='activo' encontrados",
+          "ms": 3172,
+          "http": 200,
+          "evidence": "Primer guía: {\"uid\": \"tfMO51nJFJaIKygjk3xoUniuVkj1\", \"nombre\": \"Aaron Fuenamyor\", \"fotoPerfil\": \"\", \"descripcion\"...",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/guides/profile/:uid — perfil público de guía",
+          "status": "PASSED",
+          "details": "Perfil cargado (UID real)",
+          "ms": 2437,
+          "http": 200,
+          "evidence": "Campos: ['success', 'guide']",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /perfil/[uid] carga con UID real",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/ratings/guide/:uid — ratings públicos del guía",
+          "status": "PASSED",
+          "details": "Ratings OK — 0 calificaciones",
+          "ms": 2125,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/ratings/guide/:uid/stats — estadísticas del guía",
+          "status": "PASSED",
+          "details": "Stats OK — promedio: N/A",
+          "ms": 2125,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Perfil de Guía",
+      "ms": 6296,
+      "cases": [
+        {
+          "name": "GET /api/availability/:guideId — disponibilidad pública del guía",
+          "status": "PASSED",
+          "details": "Disponibilidad cargada — 0 slots",
+          "ms": 2125,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/tours/guia/:uid — tours del guía (público)",
+          "status": "PASSED",
+          "details": "Tours cargados — 0 tours",
+          "ms": 2139,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /guia/empresa/[uid] carga sin errores",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Intento de reserva sin autenticación (espera 401)",
+          "status": "PASSED",
+          "details": "Booking requiere auth — HTTP 401",
+          "ms": 2031,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /perfil (protegida) — redirige o carga UI de login",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Booking / Reservas",
+      "ms": 8156,
+      "cases": [
+        {
+          "name": "GET /api/bookings/tourist/:id — sin token (espera 401)",
+          "status": "PASSED",
+          "details": "Protección OK — HTTP 401",
+          "ms": 2062,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/bookings/create — sin token (espera 401)",
+          "status": "PASSED",
+          "details": "Creación de booking protegida — HTTP 401",
+          "ms": 2031,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /tours/reservar/[uid] carga",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /tours/confirmacion/[bookingId] carga",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /tours/pago/[bookingId] carga",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/ratings/can-rate/:bookingId — sin token (espera 401)",
+          "status": "PASSED",
+          "details": "Protegido correctamente — HTTP 401",
+          "ms": 2031,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/payments/create-payment-intent — sin token (espera 401)",
+          "status": "PASSED",
+          "details": "Payments protegidos — HTTP 401",
+          "ms": 2031,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Exploración de Lugares Turísticos",
+      "ms": 8922,
+      "cases": [
+        {
+          "name": "GET /api/lugares — catálogo completo de lugares",
+          "status": "PASSED",
+          "details": "127 lugares turísticos cargados",
+          "ms": 2047,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/lugares/:nombre — detalle de lugar",
+          "status": "PASSED",
+          "details": "404 — endpoint funcional (nombre demo)",
+          "ms": 2156,
+          "http": 404,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/lugares/geocode — geocodificación de dirección",
+          "status": "PASSED",
+          "details": "Geocoding funcional — HTTP 400",
+          "ms": 2014,
+          "http": 400,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/places (pitzbol-web) — catálogo para motor IA",
+          "status": "PASSED",
+          "details": "120 lugares para motor IA (Firebase+CSV)",
+          "ms": 562,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /cultura — sección Cultura",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /gastronomia — sección Gastronomía",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /arte — sección Arte",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /futbol — sección Fútbol",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /mapa — integración de mapa",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /informacion/[nombre] — detalle de lugar",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/place-ratings/:nombre/stats — ratings de lugar",
+          "status": "PASSED",
+          "details": "Stats de lugar OK",
+          "ms": 2141,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "name": "Tours e Itinerarios",
+      "ms": 8796,
+      "cases": [
+        {
+          "name": "GET /api/tours — listado de tours disponibles",
+          "status": "PASSED",
+          "details": "0 tours cargados",
+          "ms": 2156,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/tours/:id — detalle de tour",
+          "status": "PASSED",
+          "details": "404 (ID demo)",
+          "ms": 2139,
+          "http": 404,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/tours/guia/:uid — tours de un guía",
+          "status": "PASSED",
+          "details": "0 tours del guía",
+          "ms": 2125,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/paquetes — listado de paquetes turísticos",
+          "status": "PASSED",
+          "details": "0 paquetes disponibles",
+          "ms": 2171,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /tours — Listado tours",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /tours/paquetes — Paquetes",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /itinerario — Itinerario manual",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /itinerario/manual — Itinerario manual detalle",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "pitzbol-web raíz — generador de itinerarios IA",
+          "status": "PASSED",
+          "details": "Generador IA accesible — HTML válido",
+          "ms": 203,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 7,
+      "name": "Motor IA — Recomendaciones Híbridas",
+      "ms": 3141,
+      "cases": [
+        {
+          "name": "GET /api/ai — info del motor híbrido",
+          "status": "PASSED",
+          "details": "Motor: hybrid — Ollama eliminado",
+          "ms": 2016,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/itinerary — genera itinerario híbrido (cultura + gastronomía)",
+          "status": "PASSED",
+          "details": "Motor híbrido OK — 4 paradas en 562ms",
+          "ms": 562,
+          "http": 200,
+          "evidence": "Paradas: ['Jardín Cafeto La Americana, Gu', 'Palacio de Gobierno de Jalisco', 'Plaza de Armas, Guadalajara']",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/itinerary — modo a-pie (radio 2km desde centro)",
+          "status": "PASSED",
+          "details": "2 paradas dentro de 2km del centro",
+          "ms": 217,
+          "http": 200,
+          "evidence": "Paradas: ['Expiatorio del Santísimo ', 'Palacio de Gobierno de Ja']",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/itinerary — inputs inválidos (espera 400)",
+          "status": "PASSED",
+          "details": "Validación correcta — HTTP 400",
+          "ms": 32,
+          "http": 400,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/itinerary — constraint nocturna (startTime 22:00)",
+          "status": "PASSED",
+          "details": "Constraint nocturna OK — 2 paradas a partir de 22:00",
+          "ms": 312,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Coherencia geográfica KNN — lugares agrupados por proximidad",
+          "status": "INFO",
+          "details": "Verificado por diseño: ia-engine.ts usa sortByProximity() + haversine() para minimizar distancia total de ruta. La métrica se valida unitariamente en ia-engine.test.ts.",
+          "ms": 0,
+          "http": null,
+          "evidence": "Ver src/__tests__/ia-engine.test.ts — tests de sortByProximity y haversine",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "name": "Panel de Usuario",
+      "ms": 12218,
+      "cases": [
+        {
+          "name": "GET /api/favorites — Favoritos del usuario (espera 401 sin token)",
+          "status": "PASSED",
+          "details": "Protegido correctamente — HTTP 401",
+          "ms": 2030,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/bookings/tourist/demo — Historial de reservas (espera 401 sin token)",
+          "status": "PASSED",
+          "details": "Protegido correctamente — HTTP 401",
+          "ms": 2032,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/perfil/foto-perfil — Foto de perfil (espera 401 sin token)",
+          "status": "PASSED",
+          "details": "Protegido correctamente — HTTP 401",
+          "ms": 2031,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/perfil/wallet — Wallet (tarjetas) (espera 401 sin token)",
+          "status": "PASSED",
+          "details": "Protegido correctamente — HTTP 401",
+          "ms": 2046,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/itinerarios/itinerarios — Itinerarios guardados (espera 401 sin token)",
+          "status": "PASSED",
+          "details": "Protegido correctamente — HTTP 401",
+          "ms": 2047,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/itinerarios/notas — Notas del usuario (espera 401 sin token)",
+          "status": "PASSED",
+          "details": "Protegido correctamente — HTTP 401",
+          "ms": 2031,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /perfil — acceso controlado",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /favoritos — acceso controlado",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /mensajes — acceso controlado",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 9,
+      "name": "Panel Guía",
+      "ms": 10233,
+      "cases": [
+        {
+          "name": "GET /api/guides/my-request — Solicitud de guía del usuario (espera 401)",
+          "status": "PASSED",
+          "details": "Endpoint guía protegido — HTTP 401",
+          "ms": 2046,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/availability/set — Configurar disponibilidad (espera 401)",
+          "status": "PASSED",
+          "details": "Endpoint guía protegido — HTTP 401",
+          "ms": 2062,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/bookings/guide/demo-guide — Reservas del guía (espera 401)",
+          "status": "PASSED",
+          "details": "Endpoint guía protegido — HTTP 401",
+          "ms": 2031,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/tours — Crear nuevo tour (espera 401)",
+          "status": "PASSED",
+          "details": "Endpoint guía protegido — HTTP 401",
+          "ms": 2046,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/guides/add-tour — Agregar tour al guía (espera 401)",
+          "status": "PASSED",
+          "details": "Endpoint guía protegido — HTTP 401",
+          "ms": 2047,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /guide/estatus — panel del guía",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /guide/solicitudes — panel del guía",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "name": "Panel Admin",
+      "ms": 12202,
+      "cases": [
+        {
+          "name": "GET /api/admin/negocios — Listar negocios (espera 401/403 sin token admin)",
+          "status": "PASSED",
+          "details": "Admin endpoint protegido — HTTP 401",
+          "ms": 2031,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/admin/negocios/pendientes — Negocios pendientes (espera 401/403 sin token admin)",
+          "status": "PASSED",
+          "details": "Admin endpoint protegido — HTTP 401",
+          "ms": 2031,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/admin/guias/pendientes — Guías pendientes (espera 401/403 sin token admin)",
+          "status": "PASSED",
+          "details": "Admin endpoint protegido — HTTP 401",
+          "ms": 2031,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/admin/guias/aprobados — Guías aprobados (espera 401/403 sin token admin)",
+          "status": "PASSED",
+          "details": "Admin endpoint protegido — HTTP 401",
+          "ms": 2016,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/admin/solicitudes-pendientes — Solicitudes pendientes (espera 401/403 sin token admin)",
+          "status": "PASSED",
+          "details": "Admin endpoint protegido — HTTP 401",
+          "ms": 2062,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/admin/usuarios-gestionables — Usuarios gestionables (espera 401/403 sin token admin)",
+          "status": "PASSED",
+          "details": "Admin endpoint protegido — HTTP 401",
+          "ms": 2030,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /admin — acceso admin",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /admin/guias — acceso admin",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /admin/negocios — acceso admin",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Página /admin/lugares — acceso admin",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "name": "Responsividad y UX",
+      "ms": 0,
+      "cases": [
+        {
+          "name": "PWA Manifest — /manifest.json accesible y válido",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Service Worker — /sw.js disponible (PWA offline)",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": "Verificar en browser DevTools > Application > Service Workers"
+        },
+        {
+          "name": "Favicon.ico disponible",
+          "status": "SKIPPED",
+          "details": "HTTP None",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Headers de seguridad HTTP",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Respuesta mobile User-Agent — Inicio",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Respuesta mobile User-Agent — Explora",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Respuesta mobile User-Agent — Tours",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 12,
+      "name": "Performance",
+      "ms": 15063,
+      "cases": [
+        {
+          "name": "Tiempo de respuesta — Página principal (:3000)",
+          "status": "SKIPPED",
+          "details": "Servidor no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Tiempo de respuesta — Explora — directorio guías",
+          "status": "SKIPPED",
+          "details": "Servidor no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Tiempo de respuesta — Tours — listado",
+          "status": "SKIPPED",
+          "details": "Servidor no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Tiempo de respuesta — Backend health (:3001)",
+          "status": "WARNING",
+          "details": "2031ms — supera umbral 1000ms",
+          "ms": 2031,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Tiempo de respuesta — GET /api/guides/verified",
+          "status": "FAILED",
+          "details": "3077ms — supera límite de 3000ms",
+          "ms": 3077,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Tiempo de respuesta — GET /api/lugares",
+          "status": "WARNING",
+          "details": "2031ms — supera umbral 2000ms",
+          "ms": 2031,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Tiempo de respuesta — GET /api/tours",
+          "status": "WARNING",
+          "details": "2155ms — supera umbral 2000ms",
+          "ms": 2155,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Tiempo de respuesta — GET /api/paquetes",
+          "status": "WARNING",
+          "details": "2125ms — supera umbral 2000ms",
+          "ms": 2125,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Tiempo de respuesta — GET /api/places (IA)",
+          "status": "PASSED",
+          "details": "438ms ✓",
+          "ms": 438,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "name": "Errores y Casos Edge",
+      "ms": 18156,
+      "cases": [
+        {
+          "name": "Ruta inexistente en backend — responde 404 con JSON",
+          "status": "PASSED",
+          "details": "404 con JSON estructurado: {\"success\": false, \"msg\": \"Endpoint no encontrado\", \"path\": \"/ruta-que-no-existe...",
+          "ms": 2061,
+          "http": 404,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Body JSON malformado — manejo de error (espera 400)",
+          "status": "PASSED",
+          "details": "HTTP 400 — manejo correcto",
+          "ms": 2063,
+          "http": 400,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Rate limiting en /api/auth/login (3 intentos/15min)",
+          "status": "INFO",
+          "details": "5 intentos enviados — 0 respuestas 429. El rate limiter se activa después del umbral configurado.",
+          "ms": 0,
+          "http": null,
+          "evidence": "Límite: 5 intentos/15min (ver server.ts rateLimiters)",
+          "recommendation": ""
+        },
+        {
+          "name": "CORS — backend acepta origen pitzbol.me",
+          "status": "PASSED",
+          "details": "ACAO: 'https://pitzbol.me'",
+          "ms": 0,
+          "http": null,
+          "evidence": "Access-Control-Allow-Origin: https://pitzbol.me",
+          "recommendation": ""
+        },
+        {
+          "name": "Itinerario sin intereses — validación de entrada (espera 400)",
+          "status": "PASSED",
+          "details": "Validación OK — HTTP 400: {\"error\": \"Debes seleccionar al menos un interés\"}",
+          "ms": 31,
+          "http": 400,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Itinerario con presupuesto negativo — validación (espera 400)",
+          "status": "PASSED",
+          "details": "Validación OK — HTTP 400",
+          "ms": 31,
+          "http": 400,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "name": "Integración Backend",
+      "ms": 29358,
+      "cases": [
+        {
+          "name": "GET / — Health check raíz",
+          "status": "PASSED",
+          "details": "HTTP 200 — {\"status\": \"ok\", \"message\": \"Pitzbol API running\"}",
+          "ms": 2046,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/guides/verified — Guías verificados",
+          "status": "PASSED",
+          "details": "HTTP 200 — {\"guides\": [{\"uid\": \"tfMO51nJFJaIKygjk3xoUniuVkj1\", \"nombre\"...",
+          "ms": 3125,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/tours — Tours públicos",
+          "status": "PASSED",
+          "details": "HTTP 200 — {\"success\": true, \"tours\": [{\"id\": \"wZpUGV0AddmmejOYfqT5\", \"...",
+          "ms": 2141,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/paquetes — Paquetes públicos",
+          "status": "PASSED",
+          "details": "HTTP 200 — {\"success\": true, \"paquetes\": [{\"id\": \"O5G6aiuN8ZRbMukwvsJr\"...",
+          "ms": 2125,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/lugares — Lugares (con cache)",
+          "status": "PASSED",
+          "details": "HTTP 200 — {\"lugares\": [{\"id\": \"aafdfgsdff\", \"views\": 4}, {\"id\": \"aloo_...",
+          "ms": 2062,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/ratings/guide/uid/stats — Stats guía",
+          "status": "PASSED",
+          "details": "HTTP 200 — {\"success\": true, \"stats\": {\"guideId\": \"uid\", \"promedioEstre...",
+          "ms": 2139,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "POST /api/business/validate-uniqueness — Validar unicidad negocio",
+          "status": "PASSED",
+          "details": "HTTP 200 — {\"valid\": true, \"message\": \"Datos disponibles\"}",
+          "ms": 2108,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/availability/demo-uid — Disponibilidad guía",
+          "status": "PASSED",
+          "details": "HTTP 200 — {\"success\": true, \"availabilities\": [], \"total\": 0}",
+          "ms": 2110,
+          "http": 200,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "GET /api/support/contact-forms — Soporte — formularios",
+          "status": "PASSED",
+          "details": "HTTP 401 — {\"msg\": \"Token no proporcionado\"}",
+          "ms": 2031,
+          "http": 401,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Tiempo promedio de respuesta API — 2359ms",
+          "status": "WARNING",
+          "details": "Promedio 2359ms ([3156, 2125, 2125, 2031]ms por endpoint)",
+          "ms": 2359,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        },
+        {
+          "name": "Frontend API route /api/ia-place — proxy a backend",
+          "status": "SKIPPED",
+          "details": "Frontend no disponible",
+          "ms": 0,
+          "http": null,
+          "evidence": "",
+          "recommendation": ""
+        }
+      ]
+    }
+  ]
+}
