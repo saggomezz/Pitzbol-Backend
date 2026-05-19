@@ -195,10 +195,12 @@ export class PaymentService {
         paymentIntentData.customer = stripeCustomerId;
       }
 
-      // Si se especifica un payment method, configurarlo
+      // Siempre limitar a tarjeta para evitar que Stripe exija return_url
+      // para métodos con redirección (iDEAL, Bancontact, etc.)
       if (paymentMethodId) {
         paymentIntentData.payment_method = paymentMethodId;
-        paymentIntentData.confirm = false; // El frontend lo confirmará explícitamente
+        paymentIntentData.payment_method_types = ['card'];
+        paymentIntentData.confirm = false;
       } else {
         paymentIntentData.automatic_payment_methods = {
           enabled: true,
@@ -247,9 +249,13 @@ export class PaymentService {
       const { paymentIntentId, paymentMethodId } = request;
 
       // Confirmar el payment intent con el método de pago
+      // off_session: true indica que el cliente no está presente (tarjeta guardada)
+      // return_url necesario si Stripe lo exige aunque no se use
       const paymentIntent = await stripe.paymentIntents.confirm(paymentIntentId, {
         payment_method: paymentMethodId,
-      });
+        off_session: true,
+        return_url: process.env.FRONTEND_URL || 'https://www.pitzbol.me',
+      } as any);
 
       // Actualizar el estado del pago en Firestore
       const paymentQuery = await db.collection('payments')
