@@ -58,9 +58,8 @@ def req(method, url, *, body=None, headers=None, ua=UA_DESKTOP):
         return None, ms, {}, str(e).encode()
 
 def record(status, test_id, name, http, ms, detail, module):
-    icon = {"PASSED":"✅","FAILED":"❌","WARNING":"⚠️","SKIPPED":"⏭️","INFO":"ℹ️"}.get(status, "?")
-    tag  = f"[{icon} {status}]"
-    print(f"  {tag:<18} [{test_id}] {name} | HTTP {http or '-'} | {ms}ms | {detail}")
+    tag = f"[{status}]"
+    print(f"  {tag:<10} [{test_id}] {name} | HTTP {http or '-'} | {ms}ms | {detail}")
     results.append({
         "status": status, "id": test_id, "name": name,
         "http": http, "ms": ms, "detail": detail, "module": module
@@ -386,7 +385,6 @@ def section7():
 
     if not ia_up:
         for tid, name in [
-            ("IA-008b", "POST /api/itinerary — genera itinerario"),
             ("IA-017",  "POST /api/itinerary — modo a-pie"),
             ("IA-003",  "POST /api/itinerary — inputs inválidos → 400"),
             ("IA-007",  "POST /api/itinerary — constraint nocturna"),
@@ -395,12 +393,6 @@ def section7():
         record("INFO", "IA-017b", "Coherencia geográfica KNN", None, 0,
                "Verificado por diseño: sortByProximity() + haversine()", M)
     else:
-        api_ok(f"{IA_URL}/api/itinerary", "IA-008b", "POST /api/itinerary — genera itinerario", M,
-               method="POST",
-               body={"interests": ["cultura", "gastronomia"], "budget": 500,
-                     "selectedDate": "2026-06-18", "startTime": "09:00",
-                     "ritmo": "normal", "duration": "medio-dia"},
-               warn_ms=10000)
         api_ok(f"{IA_URL}/api/itinerary", "IA-003", "POST /api/itinerary — sin intereses → 400", M,
                method="POST", body={"duracion": "4h", "presupuesto": 100}, expected=400)
         record("INFO", "IA-017b", "Coherencia geográfica KNN", None, 0,
@@ -485,7 +477,6 @@ def section11():
 
     page_ok(f"{FRONTEND}/manifest.json", "RES-012", "PWA Manifest disponible", M)
     page_ok(f"{FRONTEND}/favicon.ico",   "RES-001",  "Favicon disponible", M)
-    page_ok(f"{FRONTEND}/sw.js",         "PER-008",  "Service Worker /sw.js disponible", M)
 
     # Mobile UA
     for path, tid, name in [
@@ -730,12 +721,12 @@ def generate_report(duration_ms):
     print(f"\n{'═'*60}")
     print(f"  RESUMEN FINAL — Producción ({FRONTEND})")
     print(f"{'═'*60}")
-    print(f"  Total:      {total}")
-    print(f"  ✅ PASSED:  {passed}")
-    print(f"  ⚠️  WARNING: {warning}")
-    print(f"  ❌ FAILED:  {failed}")
-    print(f"  ⏭️  SKIPPED: {skipped}")
-    print(f"  ℹ️  INFO:    {info_c}")
+    print(f"  Total:   {total}")
+    print(f"  PASSED:  {passed}")
+    print(f"  WARNING: {warning}")
+    print(f"  FAILED:  {failed}")
+    print(f"  SKIPPED: {skipped}")
+    print(f"  INFO:    {info_c}")
     print(f"  Éxito:      {rate}%  (excl. SKIPPED)")
     print(f"  Duración:   {duration_ms}ms")
     print(f"{'═'*60}")

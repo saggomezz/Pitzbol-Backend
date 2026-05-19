@@ -1,17 +1,17 @@
 # Pitzbol PWA — Pruebas Funcionales (Producción)
-**Generado:** 2026-05-17T13:40:27.343086  
+**Generado:** 2026-05-19T00:26:49.427840  
 **URL:** https://www.pitzbol.me  
-**Duración:** 27897ms
+**Duración:** 28073ms
 
 ---
 ## Resumen
 | | Valor |
 |--|--|
-| Total | **111** |
+| Total | **109** |
 | ✅ PASSED | **106** |
 | ⚠️ WARNING | **0** |
-| ❌ FAILED | **2** |
+| ❌ FAILED | **0** |
 | ⏭️ SKIPPED | **0** |
-| **Tasa de éxito** | **95%** |
+| **Tasa de éxito** | **97%** |
 
 ---

@@ -10,6 +10,8 @@ export interface Booking {
   horaFin?: string;
   numPersonas: number;
   notas?: string;
+  paqueteId?: string;
+  paqueteTitulo?: string;
   total: number;
   status: 'pendiente' | 'confirmado' | 'pagado' | 'completado' | 'cancelado';
   paymentId?: string;
