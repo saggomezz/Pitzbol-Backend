@@ -5,6 +5,7 @@ export interface Rating {
   guideName: string;
   touristId: string;
   touristName: string;
+  touristFotoPerfil?: string;
   estrellas: 1 | 2 | 3 | 4 | 5; // Calificación de 1 a 5 estrellas
   comentario?: string;
   fecha: string; // Formato: YYYY-MM-DD

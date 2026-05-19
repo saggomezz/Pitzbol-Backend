@@ -282,7 +282,6 @@ export const getVerifiedGuides = async (req: Request, res: Response) => {
         const guidesSnapshot = await db.collection('usuarios')
             .doc('guias')
             .collection('lista')
-            .where('status', '==', 'activo')
             .get();
 
         if (guidesSnapshot.empty) {
