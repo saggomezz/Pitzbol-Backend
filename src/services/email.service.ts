@@ -105,81 +105,100 @@ const formatDateTime = (rawDate?: string | Date) => {
 
 async function buildPaymentReceiptPdf(details: PaymentReceiptEmail): Promise<Buffer> {
   return new Promise((resolve, reject) => {
-    const doc = new PDFDocument({ margin: 50, size: 'A4' });
+    const doc = new PDFDocument({ margin: 0, size: 'A4' });
     const chunks: Buffer[] = [];
 
     doc.on('data', (chunk: Buffer) => chunks.push(chunk));
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    const LEFT = 50;
-    const WIDTH = 495;
-    const INNER_LEFT = 70;
-    const INNER_WIDTH = 455;
+    const PAGE_W = 595.28;
+    const M = 50;                      // margen lateral
+    const CW = PAGE_W - 2 * M;        // 495.28 – ancho del contenido
 
-    // ── Título ──────────────────────────────────────────────────
-    let y = 50;
-    doc.font('Helvetica-Bold').fillColor('#0D601E').fontSize(26)
-      .text('Recibo de pago', LEFT, y, { align: 'center', width: WIDTH });
-    y += 38;
-    doc.font('Helvetica').fillColor('#4F6F57').fontSize(11)
-      .text('Pitzbol · Comprobante de pago de experiencia turística', LEFT, y, { align: 'center', width: WIDTH });
-    y += 28;
+    // ── Header verde ─────────────────────────────────────────────
+    doc.save();
+    doc.rect(0, 0, PAGE_W, 108).fill('#0D601E');
+    doc.restore();
 
-    // ── Caja de metadatos ────────────────────────────────────────
-    const metaBoxH = 120;
-    doc.roundedRect(LEFT, y, WIDTH, metaBoxH, 14).fillAndStroke('#F4FAF5', '#D5E6D8');
+    // ── Título y subtítulo en el header ──────────────────────────
+    doc.font('Helvetica-Bold').fillColor('#FFFFFF').fontSize(26)
+      .text('Recibo de pago', M, 24, { width: CW, align: 'center', lineBreak: false });
+    doc.font('Helvetica').fillColor('#A8D5B0').fontSize(11)
+      .text('Pitzbol · Comprobante de pago de experiencia turística',
+            M, 64, { width: CW, align: 'center', lineBreak: false });
 
+    // ── Caja de metadatos ─────────────────────────────────────────
     const metaRows: [string, string][] = [
-      ['Recibo', details.bookingId],
-      ['Tarjeta', details.cardBrand],
-      ['Emitido', formatDateTime(details.issuedAt)],
-      ['Cliente', details.touristName],
-      ['Guía', details.guideName],
+      ['Recibo',   details.bookingId],
+      ['Tarjeta',  details.cardBrand],
+      ['Emitido',  formatDateTime(details.issuedAt)],
+      ['Cliente',  details.touristName],
+      ['Guía',     details.guideName],
     ];
-    const metaLineH = 21;
-    metaRows.forEach(([label, value], i) => {
-      const rowY = y + 12 + i * metaLineH;
-      doc.font('Helvetica').fillColor('#748678').fontSize(10).text(`${label}:`, INNER_LEFT, rowY, { width: 75 });
-      doc.font('Helvetica-Bold').fillColor('#1A4D2E').fontSize(10).text(value, INNER_LEFT + 80, rowY, { width: INNER_WIDTH - 80 });
-    });
-    y += metaBoxH + 20;
+    const META_ROW_H = 23;
+    const metaBoxH = 14 + metaRows.length * META_ROW_H + 10;
+    const metaY = 128;
 
-    // ── Filas de detalle ─────────────────────────────────────────
+    doc.save();
+    doc.roundedRect(M, metaY, CW, metaBoxH, 10).fillAndStroke('#F4FAF5', '#D5E6D8');
+    doc.restore();
+
+    metaRows.forEach(([label, value], i) => {
+      const ry = metaY + 14 + i * META_ROW_H;
+      doc.font('Helvetica').fillColor('#748678').fontSize(10)
+        .text(`${label}:`, M + 18, ry, { width: 85, lineBreak: false });
+      doc.font('Helvetica-Bold').fillColor('#1A4D2E').fontSize(10)
+        .text(value, M + 108, ry, { width: CW - 126, lineBreak: false });
+    });
+
+    // ── Filas de detalle ──────────────────────────────────────────
+    const detailY = metaY + metaBoxH + 22;
     const dataRows: [string, string][] = [
       ['Fecha del tour', formatDate(details.fecha)],
       ['Hora de inicio', details.horaInicio],
-      ['Duración', details.duracion],
-      ['Personas', String(details.numPersonas)],
-      ['Total pagado', formatCurrency(details.total)],
+      ['Duración',       details.duracion],
+      ['Personas',       String(details.numPersonas)],
+      ['Total pagado',   formatCurrency(details.total)],
     ];
-    const ROW_H = 38;
+    const ROW_H = 42;
+
     dataRows.forEach(([label, value], i) => {
-      const rowY = y + i * ROW_H;
-      const bg = i % 2 === 0 ? '#F9FDF9' : '#FFFFFF';
-      doc.rect(LEFT, rowY, WIDTH, ROW_H).fill(bg);
-      doc.font('Helvetica').fillColor('#748678').fontSize(10).text(label, INNER_LEFT, rowY + 12, { width: 160 });
-      doc.font('Helvetica-Bold').fillColor('#1A1A1A').fontSize(12).text(value, 270, rowY + 11, { width: 255 });
-      doc.strokeColor('#E1ECE3').moveTo(LEFT, rowY + ROW_H).lineTo(LEFT + WIDTH, rowY + ROW_H).stroke();
+      const ry = detailY + i * ROW_H;
+      const bg = i % 2 === 0 ? '#F4FAF5' : '#FFFFFF';
+      doc.save();
+      doc.rect(M, ry, CW, ROW_H).fill(bg);
+      if (i < dataRows.length - 1) {
+        doc.strokeColor('#DDE8DF').moveTo(M, ry + ROW_H).lineTo(M + CW, ry + ROW_H).stroke();
+      }
+      doc.restore();
+      doc.font('Helvetica').fillColor('#748678').fontSize(10)
+        .text(label, M + 18, ry + 14, { width: 180, lineBreak: false });
+      doc.font('Helvetica-Bold').fillColor('#1A1A1A').fontSize(12)
+        .text(value, M + 240, ry + 13, { width: CW - 258, lineBreak: false });
     });
-    y += dataRows.length * ROW_H + 22;
 
-    // ── Caja verde de total ──────────────────────────────────────
-    const footerH = 100;
-    doc.roundedRect(LEFT, y, WIDTH, footerH, 14).fill('#0D601E');
+    // ── Caja verde de total ───────────────────────────────────────
+    const totalY = detailY + dataRows.length * ROW_H + 26;
+    const totalBoxH = 90;
+
+    doc.save();
+    doc.roundedRect(M, totalY, CW, totalBoxH, 14).fill('#0D601E');
+    doc.restore();
+
     doc.font('Helvetica').fillColor('#A8D5B0').fontSize(10)
-      .text('Total pagado', INNER_LEFT, y + 14, { width: INNER_WIDTH });
-    doc.font('Helvetica-Bold').fillColor('#FFFFFF').fontSize(24)
-      .text(formatCurrency(details.total), INNER_LEFT, y + 30, { width: INNER_WIDTH });
+      .text('Total pagado', M + 22, totalY + 16, { width: CW - 44, lineBreak: false });
+    doc.font('Helvetica-Bold').fillColor('#FFFFFF').fontSize(26)
+      .text(formatCurrency(details.total), M + 22, totalY + 32, { width: CW - 44, lineBreak: false });
     doc.font('Helvetica').fillColor('#C8E6C9').fontSize(9)
-      .text('Este comprobante acredita el pago registrado para tu reserva en Pitzbol.', INNER_LEFT, y + 68, { width: INNER_WIDTH });
-    y += footerH + 16;
+      .text('Este comprobante acredita el pago registrado para tu reserva en Pitzbol.',
+            M + 22, totalY + 64, { width: CW - 44, lineBreak: false });
 
-    // ── Nota de soporte ──────────────────────────────────────────
-    doc.font('Helvetica').fillColor('#6C7A70').fontSize(9).text(
-      'Si detectas un cargo no reconocido, responde a este correo o contáctanos desde soporte en Pitzbol.',
-      LEFT, y, { align: 'center', width: WIDTH }
-    );
+    // ── Nota de soporte ───────────────────────────────────────────
+    const noteY = totalY + totalBoxH + 22;
+    doc.font('Helvetica').fillColor('#9E9E9E').fontSize(9)
+      .text('Si detectas un cargo no reconocido, responde a este correo o contáctanos desde soporte en Pitzbol.',
+            M, noteY, { align: 'center', width: CW });
 
     doc.end();
   });
