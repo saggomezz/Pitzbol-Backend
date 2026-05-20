@@ -195,17 +195,14 @@ export class PaymentService {
         paymentIntentData.customer = stripeCustomerId;
       }
 
-      // Siempre limitar a tarjeta para evitar que Stripe exija return_url
-      // para métodos con redirección (iDEAL, Bancontact, etc.)
+      // Usar automatic_payment_methods con allow_redirects:'never' en todos los casos
+      // para bloquear métodos con redirección (iDEAL, Bancontact, etc.)
+      paymentIntentData.automatic_payment_methods = {
+        enabled: true,
+        allow_redirects: 'never',
+      };
       if (paymentMethodId) {
         paymentIntentData.payment_method = paymentMethodId;
-        paymentIntentData.payment_method_types = ['card'];
-        paymentIntentData.confirm = false;
-      } else {
-        paymentIntentData.automatic_payment_methods = {
-          enabled: true,
-          allow_redirects: 'never',
-        };
       }
 
       const paymentIntent = await stripe.paymentIntents.create(paymentIntentData);
