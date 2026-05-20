@@ -15,6 +15,12 @@ type UnreadMessagesSnapshot = {
 
 const UNREAD_CACHE_TTL_MS = 30000;
 const unreadCache = new Map<string, { data: UnreadMessagesSnapshot; expiresAt: number }>();
+const PROFILE_BATCH_SIZE = 10;
+
+type ChatUserProfile = {
+  name?: string;
+  photo?: string;
+};
 
 const getUnreadCacheKey = (userId: string, userType: 'tourist' | 'guide') => `${userType}:${userId}`;
 
@@ -26,6 +32,75 @@ const invalidateUnreadCache = (userId?: string) => {
 };
 
 const isSafeFirestoreFieldSegment = (value: string) => /^[A-Za-z0-9_-]+$/.test(value);
+
+const chunkArray = <T>(items: T[], size: number): T[][] => {
+  if (size <= 0) return [items];
+
+  const chunks: T[][] = [];
+  for (let index = 0; index < items.length; index += size) {
+    chunks.push(items.slice(index, index + size));
+  }
+  return chunks;
+};
+
+const extractProfileName = (data: FirebaseFirestore.DocumentData | undefined, fallback?: string): string | undefined => {
+  if (!data) return fallback;
+
+  const nombre = data['01_nombre'] || data.nombre || '';
+  const apellido = data['02_apellido'] || data.apellido || '';
+  const fullName = `${nombre} ${apellido}`.trim();
+
+  return fullName || fallback;
+};
+
+const extractProfilePhoto = (data: FirebaseFirestore.DocumentData | undefined): string | undefined => {
+  if (!data) return undefined;
+  return data['14_foto_perfil']?.url || data.fotoPerfil || undefined;
+};
+
+const getUserCollection = (userType: 'tourist' | 'guide') => {
+  const segment = userType === 'guide' ? 'guias' : 'turistas';
+  return db.collection('usuarios').doc(segment).collection('lista');
+};
+
+const fetchProfilesByUid = async (userIds: string[], userType: 'tourist' | 'guide'): Promise<Map<string, ChatUserProfile>> => {
+  const uniqueIds = Array.from(new Set(userIds.filter(Boolean)));
+  const profiles = new Map<string, ChatUserProfile>();
+
+  if (uniqueIds.length === 0) {
+    return profiles;
+  }
+
+  try {
+    const snapshots = await Promise.all(
+      chunkArray(uniqueIds, PROFILE_BATCH_SIZE).map((batch) =>
+        getUserCollection(userType)
+          .where('uid', 'in', batch)
+          .get()
+      )
+    );
+
+    for (const snapshot of snapshots) {
+      for (const doc of snapshot.docs) {
+        const data = doc.data();
+        const uid = typeof data.uid === 'string' ? data.uid : undefined;
+        if (!uid) continue;
+
+        const name = extractProfileName(data);
+        const photo = extractProfilePhoto(data);
+
+        profiles.set(uid, {
+          ...(name ? { name } : {}),
+          ...(photo ? { photo } : {}),
+        });
+      }
+    }
+  } catch (error) {
+    console.error(`Error al obtener perfiles de ${userType}:`, error);
+  }
+
+  return profiles;
+};
 
 const toDate = (value: any): Date => {
   if (!value) return new Date();
@@ -169,55 +244,32 @@ export class ChatService {
         .where(field, '==', userId)
         .get();
 
-      const chats = await Promise.all(snapshot.docs.map(async doc => {
-        const data = doc.data();
-        
-        // Obtener nombre y foto actualizados del guía
-        let guideName = data.guideName;
-        let guidePhoto: string | undefined;
-        try {
-          const guideSnap = await db.collection('usuarios').doc('guias').collection('lista')
-            .where('uid', '==', data.guideId).limit(1).get();
-          if (!guideSnap.empty) {
-            const guideData = guideSnap.docs[0]?.data();
-            const nombre = guideData?.['01_nombre'] || guideData?.nombre || '';
-            const apellido = guideData?.['02_apellido'] || guideData?.apellido || '';
-            guideName = `${nombre} ${apellido}`.trim() || guideName;
-            guidePhoto = guideData?.['14_foto_perfil']?.url || guideData?.fotoPerfil || undefined;
-          }
-        } catch (err) {
-          console.error('Error al obtener nombre del guía:', err);
-        }
+      const rawChats = snapshot.docs.map((doc) => ({
+        id: doc.id,
+        data: doc.data(),
+      }));
 
-        // Obtener nombre y foto actualizados del turista
-        let touristName = data.touristName;
-        let touristPhoto: string | undefined;
-        try {
-          const touristSnap = await db.collection('usuarios').doc('turistas').collection('lista')
-            .where('uid', '==', data.touristId).limit(1).get();
-          if (!touristSnap.empty) {
-            const touristData = touristSnap.docs[0]?.data();
-            const nombre = touristData?.['01_nombre'] || touristData?.nombre || '';
-            const apellido = touristData?.['02_apellido'] || touristData?.apellido || '';
-            touristName = `${nombre} ${apellido}`.trim() || touristName;
-            touristPhoto = touristData?.['14_foto_perfil']?.url || touristData?.fotoPerfil || undefined;
-          }
-        } catch (err) {
-          console.error('Error al obtener nombre del turista:', err);
-        }
+      const [guideProfiles, touristProfiles] = await Promise.all([
+        fetchProfilesByUid(rawChats.map(({ data }) => String(data.guideId || '')).filter(Boolean), 'guide'),
+        fetchProfilesByUid(rawChats.map(({ data }) => String(data.touristId || '')).filter(Boolean), 'tourist'),
+      ]);
+
+      const chats = rawChats.map(({ id, data }) => {
+        const guideProfile = guideProfiles.get(String(data.guideId || ''));
+        const touristProfile = touristProfiles.get(String(data.touristId || ''));
 
         return {
-          id: doc.id,
+          id,
           ...data,
-          guideName,
-          guidePhoto,
-          touristName,
-          touristPhoto,
+          guideName: guideProfile?.name || data.guideName,
+          guidePhoto: guideProfile?.photo,
+          touristName: touristProfile?.name || data.touristName,
+          touristPhoto: touristProfile?.photo,
           createdAt: data.createdAt?.toDate ? data.createdAt.toDate() : data.createdAt,
           updatedAt: data.updatedAt?.toDate ? data.updatedAt.toDate() : data.updatedAt,
           lastMessageTime: data.lastMessageTime?.toDate ? data.lastMessageTime.toDate() : data.lastMessageTime,
         };
-      })) as Chat[];
+      }) as Chat[];
 
       // Ordenar en memoria por updatedAt
       return chats.sort((a, b) => {
