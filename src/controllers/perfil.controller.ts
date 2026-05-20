@@ -737,7 +737,10 @@ export const crearSetupIntent = async (req: any, res: Response) => {
 
     const setupIntent = await stripe.setupIntents.create({
       customer: stripeCustomerId,
-      payment_method_types: ['card'],
+      automatic_payment_methods: {
+        enabled: true,
+        allow_redirects: 'never',
+      },
       metadata: { uid },
     });
 

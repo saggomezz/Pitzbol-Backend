@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { BookingService } from '../services/booking.service';
 import { PaymentService } from '../services/payment.service';
+import { sendNotificationToUser } from '../services/notification.service';
 
 // Crear una reserva
 export const createBooking = async (req: Request, res: Response) => {
@@ -52,6 +53,42 @@ export const createBooking = async (req: Request, res: Response) => {
       ...bookingData,
       status: 'pendiente',
     });
+
+    // Notificar al guía sobre la nueva reserva
+    try {
+      const fechaFormateada = new Date(booking.fecha + 'T00:00:00').toLocaleDateString('es-MX', {
+        day: 'numeric', month: 'long', year: 'numeric'
+      });
+      await sendNotificationToUser(booking.guideId, {
+        tipo: 'nueva_reserva',
+        titulo: '📅 Nueva reserva recibida',
+        mensaje: `${booking.touristName} ha reservado un tour para el ${fechaFormateada} (${booking.duracion === 'completo' ? 'día completo' : 'medio día'}).`,
+        fecha: new Date().toISOString(),
+        leido: false,
+        enlace: '/guide/solicitudes',
+        bookingId: booking.id,
+      });
+    } catch (notifErr) {
+      console.warn('⚠️ Error al notificar al guía sobre nueva reserva:', notifErr);
+    }
+
+    // Notificar al turista que su reserva fue creada con éxito
+    try {
+      const fechaFormateada = new Date(booking.fecha + 'T00:00:00').toLocaleDateString('es-MX', {
+        day: 'numeric', month: 'long', year: 'numeric'
+      });
+      await sendNotificationToUser(booking.touristId, {
+        tipo: 'reserva_confirmada',
+        titulo: '✅ ¡Reserva realizada con éxito!',
+        mensaje: `Tu reserva con ${booking.guideName} para el ${fechaFormateada} fue creada. El guía confirmará tu solicitud en breve.`,
+        fecha: new Date().toISOString(),
+        leido: false,
+        enlace: '/perfil',
+        bookingId: booking.id,
+      });
+    } catch (notifErr) {
+      console.warn('⚠️ Error al notificar al turista sobre reserva creada:', notifErr);
+    }
 
     res.status(201).json({
       success: true,
@@ -234,6 +271,27 @@ export const cancelTourByGuide = async (req: Request, res: Response) => {
       await BookingService.cancelBooking(bookingId);
     }
 
+    // Notificar al turista que el guía canceló su tour
+    try {
+      const fechaFormateada = new Date(booking.fecha + 'T00:00:00').toLocaleDateString('es-MX', {
+        day: 'numeric', month: 'long', year: 'numeric'
+      });
+      const mensajeReembolso = booking.status === 'pagado'
+        ? ' Tu pago ha sido reembolsado.'
+        : '';
+      await sendNotificationToUser(booking.touristId, {
+        tipo: 'tour_cancelado_guia',
+        titulo: '❌ Tu tour fue cancelado',
+        mensaje: `El guía ${booking.guideName} canceló el tour del ${fechaFormateada}.${mensajeReembolso}`,
+        fecha: new Date().toISOString(),
+        leido: false,
+        enlace: '/tours',
+        bookingId,
+      });
+    } catch (notifErr) {
+      console.warn('⚠️ Error al notificar al turista sobre cancelación por guía:', notifErr);
+    }
+
     return res.status(200).json({
       success: true,
       message: booking.status === 'pagado'
@@ -246,10 +304,11 @@ export const cancelTourByGuide = async (req: Request, res: Response) => {
   }
 };
 
-// Cancelar reserva
+// Cancelar reserva (iniciado por el turista)
 export const cancelBooking = async (req: Request, res: Response) => {
   try {
     const { bookingId } = req.params;
+    const touristUid = (req as any).user?.uid;
 
     if (!bookingId || Array.isArray(bookingId)) {
       return res.status(400).json({
@@ -258,17 +317,64 @@ export const cancelBooking = async (req: Request, res: Response) => {
       });
     }
 
-    await BookingService.cancelBooking(bookingId);
+    if (!touristUid) {
+      return res.status(401).json({ success: false, message: 'Autenticación requerida' });
+    }
+
+    const booking = await BookingService.getBookingById(bookingId);
+    if (!booking) {
+      return res.status(404).json({ success: false, message: 'Reserva no encontrada' });
+    }
+
+    // IDOR: solo el turista dueño puede cancelar
+    if (booking.touristId !== touristUid) {
+      return res.status(403).json({ success: false, message: 'No tienes permiso para cancelar esta reserva' });
+    }
+
+    if (booking.status === 'cancelado') {
+      return res.status(400).json({ success: false, message: 'La reserva ya está cancelada' });
+    }
+
+    if (booking.status === 'completado') {
+      return res.status(400).json({ success: false, message: 'No se puede cancelar un tour ya completado' });
+    }
+
+    // Si estaba pagada, emitir reembolso
+    if (booking.status === 'pagado') {
+      await PaymentService.refundForBooking(bookingId);
+    } else {
+      await BookingService.cancelBooking(bookingId);
+    }
+
+    // Notificar al guía que el turista canceló
+    try {
+      const fechaFormateada = new Date(booking.fecha + 'T00:00:00').toLocaleDateString('es-MX', {
+        day: 'numeric', month: 'long', year: 'numeric'
+      });
+      await sendNotificationToUser(booking.guideId, {
+        tipo: 'reserva_cancelada_turista',
+        titulo: '❌ Reserva cancelada por el turista',
+        mensaje: `${booking.touristName} canceló su reserva del ${fechaFormateada}${booking.status === 'pagado' ? '. El reembolso fue emitido.' : '.'}`,
+        fecha: new Date().toISOString(),
+        leido: false,
+        enlace: '/guide/solicitudes',
+        bookingId,
+      });
+    } catch (notifErr) {
+      console.warn('⚠️ Error al notificar al guía sobre cancelación por turista:', notifErr);
+    }
 
     res.status(200).json({
       success: true,
-      message: 'Reserva cancelada exitosamente',
+      message: booking.status === 'pagado'
+        ? 'Reserva cancelada y reembolso emitido'
+        : 'Reserva cancelada exitosamente',
     });
   } catch (error: any) {
     console.error('Error al cancelar reserva:', error);
     res.status(500).json({
       success: false,
-      message: 'Error al cancelar reserva' ,
+      message: 'Error al cancelar reserva',
     });
   }
 };
