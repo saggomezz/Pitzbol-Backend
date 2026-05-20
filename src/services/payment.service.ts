@@ -4,6 +4,7 @@ import { Payment, CreatePaymentRequest, ConfirmPaymentRequest } from '../models/
 import { BookingService } from './booking.service';
 import * as WalletService from './wallet.service';
 import { sendPaymentReceiptEmail } from './email.service';
+import { sendNotificationToUser } from './notification.service';
 
 type PaymentRecord = {
   bookingId: string;
@@ -140,6 +141,27 @@ export class PaymentService {
 
     await BookingService.updateBookingStatus(paymentData.bookingId, 'pagado', paymentIntentId);
     await this.sendReceiptForPayment(paymentDoc, paymentData, paymentIntentId);
+
+    // Notificar al turista que el pago fue procesado exitosamente
+    try {
+      const booking = await BookingService.getBookingById(paymentData.bookingId);
+      if (booking) {
+        const fechaFormateada = new Date(booking.fecha + 'T00:00:00').toLocaleDateString('es-MX', {
+          day: 'numeric', month: 'long', year: 'numeric'
+        });
+        await sendNotificationToUser(paymentData.userId, {
+          tipo: 'pago_confirmado',
+          titulo: '💳 ¡Pago confirmado!',
+          mensaje: `Tu pago para el tour con ${booking.guideName} el ${fechaFormateada} fue procesado con éxito. ¡Nos vemos pronto!`,
+          fecha: new Date().toISOString(),
+          leido: false,
+          enlace: '/perfil',
+          bookingId: paymentData.bookingId,
+        });
+      }
+    } catch (notifErr) {
+      console.warn('⚠️ Error al enviar notificación de pago confirmado:', notifErr);
+    }
   }
 
   // Crear Payment Intent para una reserva
