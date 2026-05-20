@@ -112,49 +112,73 @@ async function buildPaymentReceiptPdf(details: PaymentReceiptEmail): Promise<Buf
     doc.on('end', () => resolve(Buffer.concat(chunks)));
     doc.on('error', reject);
 
-    doc.fillColor('#0D601E').fontSize(24).text('Recibo de pago', { align: 'center' });
-    doc.moveDown(0.5);
-    doc.fillColor('#4F6F57').fontSize(11).text('Pitzbol · Comprobante de pago de experiencia turística', { align: 'center' });
-    doc.moveDown(1.5);
+    const LEFT = 50;
+    const WIDTH = 495;
+    const INNER_LEFT = 70;
+    const INNER_WIDTH = 455;
 
-    doc.roundedRect(50, doc.y, 495, 110, 16).fillAndStroke('#F4FAF5', '#D5E6D8');
-    doc.fillColor('#1A4D2E').fontSize(12).text(`Recibo: ${details.bookingId}`, 70, doc.y - 96);
-    doc.fontSize(11).fillColor('#48634E').text(`Tarjeta: ${details.cardBrand}`, 70, doc.y + 6);
-    doc.text(`Emitido: ${formatDateTime(details.issuedAt)}`, 70, doc.y + 6);
-    doc.text(`Cliente: ${details.touristName}`, 70, doc.y + 6);
-    doc.text(`Guía: ${details.guideName}`, 70, doc.y + 6);
-    doc.moveDown(3.5);
+    // ── Título ──────────────────────────────────────────────────
+    let y = 50;
+    doc.font('Helvetica-Bold').fillColor('#0D601E').fontSize(26)
+      .text('Recibo de pago', LEFT, y, { align: 'center', width: WIDTH });
+    y += 38;
+    doc.font('Helvetica').fillColor('#4F6F57').fontSize(11)
+      .text('Pitzbol · Comprobante de pago de experiencia turística', LEFT, y, { align: 'center', width: WIDTH });
+    y += 28;
 
-    const rows = [
+    // ── Caja de metadatos ────────────────────────────────────────
+    const metaBoxH = 120;
+    doc.roundedRect(LEFT, y, WIDTH, metaBoxH, 14).fillAndStroke('#F4FAF5', '#D5E6D8');
+
+    const metaRows: [string, string][] = [
+      ['Recibo', details.bookingId],
+      ['Tarjeta', details.cardBrand],
+      ['Emitido', formatDateTime(details.issuedAt)],
+      ['Cliente', details.touristName],
+      ['Guía', details.guideName],
+    ];
+    const metaLineH = 21;
+    metaRows.forEach(([label, value], i) => {
+      const rowY = y + 12 + i * metaLineH;
+      doc.font('Helvetica').fillColor('#748678').fontSize(10).text(`${label}:`, INNER_LEFT, rowY, { width: 75 });
+      doc.font('Helvetica-Bold').fillColor('#1A4D2E').fontSize(10).text(value, INNER_LEFT + 80, rowY, { width: INNER_WIDTH - 80 });
+    });
+    y += metaBoxH + 20;
+
+    // ── Filas de detalle ─────────────────────────────────────────
+    const dataRows: [string, string][] = [
       ['Fecha del tour', formatDate(details.fecha)],
       ['Hora de inicio', details.horaInicio],
       ['Duración', details.duracion],
       ['Personas', String(details.numPersonas)],
       ['Total pagado', formatCurrency(details.total)],
     ];
-
-    rows.forEach(([label, value]) => {
-      const rowY = doc.y;
-      doc.fillColor('#748678').fontSize(10).text(label, 60, rowY, { width: 155 });
-      const afterLabel = doc.y;
-      doc.fillColor('#1A1A1A').fontSize(12).text(value, 235, rowY, { width: 295 });
-      if (afterLabel > doc.y) doc.y = afterLabel;
-      doc.moveDown(0.8);
-      doc.strokeColor('#E1ECE3').moveTo(60, doc.y).lineTo(535, doc.y).stroke();
-      doc.moveDown(0.8);
+    const ROW_H = 38;
+    dataRows.forEach(([label, value], i) => {
+      const rowY = y + i * ROW_H;
+      const bg = i % 2 === 0 ? '#F9FDF9' : '#FFFFFF';
+      doc.rect(LEFT, rowY, WIDTH, ROW_H).fill(bg);
+      doc.font('Helvetica').fillColor('#748678').fontSize(10).text(label, INNER_LEFT, rowY + 12, { width: 160 });
+      doc.font('Helvetica-Bold').fillColor('#1A1A1A').fontSize(12).text(value, 270, rowY + 11, { width: 255 });
+      doc.strokeColor('#E1ECE3').moveTo(LEFT, rowY + ROW_H).lineTo(LEFT + WIDTH, rowY + ROW_H).stroke();
     });
+    y += dataRows.length * ROW_H + 22;
 
-    doc.moveDown(1);
-    doc.roundedRect(50, doc.y, 495, 88, 16).fillAndStroke('#0D601E', '#0D601E');
-    doc.fillColor('#FFFFFF').fontSize(11).text('Resumen', 70, doc.y - 74);
-    doc.fontSize(20).text(formatCurrency(details.total), 70, doc.y + 4);
-    doc.fontSize(10).text('Este comprobante acredita el pago registrado para tu reserva en Pitzbol.', 70, doc.y + 8, { width: 420 });
+    // ── Caja verde de total ──────────────────────────────────────
+    const footerH = 100;
+    doc.roundedRect(LEFT, y, WIDTH, footerH, 14).fill('#0D601E');
+    doc.font('Helvetica').fillColor('#A8D5B0').fontSize(10)
+      .text('Total pagado', INNER_LEFT, y + 14, { width: INNER_WIDTH });
+    doc.font('Helvetica-Bold').fillColor('#FFFFFF').fontSize(24)
+      .text(formatCurrency(details.total), INNER_LEFT, y + 30, { width: INNER_WIDTH });
+    doc.font('Helvetica').fillColor('#C8E6C9').fontSize(9)
+      .text('Este comprobante acredita el pago registrado para tu reserva en Pitzbol.', INNER_LEFT, y + 68, { width: INNER_WIDTH });
+    y += footerH + 16;
 
-    doc.fillColor('#6C7A70').fontSize(9).text(
+    // ── Nota de soporte ──────────────────────────────────────────
+    doc.font('Helvetica').fillColor('#6C7A70').fontSize(9).text(
       'Si detectas un cargo no reconocido, responde a este correo o contáctanos desde soporte en Pitzbol.',
-      50,
-      760,
-      { align: 'center', width: 495 }
+      LEFT, y, { align: 'center', width: WIDTH }
     );
 
     doc.end();
