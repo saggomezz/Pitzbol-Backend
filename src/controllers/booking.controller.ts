@@ -2,6 +2,7 @@ import { Request, Response } from 'express';
 import { BookingService } from '../services/booking.service';
 import { PaymentService } from '../services/payment.service';
 import { sendNotificationToUser } from '../services/notification.service';
+import { db } from '../config/firebase';
 
 // Crear una reserva
 export const createBooking = async (req: Request, res: Response) => {
@@ -34,25 +35,63 @@ export const createBooking = async (req: Request, res: Response) => {
       return res.status(400).json({ success: false, message: 'La fecha debe ser futura y válida' });
     }
 
-    // Verificar disponibilidad
-    const isAvailable = await BookingService.checkGuideAvailability(
-      bookingData.guideId,
-      bookingData.fecha,
-      bookingData.horaInicio
-    );
+    // Para paquetes grupales: verificar capacidad en lugar de disponibilidad exclusiva
+    let skipAvailabilityCheck = false;
 
-    if (!isAvailable) {
-      return res.status(409).json({
-        success: false,
-        message: 'El guía no está disponible en esa fecha y hora',
-      });
+    if (bookingData.paqueteId) {
+      const paqueteDoc = await db.collection('paquetes').doc(bookingData.paqueteId).get();
+      if (!paqueteDoc.exists) {
+        return res.status(404).json({ success: false, message: 'Paquete no encontrado' });
+      }
+      const paquete = paqueteDoc.data()!;
+      const capacidad = Number(paquete.capacidad) || 0;
+
+      if (capacidad > 0) {
+        // Sumar personas ya reservadas para este paquete en esa fecha
+        const activeSnap = await db.collection('bookings')
+          .where('paqueteId', '==', bookingData.paqueteId)
+          .where('fecha', '==', bookingData.fecha)
+          .get();
+
+        const personasOcupadas = activeSnap.docs
+          .filter(doc => ['pendiente', 'confirmado', 'pagado'].includes(doc.data().status))
+          .reduce((sum, doc) => sum + (Number(doc.data().numPersonas) || 1), 0);
+
+        const numPersonasSolicitadas = Number(bookingData.numPersonas) || 1;
+
+        if (personasOcupadas + numPersonasSolicitadas > capacidad) {
+          return res.status(409).json({
+            success: false,
+            message: `No hay suficientes plazas disponibles. Plazas ocupadas: ${personasOcupadas}/${capacidad}`,
+            code: 'TOUR_FULL',
+            disponibles: Math.max(0, capacidad - personasOcupadas),
+            capacidad,
+          });
+        }
+      }
+      // Paquete grupal: no usar el sistema de disponibilidad exclusiva por slot
+      skipAvailabilityCheck = true;
+    } else {
+      // Tour personalizado: verificar disponibilidad exclusiva del guía
+      const isAvailable = await BookingService.checkGuideAvailability(
+        bookingData.guideId,
+        bookingData.fecha,
+        bookingData.horaInicio
+      );
+
+      if (!isAvailable) {
+        return res.status(409).json({
+          success: false,
+          message: 'El guía no está disponible en esa fecha y hora',
+        });
+      }
     }
 
     // Crear reserva
-    const booking = await BookingService.createBooking({
-      ...bookingData,
-      status: 'pendiente',
-    });
+    const booking = await BookingService.createBooking(
+      { ...bookingData, status: 'pendiente' },
+      { skipAvailabilityCheck },
+    );
 
     // Notificar al guía sobre la nueva reserva
     try {

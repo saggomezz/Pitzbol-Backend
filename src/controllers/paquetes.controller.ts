@@ -176,3 +176,41 @@ export const deletePaquete = async (req: RequestWithUser, res: Response) => {
     res.status(500).json({ success: false, message: e.message });
   }
 };
+
+// GET /api/paquetes/:id/ocupacion?fecha=YYYY-MM-DD — plazas ocupadas para una fecha
+export const getPaqueteOcupacion = async (req: ExpressRequest, res: Response) => {
+  try {
+    const { id } = req.params;
+    const { fecha } = req.query;
+    if (!fecha || typeof fecha !== "string") {
+      return res.status(400).json({ success: false, message: "Falta el parámetro 'fecha'" });
+    }
+
+    const doc = await db.collection("paquetes").doc(id).get();
+    if (!doc.exists) return res.status(404).json({ success: false, message: "Paquete no encontrado" });
+    const capacidad = parseInt(doc.data()?.capacidad || "0", 10);
+
+    const bookingsSnap = await db.collection("bookings")
+      .where("paqueteId", "==", id)
+      .where("fecha", "==", fecha)
+      .get();
+
+    const ACTIVE_STATUSES = ["pendiente", "confirmado", "pagado"];
+    let personasOcupadas = 0;
+    bookingsSnap.forEach((d) => {
+      const data = d.data();
+      if (ACTIVE_STATUSES.includes(data.status)) {
+        personasOcupadas += Number(data.numPersonas) || 0;
+      }
+    });
+
+    res.json({
+      success: true,
+      capacidad,
+      personasOcupadas,
+      disponibles: Math.max(0, capacidad - personasOcupadas),
+    });
+  } catch (e: any) {
+    res.status(500).json({ success: false, message: e.message });
+  }
+};

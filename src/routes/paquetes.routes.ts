@@ -4,6 +4,7 @@ import {
   getPublicPaquetes,
   getPaquetesByGuia,
   getPaqueteById,
+  getPaqueteOcupacion,
   updatePaquete,
   deletePaquete,
 } from "../controllers/paquetes.controller";
@@ -15,6 +16,7 @@ const router = Router();
 // Públicos
 router.get("/", getPublicPaquetes);
 router.get("/guia/:guiaId", getPaquetesByGuia);
+router.get("/:id/ocupacion", getPaqueteOcupacion);
 router.get("/:id", getPaqueteById);
 
 // Protegidos

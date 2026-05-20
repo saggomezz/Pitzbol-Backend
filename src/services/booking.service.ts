@@ -3,17 +3,22 @@ import { Booking } from '../models/booking.model';
 import { AvailabilityService } from './availability.service';
 
 export class BookingService {
-  static async createBooking(bookingData: Omit<Booking, 'id'>): Promise<Booking> {
+  static async createBooking(
+    bookingData: Omit<Booking, 'id'>,
+    options?: { skipAvailabilityCheck?: boolean }
+  ): Promise<Booking> {
     const bookingsRef = db.collection('bookings');
 
-    const isAvailable = await AvailabilityService.isTimeSlotAvailable(
-      bookingData.guideId,
-      bookingData.fecha,
-      bookingData.horaInicio
-    );
+    if (!options?.skipAvailabilityCheck) {
+      const isAvailable = await AvailabilityService.isTimeSlotAvailable(
+        bookingData.guideId,
+        bookingData.fecha,
+        bookingData.horaInicio
+      );
 
-    if (!isAvailable) {
-      throw new Error('El guia no esta disponible en ese horario');
+      if (!isAvailable) {
+        throw new Error('El guia no esta disponible en ese horario');
+      }
     }
 
     const newBooking = {
@@ -25,11 +30,13 @@ export class BookingService {
 
     const bookingDoc = await bookingsRef.add(newBooking);
 
-    await AvailabilityService.incrementBookingCount(
-      bookingData.guideId,
-      bookingData.fecha,
-      bookingData.horaInicio
-    );
+    if (!options?.skipAvailabilityCheck) {
+      await AvailabilityService.incrementBookingCount(
+        bookingData.guideId,
+        bookingData.fecha,
+        bookingData.horaInicio
+      );
+    }
 
     return { id: bookingDoc.id, ...newBooking };
   }
