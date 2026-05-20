@@ -84,6 +84,7 @@ router.post(
           currency,
           automatic_payment_methods: {
             enabled: true,
+            allow_redirects: 'never',
           },
           metadata: {
             bookingId: bookingId || '',
