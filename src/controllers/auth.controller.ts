@@ -577,27 +577,29 @@ export const getMe = async (req: any, res: Response) => {
     let guideCollection: "lista" | "pendientes" | null = null;
 
     try {
-      for (const cat of categorias) {
-        const snap = await db.collection("usuarios").doc(cat).collection("lista").where("uid", "==", uid).limit(1).get();
+      // Buscar en guias PRIMERO para que un guía nunca reciba rol "turista"
+      // por tener también un documento en turistas/lista
+      for (const sub of subCarpetasGuia) {
+        const snap = await db.collection("usuarios").doc("guias").collection(sub).where("uid", "==", uid).limit(1).get();
         if (!snap.empty) {
           userData = snap.docs[0].data();
-          const storedRole = userData?.role || userData?.["03_rol"];
-          if (storedRole === "guia" || storedRole === "admin" || storedRole === "negociante") {
-            userRole = storedRole;
-          } else {
-            userRole = cat === "turistas" ? "turista" : cat === "admins" ? "admin" : "negociante";
-          }
+          userRole = "guia";
+          guideCollection = sub as "lista" | "pendientes";
           break;
         }
       }
 
       if (!userData) {
-        for (const sub of subCarpetasGuia) {
-          const snap = await db.collection("usuarios").doc("guias").collection(sub).where("uid", "==", uid).limit(1).get();
+        for (const cat of categorias) {
+          const snap = await db.collection("usuarios").doc(cat).collection("lista").where("uid", "==", uid).limit(1).get();
           if (!snap.empty) {
             userData = snap.docs[0].data();
-            userRole = "guia";
-            guideCollection = sub as "lista" | "pendientes";
+            const storedRole = userData?.role || userData?.["03_rol"];
+            if (storedRole === "guia" || storedRole === "admin" || storedRole === "negociante") {
+              userRole = storedRole;
+            } else {
+              userRole = cat === "turistas" ? "turista" : cat === "admins" ? "admin" : "negociante";
+            }
             break;
           }
         }
