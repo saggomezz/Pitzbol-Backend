@@ -1,5 +1,6 @@
 ﻿import express, { Request, Response, NextFunction } from 'express';
 import { authMiddleware } from '../middlewares/auth.middleware';
+import { validateProfileUpdate } from '../middlewares/validation.middleware';
 import { upload, uploadLimiter } from '../middleware/uploadMiddleware';
 import { 
   subirFotoPerfil, 
@@ -60,7 +61,7 @@ router.get('/negocios/:uid', require('../controllers/perfil.controller').obtener
  * Rutas protegidas
  */
 router.get('/foto-perfil', authMiddleware, obtenerFotoPerfil);
-router.patch('/update-profile', authMiddleware, actualizarPerfil);
+router.patch('/update-profile', authMiddleware, validateProfileUpdate, actualizarPerfil);
 
 /**
  * WALLET ROUTES
