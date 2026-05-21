@@ -3,6 +3,7 @@ import { BookingService } from '../services/booking.service';
 import { PaymentService } from '../services/payment.service';
 import { sendNotificationToUser } from '../services/notification.service';
 import { db } from '../config/firebase';
+import { v2 as cloudinary } from 'cloudinary';
 
 // Crear una reserva
 export const createBooking = async (req: Request, res: Response) => {
@@ -602,5 +603,142 @@ export const getGuiaExperiencias = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error getGuiaExperiencias:', error);
     return res.status(500).json({ success: false, experiencias: [] });
+  }
+};
+
+// GET /api/bookings/guia/:guideId/experiencias/public
+// Retorna experiencias completadas del guía visibles al público (sin auth)
+export const getGuiaExperienciasPublic = async (req: Request, res: Response) => {
+  try {
+    const { guideId } = req.params;
+    const { db } = await import('../config/firebase');
+
+    const snap = await db.collection('bookings')
+      .where('guideId', '==', guideId)
+      .where('status', '==', 'completado')
+      .get();
+
+    const experiencias: any[] = [];
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      // Solo incluir si el guía subió fotos o descripción
+      if (!data.fotosExperiencia?.length && !data.descripcionExperiencia) continue;
+
+      experiencias.push({
+        id: doc.id,
+        fecha: data.fecha || '',
+        tourTitulo: data.tourTitulo || 'Tour',
+        tourFoto: data.tourFoto || null,
+        fotosExperiencia: data.fotosExperiencia || [],
+        descripcionExperiencia: data.descripcionExperiencia || '',
+      });
+    }
+
+    experiencias.sort((a, b) => (b.fecha > a.fecha ? 1 : -1));
+    return res.json({ success: true, experiencias });
+  } catch (error: any) {
+    console.error('Error getGuiaExperienciasPublic:', error);
+    return res.status(500).json({ success: false, experiencias: [] });
+  }
+};
+
+// PATCH /api/bookings/:bookingId/experiencia
+// El guía puede guardar fotos y descripción en una experiencia completada
+export const updateExperiencia = async (req: Request, res: Response) => {
+  try {
+    const { bookingId } = req.params;
+    const authUid = (req as any).user?.uid;
+
+    if (!authUid) {
+      return res.status(401).json({ success: false, message: 'Autenticación requerida' });
+    }
+
+    const bookingRef = db.collection('bookings').doc(bookingId);
+    const snap = await bookingRef.get();
+    if (!snap.exists) {
+      return res.status(404).json({ success: false, message: 'Experiencia no encontrada' });
+    }
+
+    const booking = snap.data()!;
+    if (booking.guideId !== authUid) {
+      return res.status(403).json({ success: false, message: 'No tienes permiso para editar esta experiencia' });
+    }
+
+    const { descripcion, titulo, fotosBase64 } = req.body as { descripcion?: string; titulo?: string; fotosBase64?: string[] };
+
+    const updates: Record<string, any> = {};
+
+    if (typeof titulo === 'string' && titulo.trim()) {
+      updates.tourTitulo = titulo.trim();
+    }
+
+    if (typeof descripcion === 'string') {
+      updates.descripcionExperiencia = descripcion.trim();
+    }
+
+    if (Array.isArray(fotosBase64) && fotosBase64.length > 0) {
+      cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME || '',
+        api_key: process.env.CLOUDINARY_API_KEY || '',
+        api_secret: process.env.CLOUDINARY_API_SECRET || '',
+      });
+
+      const uploadedUrls: string[] = [];
+      for (const base64 of fotosBase64.slice(0, 5)) {
+        const result = await cloudinary.uploader.upload(base64, {
+          folder: `pitzbol/experiencias/${authUid}`,
+          resource_type: 'auto',
+          format: 'webp',
+          transformation: [{ width: 1200, height: 900, crop: 'fill' }, { quality: 'auto:good' }],
+        });
+        if (result.secure_url) uploadedUrls.push(result.secure_url);
+      }
+      // Merge with existing photos
+      const existingFotos: string[] = booking.fotosExperiencia || [];
+      updates.fotosExperiencia = [...existingFotos, ...uploadedUrls].slice(0, 5);
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ success: false, message: 'No hay datos para actualizar' });
+    }
+
+    await bookingRef.update(updates);
+    return res.json({ success: true, message: 'Experiencia actualizada', updates });
+  } catch (error: any) {
+    console.error('Error updateExperiencia:', error);
+    return res.status(500).json({ success: false, message: 'Error al actualizar la experiencia' });
+  }
+};
+
+// PATCH /api/bookings/:bookingId/experiencia/foto
+// Eliminar una foto específica de la experiencia
+export const deleteExperienciaFoto = async (req: Request, res: Response) => {
+  try {
+    const { bookingId } = req.params;
+    const authUid = (req as any).user?.uid;
+
+    if (!authUid) {
+      return res.status(401).json({ success: false, message: 'Autenticación requerida' });
+    }
+
+    const bookingRef = db.collection('bookings').doc(bookingId);
+    const snap = await bookingRef.get();
+    if (!snap.exists) {
+      return res.status(404).json({ success: false, message: 'Experiencia no encontrada' });
+    }
+
+    const booking = snap.data()!;
+    if (booking.guideId !== authUid) {
+      return res.status(403).json({ success: false, message: 'No tienes permiso' });
+    }
+
+    const { fotoUrl } = req.body as { fotoUrl: string };
+    const fotosExistentes: string[] = booking.fotosExperiencia || [];
+    const nuevasFotos = fotosExistentes.filter((f: string) => f !== fotoUrl);
+    await bookingRef.update({ fotosExperiencia: nuevasFotos });
+    return res.json({ success: true, fotosExperiencia: nuevasFotos });
+  } catch (error: any) {
+    console.error('Error deleteExperienciaFoto:', error);
+    return res.status(500).json({ success: false, message: 'Error al eliminar la foto' });
   }
 };
