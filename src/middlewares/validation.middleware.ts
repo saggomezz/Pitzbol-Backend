@@ -20,9 +20,21 @@ export const validateRegisterInput = (req: Request, res: Response, next: NextFun
     return res.status(400).json({ msg: "Email inválido" });
   }
 
-  // Validar longitud de contraseña (mínimo 8 caracteres para más seguridad)
-  if (password.length < 8) {
-    return res.status(400).json({ msg: "La contraseña debe tener al menos 8 caracteres" });
+  // Validar contraseña segura: mínimo 10 caracteres, mayúscula, minúscula, número y símbolo
+  if (password.length < 10) {
+    return res.status(400).json({ msg: "La contraseña debe tener al menos 10 caracteres" });
+  }
+  if (!/[A-Z]/.test(password)) {
+    return res.status(400).json({ msg: "La contraseña debe incluir al menos una letra mayúscula" });
+  }
+  if (!/[a-z]/.test(password)) {
+    return res.status(400).json({ msg: "La contraseña debe incluir al menos una letra minúscula" });
+  }
+  if (!/[0-9]/.test(password)) {
+    return res.status(400).json({ msg: "La contraseña debe incluir al menos un número" });
+  }
+  if (!/[^A-Za-z0-9]/.test(password)) {
+    return res.status(400).json({ msg: "La contraseña debe incluir al menos un símbolo (!@#$%...)" });
   }
 
   // Validar longitud de campos de texto
@@ -71,10 +83,10 @@ export const validatePasswordRecoveryInput = (req: Request, res: Response, next:
 
 // Validación de entrada para actualización de perfil
 export const validateProfileUpdate = (req: Request, res: Response, next: NextFunction) => {
-  const { nombre, apellido, telefono, nacionalidad, especialidades, descripcion } = req.body;
+  const { nombre, apellido, telefono, nacionalidad, especialidades, descripcion, idiomas, tarifa } = req.body;
 
   // Al menos uno de estos campos debe estar presente
-  if (!nombre && !apellido && !telefono && !nacionalidad && !especialidades && !descripcion) {
+  if (!nombre && !apellido && !telefono && !nacionalidad && !especialidades && !descripcion && !idiomas && tarifa === undefined) {
     return res.status(400).json({ msg: "Debe proporcionar al menos un campo para actualizar" });
   }
 
@@ -99,6 +111,15 @@ export const validateProfileUpdate = (req: Request, res: Response, next: NextFun
   }
   if (especialidades && !Array.isArray(especialidades)) {
     return res.status(400).json({ msg: "Especialidades debe ser un array" });
+  }
+  if (idiomas !== undefined && !Array.isArray(idiomas)) {
+    return res.status(400).json({ msg: "Idiomas debe ser un array" });
+  }
+  if (tarifa !== undefined) {
+    const tarifaNum = typeof tarifa === "number" ? tarifa : parseFloat(tarifa);
+    if (isNaN(tarifaNum) || tarifaNum < 0) {
+      return res.status(400).json({ msg: "Tarifa inválida" });
+    }
   }
 
   next();
