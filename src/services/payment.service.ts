@@ -233,6 +233,9 @@ export class PaymentService {
       await db.collection('payments').add({
         bookingId,
         userId,
+        guideId: booking.guideId || null,
+        guideName: booking.guideName || null,
+        touristName: booking.touristName || null,
         amount,
         currency,
         paymentIntentId: paymentIntent.id,
@@ -456,6 +459,51 @@ export class PaymentService {
       })) as Payment[];
     } catch (error) {
       console.error('Error al obtener historial de pagos:', error);
+      throw error;
+    }
+  }
+
+  // Obtener pagos recibidos por un guía (ingresos)
+  static async getGuideReceivedPayments(guideId: string): Promise<Payment[]> {
+    try {
+      // Primary path: documentos con guideId persistido
+      const direct = await db.collection('payments')
+        .where('guideId', '==', guideId)
+        .get();
+
+      const results: Payment[] = direct.docs.map(doc => ({
+        id: doc.id,
+        ...doc.data(),
+      })) as Payment[];
+
+      // Fallback: pagos antiguos sin guideId — resolver vía booking
+      const seenIds = new Set(results.map(p => p.id));
+      const orphaned = await db.collection('payments').get();
+      const orphanDocs = orphaned.docs.filter(d => !seenIds.has(d.id) && !(d.data() as any).guideId);
+
+      for (const doc of orphanDocs) {
+        const data = doc.data() as any;
+        if (!data?.bookingId) continue;
+        try {
+          const booking = await BookingService.getBookingById(data.bookingId);
+          if (booking?.guideId === guideId) {
+            results.push({ id: doc.id, ...data } as Payment);
+          }
+        } catch {
+          // ignorar errores puntuales por reserva no encontrada
+        }
+      }
+
+      // Ordenar por createdAt desc
+      results.sort((a: any, b: any) => {
+        const ta = a.createdAt?.toMillis?.() ?? new Date(a.createdAt ?? 0).getTime();
+        const tb = b.createdAt?.toMillis?.() ?? new Date(b.createdAt ?? 0).getTime();
+        return tb - ta;
+      });
+
+      return results;
+    } catch (error) {
+      console.error('Error al obtener pagos recibidos del guía:', error);
       throw error;
     }
   }
