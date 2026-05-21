@@ -151,7 +151,7 @@ export class PaymentService {
         });
         await sendNotificationToUser(paymentData.userId, {
           tipo: 'pago_confirmado',
-          titulo: '💳 ¡Pago confirmado!',
+          titulo: '¡Pago confirmado!',
           mensaje: `Tu pago para el tour con ${booking.guideName} el ${fechaFormateada} fue procesado con éxito. ¡Nos vemos pronto!`,
           fecha: new Date().toISOString(),
           leido: false,

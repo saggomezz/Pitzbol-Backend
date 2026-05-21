@@ -40,7 +40,11 @@ export const createBooking = async (req: Request, res: Response) => {
     let skipAvailabilityCheck = false;
 
     if (bookingData.paqueteId) {
-      const paqueteDoc = await db.collection('paquetes').doc(bookingData.paqueteId).get();
+      let paqueteDoc = await db.collection('paquetes').doc(bookingData.paqueteId).get();
+      if (!paqueteDoc.exists) {
+        // El ID puede pertenecer a la colección 'tours' (paquetes creados desde el perfil del guía)
+        paqueteDoc = await db.collection('tours').doc(bookingData.paqueteId).get();
+      }
       if (!paqueteDoc.exists) {
         return res.status(404).json({ success: false, message: 'Paquete no encontrado' });
       }
@@ -101,7 +105,7 @@ export const createBooking = async (req: Request, res: Response) => {
       });
       await sendNotificationToUser(booking.guideId, {
         tipo: 'nueva_reserva',
-        titulo: '📅 Nueva reserva recibida',
+        titulo: 'Nueva reserva recibida',
         mensaje: `${booking.touristName} ha reservado un tour para el ${fechaFormateada} (${booking.duracion === 'completo' ? 'día completo' : 'medio día'}).`,
         fecha: new Date().toISOString(),
         leido: false,
@@ -119,7 +123,7 @@ export const createBooking = async (req: Request, res: Response) => {
       });
       await sendNotificationToUser(booking.touristId, {
         tipo: 'reserva_confirmada',
-        titulo: '✅ ¡Reserva realizada con éxito!',
+        titulo: '¡Reserva realizada con éxito!',
         mensaje: `Tu reserva con ${booking.guideName} para el ${fechaFormateada} fue creada. El guía confirmará tu solicitud en breve.`,
         fecha: new Date().toISOString(),
         leido: false,
@@ -321,7 +325,7 @@ export const cancelTourByGuide = async (req: Request, res: Response) => {
         : '';
       await sendNotificationToUser(booking.touristId, {
         tipo: 'tour_cancelado_guia',
-        titulo: '❌ Tu tour fue cancelado',
+        titulo: 'Tu tour fue cancelado',
         mensaje: `El guía ${booking.guideName} canceló el tour del ${fechaFormateada}.${mensajeReembolso}`,
         fecha: new Date().toISOString(),
         leido: false,
@@ -393,7 +397,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
       });
       await sendNotificationToUser(booking.guideId, {
         tipo: 'reserva_cancelada_turista',
-        titulo: '❌ Reserva cancelada por el turista',
+        titulo: 'Reserva cancelada por el turista',
         mensaje: `${booking.touristName} canceló su reserva del ${fechaFormateada}${booking.status === 'pagado' ? '. El reembolso fue emitido.' : '.'}`,
         fecha: new Date().toISOString(),
         leido: false,
@@ -479,6 +483,24 @@ export const completeTour = async (req: Request, res: Response) => {
     // Marcar como completado
     await BookingService.updateBookingStatus(bookingId, 'completado');
 
+    // Notificar al turista que su tour fue completado
+    try {
+      const fechaFormateada = new Date(booking.fecha + 'T00:00:00').toLocaleDateString('es-MX', {
+        day: 'numeric', month: 'long', year: 'numeric'
+      });
+      await sendNotificationToUser(booking.touristId, {
+        tipo: 'tour_completado',
+        titulo: '¡Tu tour ha finalizado!',
+        mensaje: `Tu tour con ${booking.guideName} del ${fechaFormateada} ha sido marcado como completado. ¡Deja tu calificación!`,
+        fecha: new Date().toISOString(),
+        leido: false,
+        enlace: '/perfil',
+        bookingId,
+      });
+    } catch (notifErr) {
+      console.warn('⚠️ Error al notificar al turista sobre tour completado:', notifErr);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Tour completado exitosamente. El turista ahora puede calificarte.',
@@ -541,6 +563,36 @@ export const confirmBooking = async (req: Request, res: Response) => {
       } catch {
         // Evitar romper respuesta si solo falla el ajuste de disponibilidad.
       }
+    }
+
+    // Notificar al turista sobre la decisión del guía
+    try {
+      const fechaFormateada = new Date(booking.fecha + 'T00:00:00').toLocaleDateString('es-MX', {
+        day: 'numeric', month: 'long', year: 'numeric'
+      });
+      if (action === 'confirmar') {
+        await sendNotificationToUser(booking.touristId, {
+          tipo: 'reserva_confirmada',
+          titulo: '¡Tu reserva fue confirmada!',
+          mensaje: `${booking.guideName} confirmó tu reserva para el ${fechaFormateada}. ¡Prepárate para el tour!`,
+          fecha: new Date().toISOString(),
+          leido: false,
+          enlace: '/perfil',
+          bookingId,
+        });
+      } else {
+        await sendNotificationToUser(booking.touristId, {
+          tipo: 'reserva_rechazada',
+          titulo: 'Tu reserva no fue aceptada',
+          mensaje: `${booking.guideName} no pudo aceptar tu reserva para el ${fechaFormateada}. Puedes buscar otro guía disponible.`,
+          fecha: new Date().toISOString(),
+          leido: false,
+          enlace: '/guia',
+          bookingId,
+        });
+      }
+    } catch (notifErr) {
+      console.warn('⚠️ Error al notificar al turista sobre confirmación/rechazo:', notifErr);
     }
 
     return res.status(200).json({
