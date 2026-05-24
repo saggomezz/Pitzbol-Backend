@@ -8,6 +8,7 @@ import {
   getPaymentStatus,
   cancelPayment,
   getUserPayments,
+  getGuideReceivedPayments,
   handleStripeWebhook,
 } from '../controllers/payment.controller';
 import { authMiddleware } from '../middlewares/auth.middleware';
@@ -31,6 +32,9 @@ router.post('/cancel/:paymentIntentId', authMiddleware, cancelPayment);
 
 // Obtener historial de pagos del usuario
 router.get('/history/:userId', authMiddleware, getUserPayments);
+
+// Obtener pagos recibidos (ingresos) de un guía
+router.get('/received/:guideId', authMiddleware, getGuideReceivedPayments);
 
 // Webhook de Stripe (no requiere autenticacion - uses signature verification)
 router.post('/webhook', handleStripeWebhook);

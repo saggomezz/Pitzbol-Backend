@@ -223,6 +223,39 @@ export const getUserPayments = async (req: Request, res: Response) => {
   }
 };
 
+// Obtener pagos recibidos (ingresos) de un guía
+export const getGuideReceivedPayments = async (req: Request, res: Response) => {
+  try {
+    const { guideId } = req.params;
+
+    if (!guideId || Array.isArray(guideId)) {
+      return res.status(400).json({
+        success: false,
+        message: 'guideId es requerido',
+      });
+    }
+
+    // IDOR: el guía solo puede ver sus propios ingresos
+    if ((req as any).user?.uid !== guideId) {
+      return res.status(403).json({ success: false, message: 'No puedes ver los ingresos de otro guía' });
+    }
+
+    const payments = await PaymentService.getGuideReceivedPayments(guideId);
+
+    res.status(200).json({
+      success: true,
+      payments,
+      total: payments.length,
+    });
+  } catch (error: any) {
+    console.error('Error al obtener pagos recibidos:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Error al obtener pagos recibidos',
+    });
+  }
+};
+
 // Webhook de Stripe
 export const handleStripeWebhook = async (req: Request, res: Response) => {
   try {
