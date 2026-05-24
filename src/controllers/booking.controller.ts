@@ -3,6 +3,7 @@ import { BookingService } from '../services/booking.service';
 import { PaymentService } from '../services/payment.service';
 import { sendNotificationToUser } from '../services/notification.service';
 import { db } from '../config/firebase';
+import { v2 as cloudinary } from 'cloudinary';
 
 // Crear una reserva
 export const createBooking = async (req: Request, res: Response) => {
@@ -39,7 +40,11 @@ export const createBooking = async (req: Request, res: Response) => {
     let skipAvailabilityCheck = false;
 
     if (bookingData.paqueteId) {
-      const paqueteDoc = await db.collection('paquetes').doc(bookingData.paqueteId).get();
+      let paqueteDoc = await db.collection('paquetes').doc(bookingData.paqueteId).get();
+      if (!paqueteDoc.exists) {
+        // El ID puede pertenecer a la colección 'tours' (paquetes creados desde el perfil del guía)
+        paqueteDoc = await db.collection('tours').doc(bookingData.paqueteId).get();
+      }
       if (!paqueteDoc.exists) {
         return res.status(404).json({ success: false, message: 'Paquete no encontrado' });
       }
@@ -100,7 +105,7 @@ export const createBooking = async (req: Request, res: Response) => {
       });
       await sendNotificationToUser(booking.guideId, {
         tipo: 'nueva_reserva',
-        titulo: '📅 Nueva reserva recibida',
+        titulo: 'Nueva reserva recibida',
         mensaje: `${booking.touristName} ha reservado un tour para el ${fechaFormateada} (${booking.duracion === 'completo' ? 'día completo' : 'medio día'}).`,
         fecha: new Date().toISOString(),
         leido: false,
@@ -118,7 +123,7 @@ export const createBooking = async (req: Request, res: Response) => {
       });
       await sendNotificationToUser(booking.touristId, {
         tipo: 'reserva_confirmada',
-        titulo: '✅ ¡Reserva realizada con éxito!',
+        titulo: '¡Reserva realizada con éxito!',
         mensaje: `Tu reserva con ${booking.guideName} para el ${fechaFormateada} fue creada. El guía confirmará tu solicitud en breve.`,
         fecha: new Date().toISOString(),
         leido: false,
@@ -320,7 +325,7 @@ export const cancelTourByGuide = async (req: Request, res: Response) => {
         : '';
       await sendNotificationToUser(booking.touristId, {
         tipo: 'tour_cancelado_guia',
-        titulo: '❌ Tu tour fue cancelado',
+        titulo: 'Tu tour fue cancelado',
         mensaje: `El guía ${booking.guideName} canceló el tour del ${fechaFormateada}.${mensajeReembolso}`,
         fecha: new Date().toISOString(),
         leido: false,
@@ -392,7 +397,7 @@ export const cancelBooking = async (req: Request, res: Response) => {
       });
       await sendNotificationToUser(booking.guideId, {
         tipo: 'reserva_cancelada_turista',
-        titulo: '❌ Reserva cancelada por el turista',
+        titulo: 'Reserva cancelada por el turista',
         mensaje: `${booking.touristName} canceló su reserva del ${fechaFormateada}${booking.status === 'pagado' ? '. El reembolso fue emitido.' : '.'}`,
         fecha: new Date().toISOString(),
         leido: false,
@@ -478,6 +483,24 @@ export const completeTour = async (req: Request, res: Response) => {
     // Marcar como completado
     await BookingService.updateBookingStatus(bookingId, 'completado');
 
+    // Notificar al turista que su tour fue completado
+    try {
+      const fechaFormateada = new Date(booking.fecha + 'T00:00:00').toLocaleDateString('es-MX', {
+        day: 'numeric', month: 'long', year: 'numeric'
+      });
+      await sendNotificationToUser(booking.touristId, {
+        tipo: 'tour_completado',
+        titulo: '¡Tu tour ha finalizado!',
+        mensaje: `Tu tour con ${booking.guideName} del ${fechaFormateada} ha sido marcado como completado. ¡Deja tu calificación!`,
+        fecha: new Date().toISOString(),
+        leido: false,
+        enlace: '/perfil',
+        bookingId,
+      });
+    } catch (notifErr) {
+      console.warn('⚠️ Error al notificar al turista sobre tour completado:', notifErr);
+    }
+
     res.status(200).json({
       success: true,
       message: 'Tour completado exitosamente. El turista ahora puede calificarte.',
@@ -542,6 +565,36 @@ export const confirmBooking = async (req: Request, res: Response) => {
       }
     }
 
+    // Notificar al turista sobre la decisión del guía
+    try {
+      const fechaFormateada = new Date(booking.fecha + 'T00:00:00').toLocaleDateString('es-MX', {
+        day: 'numeric', month: 'long', year: 'numeric'
+      });
+      if (action === 'confirmar') {
+        await sendNotificationToUser(booking.touristId, {
+          tipo: 'reserva_confirmada',
+          titulo: '¡Tu reserva fue confirmada!',
+          mensaje: `${booking.guideName} confirmó tu reserva para el ${fechaFormateada}. ¡Prepárate para el tour!`,
+          fecha: new Date().toISOString(),
+          leido: false,
+          enlace: '/perfil',
+          bookingId,
+        });
+      } else {
+        await sendNotificationToUser(booking.touristId, {
+          tipo: 'reserva_rechazada',
+          titulo: 'Tu reserva no fue aceptada',
+          mensaje: `${booking.guideName} no pudo aceptar tu reserva para el ${fechaFormateada}. Puedes buscar otro guía disponible.`,
+          fecha: new Date().toISOString(),
+          leido: false,
+          enlace: '/guia',
+          bookingId,
+        });
+      }
+    } catch (notifErr) {
+      console.warn('⚠️ Error al notificar al turista sobre confirmación/rechazo:', notifErr);
+    }
+
     return res.status(200).json({
       success: true,
       message: action === 'confirmar' ? 'Reserva confirmada exitosamente' : 'Reserva rechazada exitosamente',
@@ -602,5 +655,142 @@ export const getGuiaExperiencias = async (req: Request, res: Response) => {
   } catch (error: any) {
     console.error('Error getGuiaExperiencias:', error);
     return res.status(500).json({ success: false, experiencias: [] });
+  }
+};
+
+// GET /api/bookings/guia/:guideId/experiencias/public
+// Retorna experiencias completadas del guía visibles al público (sin auth)
+export const getGuiaExperienciasPublic = async (req: Request, res: Response) => {
+  try {
+    const { guideId } = req.params;
+    const { db } = await import('../config/firebase');
+
+    const snap = await db.collection('bookings')
+      .where('guideId', '==', guideId)
+      .where('status', '==', 'completado')
+      .get();
+
+    const experiencias: any[] = [];
+    for (const doc of snap.docs) {
+      const data = doc.data();
+      // Solo incluir si el guía subió fotos o descripción
+      if (!data.fotosExperiencia?.length && !data.descripcionExperiencia) continue;
+
+      experiencias.push({
+        id: doc.id,
+        fecha: data.fecha || '',
+        tourTitulo: data.tourTitulo || 'Tour',
+        tourFoto: data.tourFoto || null,
+        fotosExperiencia: data.fotosExperiencia || [],
+        descripcionExperiencia: data.descripcionExperiencia || '',
+      });
+    }
+
+    experiencias.sort((a, b) => (b.fecha > a.fecha ? 1 : -1));
+    return res.json({ success: true, experiencias });
+  } catch (error: any) {
+    console.error('Error getGuiaExperienciasPublic:', error);
+    return res.status(500).json({ success: false, experiencias: [] });
+  }
+};
+
+// PATCH /api/bookings/:bookingId/experiencia
+// El guía puede guardar fotos y descripción en una experiencia completada
+export const updateExperiencia = async (req: Request, res: Response) => {
+  try {
+    const { bookingId } = req.params;
+    const authUid = (req as any).user?.uid;
+
+    if (!authUid) {
+      return res.status(401).json({ success: false, message: 'Autenticación requerida' });
+    }
+
+    const bookingRef = db.collection('bookings').doc(bookingId);
+    const snap = await bookingRef.get();
+    if (!snap.exists) {
+      return res.status(404).json({ success: false, message: 'Experiencia no encontrada' });
+    }
+
+    const booking = snap.data()!;
+    if (booking.guideId !== authUid) {
+      return res.status(403).json({ success: false, message: 'No tienes permiso para editar esta experiencia' });
+    }
+
+    const { descripcion, titulo, fotosBase64 } = req.body as { descripcion?: string; titulo?: string; fotosBase64?: string[] };
+
+    const updates: Record<string, any> = {};
+
+    if (typeof titulo === 'string' && titulo.trim()) {
+      updates.tourTitulo = titulo.trim();
+    }
+
+    if (typeof descripcion === 'string') {
+      updates.descripcionExperiencia = descripcion.trim();
+    }
+
+    if (Array.isArray(fotosBase64) && fotosBase64.length > 0) {
+      cloudinary.config({
+        cloud_name: process.env.CLOUDINARY_CLOUD_NAME || '',
+        api_key: process.env.CLOUDINARY_API_KEY || '',
+        api_secret: process.env.CLOUDINARY_API_SECRET || '',
+      });
+
+      const uploadedUrls: string[] = [];
+      for (const base64 of fotosBase64.slice(0, 5)) {
+        const result = await cloudinary.uploader.upload(base64, {
+          folder: `pitzbol/experiencias/${authUid}`,
+          resource_type: 'auto',
+          format: 'webp',
+          transformation: [{ width: 1200, height: 900, crop: 'fill' }, { quality: 'auto:good' }],
+        });
+        if (result.secure_url) uploadedUrls.push(result.secure_url);
+      }
+      // Merge with existing photos
+      const existingFotos: string[] = booking.fotosExperiencia || [];
+      updates.fotosExperiencia = [...existingFotos, ...uploadedUrls].slice(0, 5);
+    }
+
+    if (Object.keys(updates).length === 0) {
+      return res.status(400).json({ success: false, message: 'No hay datos para actualizar' });
+    }
+
+    await bookingRef.update(updates);
+    return res.json({ success: true, message: 'Experiencia actualizada', updates });
+  } catch (error: any) {
+    console.error('Error updateExperiencia:', error);
+    return res.status(500).json({ success: false, message: 'Error al actualizar la experiencia' });
+  }
+};
+
+// PATCH /api/bookings/:bookingId/experiencia/foto
+// Eliminar una foto específica de la experiencia
+export const deleteExperienciaFoto = async (req: Request, res: Response) => {
+  try {
+    const { bookingId } = req.params;
+    const authUid = (req as any).user?.uid;
+
+    if (!authUid) {
+      return res.status(401).json({ success: false, message: 'Autenticación requerida' });
+    }
+
+    const bookingRef = db.collection('bookings').doc(bookingId);
+    const snap = await bookingRef.get();
+    if (!snap.exists) {
+      return res.status(404).json({ success: false, message: 'Experiencia no encontrada' });
+    }
+
+    const booking = snap.data()!;
+    if (booking.guideId !== authUid) {
+      return res.status(403).json({ success: false, message: 'No tienes permiso' });
+    }
+
+    const { fotoUrl } = req.body as { fotoUrl: string };
+    const fotosExistentes: string[] = booking.fotosExperiencia || [];
+    const nuevasFotos = fotosExistentes.filter((f: string) => f !== fotoUrl);
+    await bookingRef.update({ fotosExperiencia: nuevasFotos });
+    return res.json({ success: true, fotosExperiencia: nuevasFotos });
+  } catch (error: any) {
+    console.error('Error deleteExperienciaFoto:', error);
+    return res.status(500).json({ success: false, message: 'Error al eliminar la foto' });
   }
 };
